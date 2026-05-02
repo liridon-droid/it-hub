@@ -1,0 +1,1050 @@
+/* Decoded from /portal2 bundle. UUID-based @font-face rules stripped — */
+/* Google Fonts is loaded via <link> in index.html instead. */
+
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #FDC831; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    #root { width: 100%; }
+    #__bundler_loading { position: fixed; bottom: 20px; right: 20px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; color: #666; background: #fff; padding: 8px 14px; border-radius: 8px; box-shadow: 0 1px 4px rgba(0,0,0,0.12); z-index: 10000; }
+    #__bundler_thumbnail { position: fixed; inset: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #FDC831; z-index: 9999; }
+    #__bundler_thumbnail svg { width: 100%; height: 100%; object-fit: contain; }
+    #__bundler_placeholder { color: #999; font-size: 14px; }
+  
+
+#__bundler_loading { display: none; }
+
+/* vietnamese */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* vietnamese */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* vietnamese */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* vietnamese */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* vietnamese */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* vietnamese */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin-ext */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+/* latin */
+/* @font-face stripped — fonts loaded from Google Fonts in index.html */
+
+
+
+  :root, [data-mood="crisp"] {
+    /* Slice brand — Cheese + Charcoal */
+    --cheese: #FDC831;
+    --charcoal: #211E1E;
+    --tomato: #DA3327;
+    --dough: #F7F4EF;
+    --white: #FFFFFF;
+
+    --bg: #FDC831;
+    --bg-elev: #FFD454;
+    --ink: #211E1E;
+    --ink-2: #2A2524;
+    --ink-3: #4A3F2E;
+    --ink-4: #78684C;
+    --line: rgba(33,30,30,0.24);
+    --line-2: rgba(33,30,30,0.12);
+    --accent: #211E1E;
+    --accent-soft: #FFDB78;
+    --accent-ink: #211E1E;
+    --green: #0A8A3E;
+    --amber: #B8860B;
+    --red: #DA3327;
+    --shadow-sm: 0 1px 2px rgba(33,30,30,0.04), 0 1px 1px rgba(33,30,30,0.02);
+    --shadow-md: 0 4px 12px rgba(33,30,30,0.05), 0 1px 2px rgba(33,30,30,0.04);
+    --shadow-lg: 0 20px 60px -15px rgba(33,30,30,0.12), 0 8px 20px -10px rgba(33,30,30,0.06);
+    /* Slice radius scale: 4px small, 14px large */
+    --radius: 14px;
+    --radius-sm: 4px;
+    --radius-lg: 14px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --dur: 0.4s;
+    --body-font: 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  /* Single Slice look \u2014 Cheese background, Charcoal ink. No mood variants. */
+
+  [data-gesture="still"] { --dur: 0.001s; --ease: linear; }
+  [data-gesture="smooth"] { --dur: 0.4s; --ease: cubic-bezier(0.22, 1, 0.36, 1); }
+  [data-gesture="springy"] { --dur: 0.6s; --ease: cubic-bezier(0.34, 1.56, 0.64, 1); }
+  [data-gesture="still"] *, [data-gesture="still"] *::before, [data-gesture="still"] *::after {
+    animation-duration: 0.001s !important;
+    transition-duration: 0.001s !important;
+  }
+  * { box-sizing: border-box; }
+  html {
+    scrollbar-gutter: stable;
+  }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--body-font, 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif);
+    transition: background-color .5s var(--ease), color .5s var(--ease);
+    font-feature-settings: "cv11","ss01","ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.011em;
+  }
+  body { min-height: 100vh; }
+  #root { min-height: 100vh; }
+  button { font-family: inherit; cursor: pointer; }
+  input, textarea { font-family: inherit; }
+  ::selection { background: oklch(62% 0.18 255 / 0.18); }
+
+  /* Custom scroll */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 10px; border: 2px solid var(--bg); }
+  ::-webkit-scrollbar-track { background: transparent; }
+
+  /* Top nav */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--line-2);
+  }
+  .nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+  }
+  .brand { display:flex; align-items:center; gap: 10px; font-weight: 600; font-size: 15px; letter-spacing: -0.02em;}
+  .brand-mark {
+    width: 22px; height: 22px; border-radius: 6px;
+    background: var(--ink);
+    color: var(--bg-elev);
+    display:grid; place-items:center;
+    font-size: 11px; font-weight: 700;
+  }
+  .nav-links { display:flex; gap: 32px; font-size: 13.5px; color: var(--ink-2);}
+  .nav-links a { color: inherit; text-decoration: none; transition: color .2s var(--ease); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-right { display:flex; align-items: center; gap: 14px; font-size: 13px; color: var(--ink-3);}
+  .avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: #211E1E;
+    color: #FDC831; display:grid; place-items:center;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.02em;
+    border: 2px solid #211E1E;
+    box-shadow: 2px 2px 0 rgba(33,30,30,0.25);
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+    cursor: pointer;
+  }
+  .avatar:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 rgba(33,30,30,0.3); }
+
+  /* Onboarding/Offboarding dashboard button hover affordances —
+     icons inside the button respond to the parent button's :hover state. */
+  .onb-history-btn:hover .onb-history-icon { transform: rotate(-90deg); }
+  .onb-bulk-btn:hover .onb-bulk-icon { transform: scale(1.25); }
+  .onb-start-btn:hover .onb-start-plus { transform: rotate(90deg) scale(1.2); }
+
+  /* Shared row-hover affordance — avatars grow + cast a stamp shadow when
+     their parent row/card is hovered. Same visual language as buttons elsewhere.
+     Used by: In prep table, Awaiting manager approval cards, Onboarding history,
+     Offboarding in-progress + history rows. */
+  .onb-row-avatar {
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease !important;
+    position: relative;
+    z-index: 1;
+  }
+  [role="row"]:hover .onb-row-avatar,
+  .onb-row-hover:hover .onb-row-avatar,
+  .onb-row-avatar:hover {
+    transform: translate(-2px,-2px) scale(1.15) !important;
+    box-shadow: 3px 3px 0 #211E1E !important;
+  }
+
+  /* Page transitions */
+  .page { animation: pageIn .5s var(--ease) both; }
+  @keyframes pageIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+  }
+  .fade-out { animation: pageOut .22s var(--ease) both; }
+  @keyframes pageOut {
+    to { opacity: 0; transform: translateY(-4px); }
+  }
+
+  /* Focus ring */
+  .focus-ring:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px oklch(62% 0.18 255 / 0.18);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 18px;
+    border-radius: 999px; border: 1px solid transparent;
+    font-size: 14px; font-weight: 500;
+    transition: all .2s var(--ease);
+    background: transparent;
+  }
+  .btn-primary {
+    background: #211E1E; color: #FDC831;
+    border: 2px solid #211E1E;
+    box-shadow: 3px 3px 0 rgba(33,30,30,0.2);
+    border-radius: 4px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 12.5px;
+  }
+  .btn-primary:hover {
+    transform: translate(-1px, -1px);
+    box-shadow: 5px 5px 0 rgba(33,30,30,0.25);
+  }
+  .btn-primary:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 rgba(33,30,30,0.25); }
+  .btn-ghost { color: var(--ink-2); }
+  .btn-ghost:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
+  .btn-outline {
+    background: #FFFFFF; color: #211E1E;
+    border: 2px solid #211E1E;
+    box-shadow: 3px 3px 0 #211E1E;
+    border-radius: 4px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 12.5px;
+  }
+  .btn-outline:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 #211E1E; }
+  .btn-outline:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; }
+  .btn-accent {
+    background: var(--accent); color: #fff;
+  }
+  .btn-accent:hover { filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 10px 22px -8px oklch(62% 0.18 255 / 0.5); }
+
+  /* ===== Slice surface system: Charcoal outline, 14px radius, hard shadow ===== */
+  .surface {
+    background: #FFFFFF;
+    border: 2px solid #211E1E;
+    border-radius: 14px;
+    /* Layered shadow: brand brutalist offset + soft ambient drop for depth.
+       The combination keeps the Slice voice while feeling modern. */
+    box-shadow:
+      4px 4px 0 #211E1E,
+      0 4px 14px rgba(33, 30, 30, 0.06);
+    transition:
+      transform .22s cubic-bezier(.22, .61, .36, 1),
+      box-shadow .22s cubic-bezier(.22, .61, .36, 1);
+  }
+  .surface-interactive { cursor: pointer; }
+  .surface-interactive:hover {
+    transform: translate(-3px, -3px);
+    box-shadow:
+      8px 8px 0 #211E1E,
+      0 14px 28px rgba(33, 30, 30, 0.14),
+      0 4px 8px rgba(33, 30, 30, 0.08);
+  }
+  .surface-interactive:active {
+    transform: translate(1px, 1px);
+    box-shadow:
+      2px 2px 0 #211E1E,
+      0 2px 6px rgba(33, 30, 30, 0.05);
+    transition-duration: .08s;
+  }
+
+  /* Shortcut icon — grows + bulks up on card hover. The SVG inside scales and
+     bumps stroke-width via the parent's :hover state, the tile fills with the
+     brand yellow, and the active state pops a touch bigger. */
+  .qa-icon {
+    transition:
+      background-color .22s var(--ease),
+      color .18s var(--ease),
+      transform .22s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .22s var(--ease);
+    will-change: transform;
+  }
+  .qa-icon svg {
+    transition:
+      transform .22s cubic-bezier(.34, 1.56, .64, 1),
+      stroke-width .18s var(--ease);
+    transform-origin: center center;
+  }
+  .surface-interactive:hover .qa-icon {
+    background: #FDC831 !important;
+    color: #211E1E !important;
+    transform: scale(1.08) rotate(-3deg);
+    box-shadow: 3px 3px 0 #211E1E;
+  }
+  .surface-interactive:hover .qa-icon svg {
+    transform: scale(1.20);
+    stroke-width: 2.4 !important;
+  }
+  .surface-interactive:active .qa-icon {
+    transform: scale(0.96) rotate(0deg);
+    box-shadow: 1px 1px 0 #211E1E;
+  }
+  .surface-interactive:active .qa-icon svg {
+    transform: scale(1.05);
+  }
+
+  /* ==========================================================================
+     IT Command — Phishing card + IT Support card
+     The two big cards under the hero on the Help page. They're not Cards via
+     the <Card> component because they have brand-specific colors (red border,
+     yellow shadow, diagonal stripes). Hover behavior is hand-rolled here so we
+     don't lose the brand voice.
+     ========================================================================== */
+
+  /* Phishing card — outer surface lifts + grows on hover. Default state has the
+     same layered shadow stack as .oncall-card (chunky brand offset + soft
+     ambient drop) — !important is needed because the inline `boxShadow` style
+     would otherwise win. */
+  .phish-card {
+    box-shadow:
+      5px 5px 0 #B92323,
+      0 4px 14px rgba(33, 30, 30, 0.06) !important;
+    transition:
+      transform .25s cubic-bezier(.22, .61, .36, 1),
+      box-shadow .25s cubic-bezier(.22, .61, .36, 1);
+  }
+  .phish-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow:
+      8px 8px 0 #B92323,
+      0 14px 28px rgba(185, 35, 35, 0.18),
+      0 4px 10px rgba(33, 30, 30, 0.08) !important;
+  }
+
+  /* Diagonal stripes — bloom on hover (fuller opacity, gentle rotate-grow) */
+  .phish-stripes {
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  .phish-card:hover .phish-stripes {
+    opacity: 0.45;
+    transform: scale(1.20) rotate(2deg);
+    transform-origin: top right;
+  }
+
+  /* Report phishing primary button */
+  .phish-btn-primary {
+    padding: 10px 16px;
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #B92323; color: #FFFFFF;
+    border: 2px solid #211E1E; border-radius: 4px;
+    box-shadow: 2px 2px 0 #211E1E;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800; font-size: 12px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    cursor: pointer;
+    transition:
+      transform .15s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .15s ease,
+      background .2s ease;
+  }
+  .phish-btn-primary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 #211E1E;
+    background: #D32D2D;
+  }
+  .phish-btn-primary:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #211E1E;
+  }
+  /* Icon — grows + fills white (saturated) on hover */
+  .phish-btn-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+    transform-origin: center center;
+  }
+  .phish-btn-icon svg {
+    transition: stroke-width .2s ease, fill .25s ease;
+  }
+  .phish-btn-primary:hover .phish-btn-icon { transform: scale(1.30) rotate(-3deg); }
+  .phish-btn-primary:hover .phish-btn-icon svg {
+    stroke-width: 2.8 !important;
+    fill: rgba(255, 255, 255, 0.25) !important;
+  }
+  .phish-btn-primary:active .phish-btn-icon { transform: scale(1.10); }
+  .phish-btn-primary:active .phish-btn-icon svg {
+    fill: #FFFFFF !important;
+  }
+
+  /* Secondary button — "I already clicked" */
+  .phish-btn-secondary {
+    padding: 10px 14px;
+    background: transparent;
+    border: 2px solid #211E1E; border-radius: 4px;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800; font-size: 12px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: #211E1E; cursor: pointer;
+    transition:
+      transform .15s cubic-bezier(.34, 1.56, .64, 1),
+      background .18s ease,
+      color .18s ease,
+      box-shadow .15s ease;
+    box-shadow: 0 0 0 transparent;
+  }
+  .phish-btn-secondary:hover {
+    background: #211E1E;
+    color: #FDC831;
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 #B92323;
+  }
+  .phish-btn-secondary:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #B92323;
+  }
+
+  /* "Full knowledge base →" / "Full status →" pill links — section-header
+     anchors that should feel like buttons. Brand shadow on rest, lift + soft
+     ambient on hover, icon nudges right. */
+  .pill-link {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: #000000; text-decoration: none;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 700; font-size: 12px;
+    letter-spacing: -0.005em;
+    padding: 5px 12px;
+    background: #FFFFFF;
+    border: 1.5px solid #000000;
+    border-radius: 999px;
+    box-shadow:
+      2px 2px 0 #211E1E,
+      0 2px 6px rgba(33, 30, 30, 0.06);
+    cursor: pointer;
+    transition:
+      transform .18s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .18s ease,
+      background .18s ease,
+      color .18s ease;
+  }
+  .pill-link:hover {
+    transform: translate(-2px, -2px);
+    background: #FDC831;
+    box-shadow:
+      4px 4px 0 #211E1E,
+      0 8px 18px rgba(33, 30, 30, 0.12);
+  }
+  .pill-link:active {
+    transform: translate(1px, 1px);
+    box-shadow:
+      1px 1px 0 #211E1E,
+      0 1px 3px rgba(33, 30, 30, 0.05);
+    transition-duration: .08s;
+  }
+  .pill-link-arrow {
+    display: inline-block;
+    transition: transform .18s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  .pill-link:hover .pill-link-arrow { transform: translateX(3px); }
+
+  /* IT Support / OnCall card — outer lifts on hover. Default state already has
+     a layered shadow stack (chunky black offset + soft ambient drop) for depth. */
+  .oncall-card {
+    box-shadow:
+      5px 5px 0 #211E1E,
+      0 4px 14px rgba(33, 30, 30, 0.06) !important;
+    transition:
+      transform .25s cubic-bezier(.22, .61, .36, 1),
+      box-shadow .25s cubic-bezier(.22, .61, .36, 1);
+  }
+  .oncall-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow:
+      8px 8px 0 #211E1E,
+      0 14px 28px rgba(33, 30, 30, 0.14),
+      0 4px 10px rgba(33, 30, 30, 0.08) !important;
+  }
+
+  /* Slack button — primary CTA, brand yellow with layered shadow.
+     Spring lift on hover, pop-back on click. Icon nudges on hover. */
+  .oncall-btn-primary {
+    padding: 14px 16px;
+    background: #FDC831;
+    color: #211E1E;
+    border: 2px solid #211E1E;
+    border-radius: 8px;
+    box-shadow:
+      3px 3px 0 #211E1E,
+      0 3px 8px rgba(33, 30, 30, 0.06);
+    display: flex; align-items: center; gap: 12px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition:
+      transform .2s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .2s ease,
+      background .2s ease;
+  }
+  .oncall-btn-primary:hover {
+    transform: translate(-2px, -2px);
+    background: #FFD862;
+    box-shadow:
+      5px 5px 0 #211E1E,
+      0 10px 20px rgba(33, 30, 30, 0.14),
+      0 3px 6px rgba(33, 30, 30, 0.08);
+  }
+  .oncall-btn-primary:active {
+    transform: translate(1px, 1px);
+    box-shadow:
+      1px 1px 0 #211E1E,
+      0 1px 3px rgba(33, 30, 30, 0.05);
+    transition-duration: .08s;
+  }
+  /* Knowledge "Back to IT Hub" button — arrow slides left on hover */
+  .kb-back-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    background: #FFFFFF;
+    border: 2px solid #211E1E;
+    border-radius: 6px;
+    box-shadow:
+      3px 3px 0 #211E1E,
+      0 3px 8px rgba(33, 30, 30, 0.06);
+    font-family: 'Archivo', sans-serif;
+    font-weight: 800; font-size: 12px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    color: #211E1E; cursor: pointer;
+    transition:
+      transform .2s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .2s ease,
+      background .18s ease;
+  }
+  .kb-back-btn:hover {
+    transform: translate(-2px, -2px);
+    background: #FDC831;
+    box-shadow:
+      5px 5px 0 #211E1E,
+      0 10px 20px rgba(33, 30, 30, 0.14);
+  }
+  .kb-back-btn:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #211E1E;
+    transition-duration: .08s;
+  }
+  .kb-back-arrow {
+    display: inline-block;
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+    font-size: 14px;
+  }
+  .kb-back-btn:hover .kb-back-arrow { transform: translateX(-3px); }
+  .kb-back-btn:active .kb-back-arrow { transform: translateX(-5px); }
+
+  /* Popular search chips on the Knowledge hero — yellow on hover, lift, shadow */
+  .kb-popular-chip {
+    padding: 5px 12px;
+    background: #FFFFFF;
+    color: #211E1E;
+    border: 1.5px solid #211E1E;
+    border-radius: 999px;
+    font-family: 'Archivo', sans-serif;
+    font-size: 12px; font-weight: 700;
+    cursor: pointer;
+    box-shadow:
+      2px 2px 0 #211E1E,
+      0 1px 4px rgba(33, 30, 30, 0.05);
+    transition:
+      transform .2s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .18s ease,
+      background .18s ease,
+      color .18s ease;
+  }
+  .kb-popular-chip:hover {
+    transform: translate(-2px, -2px);
+    background: #FDC831;
+    box-shadow:
+      4px 4px 0 #211E1E,
+      0 6px 14px rgba(33, 30, 30, 0.10);
+  }
+  .kb-popular-chip:active {
+    transform: translate(1px, 1px);
+    box-shadow: 1px 1px 0 #211E1E;
+    transition-duration: .08s;
+  }
+  .kb-popular-chip.is-active {
+    background: #211E1E;
+    color: #FDC831;
+    box-shadow:
+      2px 2px 0 #FDC831,
+      0 2px 6px rgba(33, 30, 30, 0.10);
+  }
+  .kb-popular-chip.is-active:hover {
+    background: #211E1E;
+    color: #FDC831;
+    box-shadow:
+      4px 4px 0 #FDC831,
+      0 6px 14px rgba(33, 30, 30, 0.14);
+  }
+
+  /* Article rows (Popular / Recently updated) — full-row hover with icon grow */
+  .kb-row {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    transition:
+      background .15s ease,
+      transform .2s cubic-bezier(.34, 1.3, .64, 1),
+      box-shadow .2s ease;
+  }
+  .kb-row:hover {
+    background: #FFFDF5;
+    transform: translate(-2px, -2px) scale(1.01);
+    box-shadow:
+      4px 4px 0 #211E1E,
+      0 6px 16px rgba(33, 30, 30, 0.10);
+    z-index: 2;
+  }
+  /* Icon — same grow + tilt + brighten as the Help shortcuts */
+  .kb-row-icon {
+    width: 36px; height: 36px; flex-shrink: 0;
+    background: #FDC831;
+    border: 1.5px solid #211E1E;
+    border-radius: 8px;
+    display: grid; place-items: center;
+    color: #211E1E;
+    transition:
+      transform .25s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .2s ease,
+      background .2s ease;
+    transform-origin: center center;
+  }
+  .kb-row-icon svg {
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1), stroke-width .2s ease;
+    transform-origin: center center;
+  }
+  .kb-row:hover .kb-row-icon {
+    transform: scale(1.10) rotate(-4deg);
+    background: #FFD862;
+    box-shadow: 2px 2px 0 #211E1E;
+  }
+  .kb-row:hover .kb-row-icon svg {
+    transform: scale(1.18);
+    stroke-width: 2.6 !important;
+  }
+  .kb-row:active .kb-row-icon { transform: scale(0.96) rotate(0deg); }
+  .kb-row:active .kb-row-icon svg { transform: scale(1.06); }
+  /* Caret nudges right on hover */
+  .kb-row-caret {
+    transition: transform .2s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  .kb-row:hover .kb-row-caret { transform: translateX(4px); }
+  .kb-row:active .kb-row-caret { transform: translateX(7px); }
+
+  /* Knowledge "Pick a category" cards — same premium feel as the Help-page
+     Shortcuts: card lifts with layered shadow, icon tile grows + tilts on hover. */
+  .kb-cat-card {
+    text-align: left;
+    background: #FFFFFF;
+    color: #211E1E;
+    border: 2px solid #211E1E;
+    border-radius: 14px;
+    box-shadow:
+      4px 4px 0 #211E1E,
+      0 4px 14px rgba(33, 30, 30, 0.06);
+    padding: 22px 20px;
+    cursor: pointer;
+    font-family: 'Archivo', sans-serif;
+    transition:
+      transform .22s cubic-bezier(.22, .61, .36, 1),
+      box-shadow .22s cubic-bezier(.22, .61, .36, 1);
+  }
+  .kb-cat-card:hover {
+    transform: translate(-3px, -3px);
+    box-shadow:
+      7px 7px 0 #211E1E,
+      0 14px 28px rgba(33, 30, 30, 0.12),
+      0 4px 10px rgba(33, 30, 30, 0.06);
+  }
+  .kb-cat-card:active {
+    transform: translate(1px, 1px);
+    box-shadow:
+      2px 2px 0 #211E1E,
+      0 2px 6px rgba(33, 30, 30, 0.05);
+    transition-duration: .08s;
+  }
+  /* Icon tile — yellow letter chip that grows + tilts + glows on card hover */
+  .kb-cat-icon {
+    width: 40px; height: 40px;
+    border-radius: 8px;
+    background: #FDC831;
+    border: 2px solid #211E1E;
+    display: grid; place-items: center;
+    margin-bottom: 14px;
+    color: #211E1E;
+    font-family: 'Archivo', sans-serif;
+    font-size: 18px; font-weight: 900;
+    transition:
+      transform .25s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .22s ease,
+      background .2s ease,
+      font-size .22s cubic-bezier(.34, 1.56, .64, 1);
+    transform-origin: center center;
+  }
+  .kb-cat-card:hover .kb-cat-icon {
+    transform: scale(1.12) rotate(-4deg);
+    background: #FFD862;
+    box-shadow: 3px 3px 0 #211E1E;
+    font-size: 21px;
+  }
+  .kb-cat-card:active .kb-cat-icon {
+    transform: scale(0.96) rotate(0deg);
+    box-shadow: 1px 1px 0 #211E1E;
+  }
+
+  /* Slack mark — grows on parent button hover, with a tiny rotation for life */
+  .oncall-slack-icon {
+    transition:
+      transform .25s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .2s ease;
+    transform-origin: center center;
+  }
+  .oncall-slack-icon svg {
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+    transform-origin: center center;
+  }
+  .oncall-btn-primary:hover .oncall-slack-icon {
+    transform: scale(1.10) rotate(-4deg);
+    box-shadow: 2px 2px 0 #211E1E;
+  }
+  .oncall-btn-primary:hover .oncall-slack-icon svg { transform: scale(1.18); }
+  .oncall-btn-primary:active .oncall-slack-icon { transform: scale(0.95); }
+  .oncall-btn-primary:active .oncall-slack-icon svg { transform: scale(1.08); }
+
+  /* Submit ticket button — secondary, white with the same layered treatment. */
+  .oncall-btn-secondary {
+    padding: 12px 14px;
+    background: #FFFFFF;
+    color: #211E1E;
+    border: 2px solid #211E1E;
+    border-radius: 8px;
+    box-shadow:
+      3px 3px 0 #211E1E,
+      0 3px 8px rgba(33, 30, 30, 0.05);
+    display: flex; align-items: center; gap: 12px;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition:
+      transform .2s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .2s ease,
+      background .18s ease;
+  }
+  .oncall-btn-secondary:hover {
+    transform: translate(-2px, -2px);
+    background: #FFF9E6;
+    box-shadow:
+      5px 5px 0 #211E1E,
+      0 10px 20px rgba(33, 30, 30, 0.12),
+      0 3px 6px rgba(33, 30, 30, 0.06);
+  }
+  .oncall-btn-secondary:active {
+    transform: translate(1px, 1px);
+    box-shadow:
+      1px 1px 0 #211E1E,
+      0 1px 3px rgba(33, 30, 30, 0.05);
+    transition-duration: .08s;
+  }
+  /* Trailing arrow nudges right on hover */
+  .oncall-btn-secondary [data-submit-arrow] {
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  .oncall-btn-secondary:hover [data-submit-arrow] { transform: translateX(6px); }
+  .oncall-btn-secondary:active [data-submit-arrow] { transform: translateX(10px); }
+  /* Ticket icon — grows + tilts on parent button hover */
+  .oncall-ticket-icon {
+    transition:
+      transform .25s cubic-bezier(.34, 1.56, .64, 1),
+      box-shadow .2s ease;
+    transform-origin: center center;
+  }
+  .oncall-ticket-icon svg {
+    transition: transform .25s cubic-bezier(.34, 1.56, .64, 1);
+    transform-origin: center center;
+  }
+  .oncall-btn-secondary:hover .oncall-ticket-icon {
+    transform: scale(1.10) rotate(-6deg);
+    box-shadow: 2px 2px 0 #211E1E;
+  }
+  .oncall-btn-secondary:hover .oncall-ticket-icon svg { transform: scale(1.15); }
+  .oncall-btn-secondary:active .oncall-ticket-icon { transform: scale(0.95); }
+  .oncall-btn-secondary:active .oncall-ticket-icon svg { transform: scale(1.06); }
+  .surface-sm { border-radius: 4px; box-shadow: 3px 3px 0 #211E1E; border-width: 2px; }
+  .surface-sm.surface-interactive:hover { box-shadow: 5px 5px 0 #211E1E; }
+
+  .chip-flat {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 9px 16px;
+    background: #FFFFFF;
+    border: 2px solid #211E1E;
+    border-radius: 4px;
+    box-shadow: 3px 3px 0 #211E1E;
+    font-size: 13px; font-weight: 700; color: #000000;
+    cursor: pointer;
+    transition: transform .18s var(--ease), box-shadow .18s var(--ease), background-color .18s;
+    font-family: 'Archivo', sans-serif;
+  }
+  .chip-flat svg {
+    transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+    transform-origin: center center;
+  }
+  .chip-flat:hover,
+  .chip-flat:focus-visible {
+    transform: translate(-2px,-2px);
+    box-shadow: 5px 5px 0 #211E1E;
+    background: #FDC831;
+    color: #000000;
+    /* Keep font-weight stable — bumping to 800 on hover makes glyphs wider,
+       which grows the chip and reflows neighbors onto a new line. */
+  }
+  .chip-flat:hover svg,
+  .chip-flat:focus-visible svg { transform: scale(1.45) rotate(-6deg); }
+  .chip-flat:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; color: #000000; }
+
+  .pill-flat {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.03em;
+    text-transform: uppercase;
+    background: #FFFFFF;
+    color: #211E1E;
+    border: 1.5px solid #211E1E;
+    border-radius: 4px;
+    font-family: 'Archivo', sans-serif;
+  }
+  .pill-flat.tone-green { background: #D4F4D4; }
+  .pill-flat.tone-amber { background: #FFE8A3; }
+  .pill-flat.tone-red   { background: #FFD4D0; color: #8A1E17; }
+  .pill-flat.tone-accent{ background: #FDC831; }
+
+  .pulse-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #0A8A3E;
+    box-shadow: 0 0 0 0 rgba(10,138,62,0.6);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(10,138,62,0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(10,138,62,0); }
+    100% { box-shadow: 0 0 0 0 rgba(10,138,62,0); }
+  }
+
+  /* Ambient hero backdrop — subtle layered color wash */
+  .hero-ambient {
+    position: absolute; inset: -10% -10% auto -10%;
+    height: 620px; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(60% 50% at 30% 20%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 60%),
+      radial-gradient(50% 40% at 80% 10%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 55%),
+      radial-gradient(40% 35% at 55% 0%, color-mix(in srgb, var(--ink) 4%, transparent), transparent 60%);
+    filter: blur(12px);
+    opacity: .9;
+    animation: driftBg 24s ease-in-out infinite alternate;
+  }
+  @keyframes driftBg {
+    0% { transform: translate3d(0,0,0) scale(1); }
+    100% { transform: translate3d(-3%, 2%, 0) scale(1.05); }
+  }
+  [data-mood="nocturne"] .hero-ambient { opacity: .7; }
+
+  /* Hero dot grid */
+  .hero-grid {
+    position: absolute; inset: 0 0 auto 0;
+    height: 540px; pointer-events: none; z-index: 0;
+    background-image: radial-gradient(color-mix(in srgb, var(--ink) 10%, transparent) 1px, transparent 1px);
+    background-size: 24px 24px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 20%, transparent 70%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, #000 20%, transparent 70%);
+    opacity: .5;
+  }
+
+  /* Primary input focus glow */
+  .hero-input-shell {
+    position: relative;
+    background: #FFFFFF;
+    border-radius: 14px;
+    border: 2px solid #211E1E;
+    box-shadow: 6px 6px 0 #211E1E;
+    transition: transform .45s var(--ease), box-shadow .45s var(--ease);
+    padding: 8px;
+    transform-origin: center top;
+  }
+  .hero-input-shell:hover {
+    transform: translate(-2px, -2px) scale(1.02);
+    box-shadow: 10px 10px 0 #211E1E;
+  }
+  .hero-input-shell:focus-within {
+    transform: translate(-3px, -3px) scale(1.04);
+    box-shadow: 14px 14px 0 #211E1E;
+  }
+
+  /* ========== Scroll-collapsed search (floating mini-bar) ==========
+     When scrolled past the hero, a compact fixed search pill fades in
+     just below the nav. The big hero input stays in flow — no layout thrash. */
+  .mini-search {
+    position: fixed;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    /* Match the page content width (1120) so the collapsed pill aligns with
+       the rest of the page. Caps at viewport - 48 so it never overflows. */
+    width: min(1120px, calc(100vw - 48px));
+    z-index: 45;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s var(--ease), transform .28s var(--ease);
+  }
+  .mini-search[data-show="true"] {
+    opacity: 1;
+    transform: translateX(-50%) translateY(8px);
+    pointer-events: auto;
+  }
+  .mini-search-shell {
+    display: flex; align-items: center; gap: 8px;
+    height: 42px;
+    padding: 0 6px 0 14px;
+    background: #FFFFFF;
+    border: 2px solid #211E1E;
+    border-radius: 999px;
+    box-shadow: 3px 3px 0 #211E1E;
+  }
+  .mini-search-shell input {
+    flex: 1;
+    border: none; outline: none;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--ink);
+    background: transparent;
+    letter-spacing: -0.01em;
+    min-width: 0;
+  }
+  .mini-search-shell input::placeholder { color: var(--ink-4); }
+  .mini-search-icon { flex: 0 0 auto; color: var(--ink-3); display: inline-flex; }
+  .mini-search-btn {
+    flex: 0 0 auto;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: #211E1E;
+    color: #FDC831;
+    border: none;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+    transition: background .15s var(--ease);
+  }
+  .mini-search-btn:hover { background: #000; }
+  .mini-search-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Chip row stays in flow even when scrolled past — animating max-height: 0
+     while scrolling reflows the document and creates a feedback loop with the
+     scroll-collapsed threshold (the page jitters). The chips are already off-
+     screen by then, so there's no visible win to collapsing them. */
+
+  /* Stat numbers — Archivo Black for brand consistency */
+  .stat-num {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    font-size: 44px; line-height: 1;
+    color: var(--ink);
+  }
+
+  /* Slice eyebrow style: Archivo Black, uppercase, small */
+  .eyebrow {
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: var(--ink-3);
+  }
+
+  /* Hand-drawn annotation (brand mark) — yellow underline under a word */
+  .annotate-underline {
+    position: relative;
+    display: inline-block;
+  }
+  .annotate-underline::after {
+    content: "";
+    position: absolute;
+    left: -2%;
+    right: -2%;
+    bottom: -4px;
+    height: 10px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 12' preserveAspectRatio='none'><path d='M3 7 C 40 2, 70 10, 100 5 S 160 2, 197 7' fill='none' stroke='%23FDC831' stroke-width='5' stroke-linecap='round'/></svg>");
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    pointer-events: none;
+    transform: translateY(2px);
+  }
+
+  /* Shimmer */
+  .shimmer-line {
+    background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 40%, transparent), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 2.4s linear infinite;
+  }
+
+  .kbd {
+    display: inline-flex; align-items:center; justify-content:center;
+    min-width: 20px; height: 20px; padding: 0 6px;
+    font-size: 11px; font-weight: 500; color: var(--ink-3);
+    background: var(--bg-elev); border: 1px solid var(--line);
+    border-radius: 5px; box-shadow: 0 1px 0 var(--line);
+    font-family: ui-monospace, SF Mono, Menlo, monospace;
+  }
+
+
+/* __PORTAL2_OVERRIDES__ */
+html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-gutter: auto; }
+#root { display: flex; flex-direction: column; height: 100vh; }
+.nav { position: relative !important; top: auto !important; flex: 0 0 auto; }
+.nav-inner { max-width: none !important; }
+/* Grid layout: row 1 (the page) takes 1fr → fills the available viewport
+   height. Row 2 (Footer) takes auto → its natural content height. This works
+   for short AND long pages: the Footer always sits at the bottom of the
+   viewport when content is short, and naturally follows content when long.
+   The flex+margin-top:auto pattern was unreliable when content slightly
+   overflowed (margin-top:auto resolves to 0, leaving the Footer floating). */
+.page-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 1fr auto;
+}

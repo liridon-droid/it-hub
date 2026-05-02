@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.vite/
+.DS_Store
+.env
+.env.local
+
+# Claude Code local session state
+.claude/
+
+# User uploads — runtime data, not source
+server/uploads/
+
+# Logs
+*.log
+npm-debug.log*
