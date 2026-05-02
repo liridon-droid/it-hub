@@ -1,6 +1,5 @@
 import express from 'express';
 import pg from 'pg';
-import Anthropic from '@anthropic-ai/sdk';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -10,8 +9,10 @@ import {
 } from './middleware/sliceAuth.js';
 
 const PORT = Number(process.env.PORT) || 3001;
-const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-opus-4-7';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+// Claude calls are proxied to slicedesk's /api/ai/proxy — it-hub never holds
+// its own Anthropic key. CHAT_MODEL is sent in the proxy payload so the LLM
+// version can be tuned per-app without re-deploying slicedesk.
+const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-4-5';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://portal2:portal2@postgres:5432/portal2';
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
@@ -71,7 +72,7 @@ app.get('/api/health', (req, res) => {
     ok: true,
     retrieval: 'postgres-fts',
     chat_model: CHAT_MODEL,
-    has_anthropic_key: !!ANTHROPIC_API_KEY,
+    slicedesk_proxy: !!process.env.SLICEDESK_API_URL,
   });
 });
 
@@ -412,32 +413,60 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
     let usage = null;
     let mode = 'retrieval';
 
-    if (ANTHROPIC_API_KEY && matches.length > 0) {
+    // Claude calls go through slicedesk's /api/ai/proxy — that endpoint
+    // owns the Anthropic API key, billing, and audit logs. We just POST
+    // the messages payload and forward the user's session cookie so
+    // slicedesk can authenticate the call.
+    const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
+    if (SLICEDESK_API_URL && matches.length > 0) {
       const context = matches
         .map((r, i) => `[${i + 1}] from "${r.title}" (guide #${r.guide_id}, category: ${r.category ?? 'general'})\n${r.content}`)
         .join('\n\n---\n\n');
-      const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-      const msg = await anthropic.messages.create({
-        model: CHAT_MODEL,
-        max_tokens: 1024,
-        system:
-          "You are a helpful IT support assistant for an internal company knowledge base. " +
-          "When the user asks a question, the user message will include <knowledge_base> excerpts. " +
-          "Answer using ONLY those excerpts. Cite sources with [N] notation matching the excerpt headers. " +
-          "If the excerpts don't contain the answer, say so plainly and suggest filing a ticket. " +
-          "Keep responses short and actionable — IT users want steps, not essays.",
-        messages: [
-          {
-            role: 'user',
-            content:
-              `<knowledge_base>\n${context}\n</knowledge_base>\n\n` +
-              `<question>\n${query}\n</question>`,
+      try {
+        const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+            // Forward the caller's slicedesk session cookie so the
+            // proxy's requireAuth middleware lets us through.
+            Cookie: req.headers.cookie || '',
           },
-        ],
-      });
-      answer = msg.content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
-      usage = msg.usage;
-      mode = 'llm';
+          body: JSON.stringify({
+            model: CHAT_MODEL,
+            max_tokens: 1024,
+            system:
+              "You are a helpful IT support assistant for an internal company knowledge base. " +
+              "When the user asks a question, the user message will include <knowledge_base> excerpts. " +
+              "Answer using ONLY those excerpts. Cite sources with [N] notation matching the excerpt headers. " +
+              "If the excerpts don't contain the answer, say so plainly and suggest filing a ticket. " +
+              "Keep responses short and actionable — IT users want steps, not essays.",
+            messages: [
+              {
+                role: 'user',
+                content:
+                  `<knowledge_base>\n${context}\n</knowledge_base>\n\n` +
+                  `<question>\n${query}\n</question>`,
+              },
+            ],
+          }),
+        });
+        if (upstream.ok) {
+          const msg = await upstream.json();
+          answer = (msg.content || [])
+            .filter((b) => b.type === 'text')
+            .map((b) => b.text)
+            .join('\n');
+          usage = msg.usage || null;
+          mode = 'llm';
+        } else {
+          console.warn('[chat] slicedesk proxy', upstream.status, await upstream.text().catch(() => ''));
+        }
+      } catch (err) {
+        // Slicedesk unreachable / proxy error → fall back to retrieval-only
+        // mode so the chatbot still returns the citations rather than 500.
+        console.warn('[chat] slicedesk proxy failed:', err.message);
+      }
     }
 
     const log = await pool.query(
