@@ -4346,7 +4346,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
           .brand-btn span { transition: letter-spacing .2s var(--ease, cubic-bezier(.22,.61,.36,1)), color .2s; }
           .brand-btn:hover span { letter-spacing: 0.10em; }
         `}</style>
-        <img src="/assets/slice-logo.png" alt="Slice" width="32" height="32" style={{
+        <img src="/portal2/assets/slice-logo.png" alt="Slice" width="32" height="32" style={{
           display: "block", transform: "rotate(-10deg)", transformOrigin: "center",
         }} />
         <span style={{
@@ -4838,7 +4838,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
                   setOpen(false);
                   if (it.action === "profile" && onOpenProfile) onOpenProfile();
                   else if (it.action === "notifications" && onOpenNotifications) onOpenNotifications();
-                  else if (it.action === "admin") window.location.href = "/admin.html";
+                  else if (it.action === "admin") window.location.href = "/portal2/admin.html";
                 }}
                 style={{
                   width: "100%",
@@ -4897,7 +4897,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
             <button
               role="menuitem"
               type="button"
-              onClick={async () => { setOpen(false); try { await fetch("/api/portal/auth/logout", {method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}}); } catch(e) {} window.location.href = "/portal2/login"; }}
+              onClick={async () => { setOpen(false); try { await fetch("/auth/logout", {method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}}); } catch(e) {} window.location.href = "/login"; }}
               style={{
                 width: "100%",
                 display: "flex", alignItems: "center", gap: 10,

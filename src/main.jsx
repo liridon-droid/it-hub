@@ -46,13 +46,25 @@ window.useReducer = React.useReducer;
 window.useContext = React.useContext;
 window.useLayoutEffect = React.useLayoutEffect;
 
-// Stub the user-bootstrap that production injects via the unpacker.
-// In local dev there's no /api/portal/auth/me, so we hardcode a placeholder
-// the same way design Claude's preview does. Edit these to test other names.
-window.PORTAL_CURRENT_USER = window.PORTAL_CURRENT_USER || 'Mergim Kelmendi';
-window.PORTAL_CURRENT_EMAIL = window.PORTAL_CURRENT_EMAIL || 'mergim@slice.com';
-
 import App from './app.jsx';
 
-const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(<App />);
+// Hydrate the current user from /api/me (which proxies to slicedesk's
+// session) before mounting. Wrapped in an IIFE rather than top-level
+// await so esbuild can target older browsers without complaint.
+(async function bootstrap() {
+  try {
+    const r = await fetch('/api/me', { credentials: 'include', cache: 'no-store' });
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.name)  window.PORTAL_CURRENT_USER  = j.name;
+      if (j?.email) window.PORTAL_CURRENT_EMAIL = j.email;
+      if (j?.role)  window.PORTAL_CURRENT_ROLE  = j.role;
+    }
+  } catch { /* fall through to defaults below */ }
+
+  if (!window.PORTAL_CURRENT_USER)  window.PORTAL_CURRENT_USER  = 'Slice IT';
+  if (!window.PORTAL_CURRENT_EMAIL) window.PORTAL_CURRENT_EMAIL = 'it@slice.com';
+
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<App />);
+})();
