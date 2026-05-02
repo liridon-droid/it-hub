@@ -3,6 +3,11 @@ import pg from 'pg';
 import Anthropic from '@anthropic-ai/sdk';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import {
+  attachSliceUser,
+  requireSliceUser,
+  requireSliceAdmin,
+} from './middleware/sliceAuth.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-opus-4-7';
@@ -53,6 +58,14 @@ await initDb();
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 
+// ── Auth (slicedesk session bridge) ─────────────────────────────────────
+// Every /api/* request gets req.user attached if the caller carries a
+// valid slicedesk session cookie. Individual routes opt into hard
+// enforcement via requireSliceUser / requireSliceAdmin below. /api/health
+// stays open so the load-balancer / monitoring can reach it without
+// shaking hands with slicedesk.
+app.use('/api', attachSliceUser);
+
 app.get('/api/health', (req, res) => {
   res.json({
     ok: true,
@@ -62,7 +75,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-app.get('/api/guides', async (req, res, next) => {
+// /api/me-style endpoint scoped to it-hub — useful for the React app to
+// learn who's logged in without reaching back to slicedesk directly.
+app.get('/api/me', requireSliceUser, (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({
+    id: req.user.id,
+    email: req.user.email,
+    name: req.user.name,
+    role: req.user.role,
+    roleLabel: req.user.roleLabel,
+  });
+});
+
+app.get('/api/guides', requireSliceUser, async (req, res, next) => {
   try {
     const r = await pool.query(
       `SELECT id, title, category, tags, source_type, metadata,
@@ -76,7 +102,7 @@ app.get('/api/guides', async (req, res, next) => {
 });
 
 // Trashed guides — newest-deleted first.
-app.get('/api/admin/trash', async (req, res, next) => {
+app.get('/api/admin/trash', requireSliceAdmin, async (req, res, next) => {
   try {
     const r = await pool.query(
       `SELECT id, title, category, tags, source_type,
@@ -89,7 +115,7 @@ app.get('/api/admin/trash', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.get('/api/guides/:id', async (req, res, next) => {
+app.get('/api/guides/:id', requireSliceUser, async (req, res, next) => {
   try {
     const r = await pool.query(
       'SELECT * FROM guides WHERE id = $1 AND deleted_at IS NULL',
@@ -100,7 +126,7 @@ app.get('/api/guides/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/guides', async (req, res, next) => {
+app.post('/api/guides', requireSliceAdmin, async (req, res, next) => {
   const { title, category, body, tags, source_type, metadata } = req.body ?? {};
   if (!title || !body) return res.status(400).json({ error: 'title and body required' });
   const client = await pool.connect();
@@ -136,7 +162,7 @@ app.post('/api/guides', async (req, res, next) => {
   }
 });
 
-app.put('/api/guides/:id', async (req, res, next) => {
+app.put('/api/guides/:id', requireSliceAdmin, async (req, res, next) => {
   const { title, category, body, tags, source_type, metadata } = req.body ?? {};
   if (!title || !body) return res.status(400).json({ error: 'title and body required' });
   const client = await pool.connect();
@@ -181,7 +207,7 @@ app.put('/api/guides/:id', async (req, res, next) => {
 // DELETE is soft by default — sets deleted_at. The chunks stay so a Restore is
 // instant. Pass ?hard=1 to permanently purge a row that's already in the trash;
 // ON DELETE CASCADE on guide_chunks handles index cleanup.
-app.delete('/api/guides/:id', async (req, res, next) => {
+app.delete('/api/guides/:id', requireSliceAdmin, async (req, res, next) => {
   try {
     if (req.query.hard === '1') {
       const r = await pool.query(
@@ -204,7 +230,7 @@ app.delete('/api/guides/:id', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/guides/:id/restore', async (req, res, next) => {
+app.post('/api/guides/:id/restore', requireSliceAdmin, async (req, res, next) => {
   try {
     const r = await pool.query(
       `UPDATE guides SET deleted_at = NULL, updated_at = NOW()
@@ -217,7 +243,7 @@ app.post('/api/guides/:id/restore', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/guides/:id/duplicate', async (req, res, next) => {
+app.post('/api/guides/:id/duplicate', requireSliceAdmin, async (req, res, next) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -255,7 +281,7 @@ const UPLOAD_DIR = '/app/uploads';
 await mkdir(UPLOAD_DIR, { recursive: true }).catch(() => {});
 app.use('/uploads', express.static(UPLOAD_DIR, { maxAge: '7d', immutable: true }));
 
-app.post('/api/uploads', async (req, res, next) => {
+app.post('/api/uploads', requireSliceAdmin, async (req, res, next) => {
   try {
     const { dataUrl, filename } = req.body ?? {};
     if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
@@ -273,7 +299,7 @@ app.post('/api/uploads', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/guides/:id/feedback', async (req, res, next) => {
+app.post('/api/guides/:id/feedback', requireSliceUser, async (req, res, next) => {
   const { rating } = req.body ?? {};
   if (rating !== 1 && rating !== -1) return res.status(400).json({ error: 'rating must be 1 or -1' });
   try {
@@ -288,7 +314,7 @@ app.post('/api/guides/:id/feedback', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.get('/api/chats/:id', async (req, res, next) => {
+app.get('/api/chats/:id', requireSliceUser, async (req, res, next) => {
   try {
     const chat = await pool.query('SELECT * FROM chat_logs WHERE id=$1', [req.params.id]);
     if (chat.rows.length === 0) return res.status(404).json({ error: 'not found' });
@@ -365,7 +391,7 @@ async function ftsSearch(query) {
   return trgm.rows;
 }
 
-app.post('/api/chat', async (req, res, next) => {
+app.post('/api/chat', requireSliceUser, async (req, res, next) => {
   const { query } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
   try {
@@ -430,7 +456,7 @@ app.post('/api/chat', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/chat/:id/feedback', async (req, res, next) => {
+app.post('/api/chat/:id/feedback', requireSliceUser, async (req, res, next) => {
   const { rating, comment } = req.body ?? {};
   if (rating !== 1 && rating !== -1) return res.status(400).json({ error: 'rating must be 1 or -1' });
   try {
@@ -450,7 +476,7 @@ app.post('/api/chat/:id/feedback', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.get('/api/admin/insights', async (req, res, next) => {
+app.get('/api/admin/insights', requireSliceAdmin, async (req, res, next) => {
   try {
     const [
       topAsked, noMatch, downvoted, wordsRes,
@@ -559,7 +585,7 @@ app.get('/api/admin/insights', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.get('/api/admin/stats', async (req, res, next) => {
+app.get('/api/admin/stats', requireSliceAdmin, async (req, res, next) => {
   try {
     const [guideCount, trashCount, chunkCount, chatCount, recentChats, topGuides, lowGuides] = await Promise.all([
       pool.query('SELECT COUNT(*)::int AS n FROM guides WHERE deleted_at IS NULL'),

@@ -1,7 +1,15 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// In prod the app is served behind nginx at https://it.slice.services/portal2/.
+// Setting `base: '/portal2/'` makes Vite emit asset URLs like
+// `/portal2/assets/index.abcdef.js` so they resolve correctly through the
+// proxy. Override with VITE_BASE_PATH=/ when developing locally with the
+// Vite dev server on port 5173.
+const BASE = process.env.VITE_BASE_PATH ?? '/portal2/';
+
 export default defineConfig({
+  base: BASE,
   plugins: [react()],
   server: {
     port: 5173,
