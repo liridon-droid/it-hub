@@ -1,49 +1,59 @@
-services:
-  portal2:
-    build: .
-    container_name: portal2-local
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./src:/app/src
-      - ./public:/app/public
-      - ./index.html:/app/index.html
-      - ./vite.config.js:/app/vite.config.js
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-      - API_PROXY=http://server:3001
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
-    depends_on:
-      - server
+# it-hub stack — three services that boot together.
+#
+# Production: deployed alongside slicedesk's it-catalog on the same
+# docker network. Slicedesk's nginx proxies /portal2/* → it-hub-client,
+# /portal2/api/* → it-hub-server. See it-catalog's nginx.conf and
+# docker-compose.yml for the outer routing.
+#
+# Local dev: run `docker compose up` from this directory. The frontend
+# rebuilds on file changes (mount the source via the dev override
+# below if you want the vite dev server instead — see commented block).
 
-  server:
-    build: ./server
-    container_name: portal2-server
-    ports:
-      - "3001:3001"
-    volumes:
-      - ./server:/app
-      - /app/node_modules
-      - ./server/uploads:/app/uploads
-    environment:
-      - DATABASE_URL=postgresql://portal2:portal2@postgres:5432/portal2
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-      - CHAT_MODEL=claude-opus-4-7
+services:
+  it-hub-client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: it-hub-client
+    # Slicedesk's nginx proxies to this internally — no host port
+    # binding by default so it-hub-client isn't reachable from outside
+    # the docker network. Uncomment for direct access during dev.
+    # ports: ["8080:80"]
     depends_on:
-      postgres:
+      - it-hub-server
+
+  it-hub-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: it-hub-server
+    # ports: ["3001:3001"]
+    volumes:
+      - it_hub_uploads:/app/uploads
+    environment:
+      - DATABASE_URL=postgresql://portal2:portal2@it-hub-postgres:5432/portal2
+      - CHAT_MODEL=${CHAT_MODEL:-claude-sonnet-4-5}
+      # Slicedesk session bridge — see server/middleware/sliceAuth.js.
+      # On the same docker network these are container DNS names.
+      - SLICEDESK_API_URL=${SLICEDESK_API_URL:-http://it-catalog-server:3001}
+      - SLICEDESK_LOGIN_URL=${SLICEDESK_LOGIN_URL:-/login}
+      # In prod the app is mounted under /portal2/, so any URLs we
+      # hand back (image upload URLs etc.) need the prefix.
+      - URL_PREFIX=${URL_PREFIX:-/portal2}
+    depends_on:
+      it-hub-postgres:
         condition: service_healthy
 
-  postgres:
+  it-hub-postgres:
     image: pgvector/pgvector:pg16
-    container_name: portal2-postgres
-    ports:
-      - "5432:5432"
+    container_name: it-hub-postgres
+    # ports: ["5433:5432"]   # uncomment if you want to psql from host
     environment:
       - POSTGRES_USER=portal2
       - POSTGRES_PASSWORD=portal2
       - POSTGRES_DB=portal2
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - it_hub_postgres_data:/var/lib/postgresql/data
       - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U portal2 -d portal2"]
@@ -52,4 +62,10 @@ services:
       retries: 5
 
 volumes:
-  postgres_data:
+  it_hub_postgres_data:
+  it_hub_uploads:
+
+# When deployed alongside it-catalog, both stacks share the default
+# external network so slicedesk's nginx can reach `it-hub-client` and
+# `it-hub-server` by container name. If running standalone, this stack
+# uses its own default network.

@@ -2,6 +2,36 @@ import React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import './styles.css';
 
+// In production the app is served at /portal2/ and slicedesk's nginx
+// only proxies /portal2/api/* → it-hub-server. The 30+ fetch('/api/…')
+// calls scattered through app.jsx all need rewriting to '/portal2/api/…'.
+// Doing that at the network layer here keeps every component oblivious
+// to the deploy path, so dev (no prefix) and prod (/portal2 prefix)
+// share one source. Set window.IT_HUB_BASE='' to disable.
+(function patchFetchForBasePath() {
+  const base = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined)
+    ? String(window.IT_HUB_BASE)
+    : (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
+  if (!base) return;
+  const orig = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    if (typeof input === 'string') {
+      if (input.startsWith('/api/') || input.startsWith('/uploads/')) {
+        input = base + input;
+      }
+    } else if (input instanceof Request) {
+      const u = input.url;
+      if (u.startsWith(window.location.origin)) {
+        const p = u.slice(window.location.origin.length);
+        if (p.startsWith('/api/') || p.startsWith('/uploads/')) {
+          input = new Request(window.location.origin + base + p, input);
+        }
+      }
+    }
+    return orig(input, init);
+  };
+})();
+
 // The bundle's JSX uses React.useState, ReactDOM.createPortal, etc., as if
 // they were globals (because in the standalone bundle they are). Expose them
 // on window before importing App so the JSX inside app.jsx finds them.

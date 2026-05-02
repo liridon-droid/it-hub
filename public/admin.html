@@ -5,6 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Slice IT Hub — Admin</title>
   <link rel="icon" href="/portal2/assets/slice-logo.png" />
+  <script>
+    // Path-prefix fetch wrapper — see src/main.jsx for the rationale.
+    // Hardcoded /portal2 here because admin.html is a static file and Vite
+    // doesn't process it; runtime override via window.IT_HUB_BASE works.
+    (function () {
+      var base = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined)
+        ? String(window.IT_HUB_BASE)
+        : '/portal2';
+      if (!base) return;
+      var orig = window.fetch.bind(window);
+      window.fetch = function (input, init) {
+        if (typeof input === 'string') {
+          if (input.indexOf('/api/') === 0 || input.indexOf('/uploads/') === 0) {
+            input = base + input;
+          }
+        } else if (input instanceof Request) {
+          var u = input.url;
+          if (u.indexOf(window.location.origin) === 0) {
+            var p = u.slice(window.location.origin.length);
+            if (p.indexOf('/api/') === 0 || p.indexOf('/uploads/') === 0) {
+              input = new Request(window.location.origin + base + p, input);
+            }
+          }
+        }
+        return orig(input, init);
+      };
+    })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
