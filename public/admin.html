@@ -9318,24 +9318,43 @@ async function loadAndRenderTopics() {
       $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">No clear topics emerged from recent chats.</div>`;
       return;
     }
-    $('topicsList').innerHTML = topics.map((t) => {
+    // The endpoint already excludes covered topics, but filter defensively
+    // in case Claude slips one through.
+    const gaps = topics.filter((t) => !t.covered);
+    if (gaps.length === 0) {
+      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">Every recent topic is already covered — nice work.</div>`;
+      return;
+    }
+    $('topicsList').innerHTML = gaps.map((t) => {
       const samples = (t.sample_questions || []).slice(0, 2)
         .map((q) => `<span style="font-size:11.5px;color:var(--ink-3);font-style:italic;">"${esc(q)}"</span>`)
         .join(' · ');
-      const action = t.covered
-        ? `<span class="badge pos" title="${esc(t.covering_guide || '')}" style="white-space:nowrap;">✓ Covered</span>`
-        : `<button class="btn primary sm" data-write="${esc(t.suggested_guide_title || t.topic)}" style="white-space:nowrap;">Write a guide</button>`;
+      const thumbsDown = Number(t.thumbs_down) || 0;
+      const noMatch = Number(t.no_match) || 0;
+      const count = Number(t.count) || 0;
+      // Priority chips: thumbs-down + no-match are stronger signals than
+      // raw question count, so they get coloured badges. Asked-count gets
+      // the neutral chip.
+      const chips = [
+        `<span class="badge neutral" style="font-size:10px;">${count}× asked</span>`,
+        thumbsDown > 0 ? `<span class="badge neg" style="font-size:10px;" title="Users marked an existing answer unhelpful">${thumbsDown}× 👎</span>` : '',
+        noMatch > 0 ? `<span class="badge stale" style="font-size:10px;" title="Chatbot found no matching guide">${noMatch}× no match</span>` : '',
+      ].filter(Boolean).join(' ');
+      const reason = t.why_gap
+        ? `<div style="margin-top:6px;font-size:12.5px;color:var(--ink-3);">${esc(t.why_gap)}</div>`
+        : '';
       return `
         <div class="between" style="padding:12px 0;border-bottom:1px solid var(--border);gap:14px;align-items:flex-start;">
           <div style="min-width:0;flex:1;">
             <div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
               ${esc(t.topic)}
-              <span class="badge ${t.covered ? 'pos' : 'neutral'}" style="font-size:10px;">${Number(t.count) || 0} ${Number(t.count) === 1 ? 'question' : 'questions'}</span>
+              ${chips}
             </div>
-            <div style="margin-top:4px;line-height:1.4;">${samples || ''}</div>
-            ${!t.covered && t.suggested_guide_title ? `<div style="margin-top:6px;font-size:12.5px;color:var(--ink-2);">Suggested title: <strong>${esc(t.suggested_guide_title)}</strong></div>` : ''}
+            ${samples ? `<div style="margin-top:4px;line-height:1.4;">${samples}</div>` : ''}
+            ${reason}
+            ${t.suggested_guide_title ? `<div style="margin-top:6px;font-size:12.5px;color:var(--ink-2);">Suggested title: <strong>${esc(t.suggested_guide_title)}</strong></div>` : ''}
           </div>
-          ${action}
+          <button class="btn primary sm" data-write="${esc(t.suggested_guide_title || t.topic)}" style="white-space:nowrap;">Write a guide</button>
         </div>
       `;
     }).join('');
@@ -10560,6 +10579,51 @@ function renderEditor(root) {
     $('saveBtn').disabled = true;
     const originalLabel = $('saveBtn').textContent;
     $('saveBtn').textContent = 'Saving…';
+
+    // Auto-categorize: when the admin didn't pick a category and didn't add
+    // tags, ask Claude to suggest both before we hit the server. Best-effort
+    // — we never block save on this. The suggestion fills the form fields
+    // visibly so the admin can see what was chosen, then the regular POST
+    // includes the freshly-set values.
+    const noCategory = !payload.category;
+    const noTags = !Array.isArray(payload.tags) || payload.tags.length === 0;
+    if (noCategory && noTags) {
+      try {
+        $('saveBtn').textContent = 'Suggesting category…';
+        const r = await fetch('/api/ai-edit', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'categorize',
+            text: `Title: ${title}\n\n${body.slice(0, 4000)}`,
+          }),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const stripped = (j.text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+          const parsed = JSON.parse(stripped);
+          if (parsed?.category && typeof parsed.category === 'string') {
+            payload.category = parsed.category.trim();
+            $('ed-category').value = payload.category;
+          }
+          if (Array.isArray(parsed?.tags)) {
+            const cleanTags = parsed.tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean).slice(0, 6);
+            if (cleanTags.length) {
+              payload.tags = cleanTags;
+              tags.set(cleanTags);
+            }
+          }
+          if (payload.category || payload.tags?.length) {
+            toast(`AI suggested: ${payload.category}${payload.tags?.length ? ` · ${payload.tags.join(', ')}` : ''}`, 'ok');
+          }
+        }
+      } catch (err) {
+        // Silent — categorization is a nice-to-have, never blocks save.
+        console.warn('[ai] auto-categorize failed:', err.message);
+      }
+      $('saveBtn').textContent = 'Saving…';
+    }
     try {
       const url = e.mode === 'edit' ? `/api/guides/${e.id}` : '/api/guides';
       const method = e.mode === 'edit' ? 'PUT' : 'POST';

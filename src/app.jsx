@@ -2504,6 +2504,7 @@ function App() {
       setSearchResult({
         query: displayQuery,
         citations: j.citations || [],
+        suggestions: j.suggestions || [],
         answer: j.answer,
         mode: j.mode,
         chat_log_id: j.chat_log_id,
@@ -2593,6 +2594,7 @@ function App() {
       <HubSearchResults
         query={searchResult.query}
         citations={searchResult.citations}
+        suggestions={searchResult.suggestions}
         answer={searchResult.answer}
         mode={searchResult.mode}
         chatLogId={searchResult.chat_log_id}
@@ -22639,7 +22641,7 @@ function FeedbackPanel({
 //  (plus the LLM answer when Claude is configured).
 // ====================================================================
 
-function HubSearchResults({ query, citations, answer, mode, chatLogId, loading, onBack, onOpenGuide, onFileTicket }) {
+function HubSearchResults({ query, citations, suggestions = [], answer, mode, chatLogId, loading, onBack, onOpenGuide, onFileTicket }) {
   const [feedback, setFeedback] = React.useState(null);
   const sendFeedback = (rating) => {
     setFeedback(rating);
@@ -22786,7 +22788,54 @@ function HubSearchResults({ query, citations, answer, mode, chatLogId, loading, 
           </>
         )}
 
-        {!loading && citations.length === 0 && (
+        {!loading && suggestions && suggestions.length > 0 && (
+          <div style={{
+            background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
+            padding: '20px 22px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
+          }}>
+            <div style={{
+              fontFamily: "'Archivo', sans-serif",
+              fontSize: 11, fontWeight: 900,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: '#4A3F2E', marginBottom: 8,
+            }}>
+              ✨ Did you mean…?
+            </div>
+            <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14, lineHeight: 1.5 }}>
+              {citations.length === 0
+                ? "We didn't find a direct guide for that, but these might still help:"
+                : "Other guides that might be useful here:"}
+            </div>
+            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              {suggestions.map((s, i) => (
+                <li key={i} style={{
+                  marginBottom: i < suggestions.length - 1 ? 12 : 0,
+                  paddingBottom: i < suggestions.length - 1 ? 12 : 0,
+                  borderBottom: i < suggestions.length - 1 ? '1px dashed rgba(33,30,30,0.12)' : 'none',
+                }}>
+                  <button
+                    onClick={() => onOpenGuide && onOpenGuide({ id: s.guide_id, title: s.title, category: s.category })}
+                    style={{
+                      background: 'transparent', border: 'none', padding: 0,
+                      cursor: 'pointer', textAlign: 'left', width: '100%',
+                      fontFamily: 'inherit',
+                    }}>
+                    <div style={{
+                      fontSize: 14.5, fontWeight: 700, color: '#211E1E',
+                      textDecoration: 'underline', textUnderlineOffset: 3,
+                      marginBottom: 4,
+                    }}>{s.title}</div>
+                    <div style={{ fontSize: 12.5, color: '#4A3F2E', lineHeight: 1.5 }}>
+                      {s.reason}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
             background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
             padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,

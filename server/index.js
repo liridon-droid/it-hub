@@ -418,7 +418,8 @@ const AI_PROMPTS = {
   steps:      "You're rewriting an IT-support guide for non-technical employees. Convert the user's text into numbered markdown steps. Rules:\n  - Each step starts with an imperative verb (Open, Click, Enter, Confirm, Verify, Wait for…).\n  - One action per step — split combined sentences.\n  - If a step requires something first (e.g. 'Connected to VPN' or 'Admin role'), add a `> Before you start:` line above the list.\n  - If a step commonly fails, add a sub-bullet under it starting with `If you don't see…` or `If this fails…`.\n  - Use **bold** for any UI label, button name, menu item, or keyboard shortcut the reader has to find.\n  - Don't add steps that aren't in the source; preserve every fact.\nOutput ONLY the numbered markdown list, plus the optional `> Before…` quote line.",
   'steps-from-title': "You're drafting an IT-support guide from scratch. Given the guide title, output a numbered markdown list of 4–8 steps a non-technical employee can follow to accomplish it. Same rules as the 'steps' transform: imperative verbs, one action per step, **bold** UI labels, optional `> Before you start:` line above, optional `If this fails…` sub-bullets where relevant. Output ONLY the markdown list (and optional Before-you-start line).",
   categorize: "You're tagging an internal IT support guide. Look at the title and body and output a single JSON object on one line, no markdown fence: {\"category\":\"...\",\"tags\":[\"...\",\"...\",\"...\"]}\n  - category: one short phrase, lowercase except first letter (examples: \"Passwords & MFA\", \"Networking\", \"Hardware\", \"Email & calendar\", \"Onboarding\", \"Apps & licenses\", \"VPN & remote access\")\n  - tags: 3–6 lowercase keywords a user might search for (examples: \"onelogin\", \"sso\", \"reset\", \"locked-out\")\nOutput ONLY the JSON object.",
-  'topic-cluster': "You're an IT-support analyst looking at the questions employees recently asked the IT-Hub chatbot. Group them into topics, rank by frequency, and for each topic note whether the team likely already has a guide that covers it (we'll provide the existing guide titles).\nOutput a single JSON object on one line, no markdown fence:\n  {\"topics\":[{\"topic\":\"...\",\"count\":N,\"sample_questions\":[\"...\",\"...\"],\"covered\":true|false,\"covering_guide\":\"...\" or null,\"suggested_guide_title\":\"...\" or null}]}\n- topic: a short noun phrase (e.g. 'OneLogin password resets')\n- count: how many questions belong to this cluster\n- sample_questions: 1–3 verbatim user questions from this cluster\n- covered: true if an existing guide directly answers this topic\n- covering_guide: the existing title that best matches, or null\n- suggested_guide_title: a short title for a new guide if covered=false, or null\nReturn 5–10 topics, sorted by count desc.",
+  'topic-cluster': "You're an IT-support analyst looking at the questions employees recently asked the IT-Hub chatbot. Group them into topics and rank GAPS — topics that don't have a good existing guide.\n\nQuestion lines come tagged with signals:\n- '👎' = the user thumbs-down'd the answer they got (confirmed gap)\n- '🚫no-match' = the chatbot found no matching guide at all\nBoth signals weigh much heavier than raw frequency — surface these topics first.\n\nOnly include a topic in your output if it represents a GAP (covered=false). Skip topics where an existing guide clearly answers the question.\n\nOutput a single JSON object on one line, no markdown fence:\n  {\"topics\":[{\"topic\":\"...\",\"count\":N,\"thumbs_down\":N,\"no_match\":N,\"sample_questions\":[\"...\",\"...\"],\"covered\":false,\"suggested_guide_title\":\"...\",\"why_gap\":\"...\"}]}\n- topic: short noun phrase (e.g. 'macOS keychain reset after password change')\n- count: how many questions belong to this cluster\n- thumbs_down: count of 👎-flagged questions in this cluster (0 if none)\n- no_match: count of 🚫-flagged questions in this cluster (0 if none)\n- sample_questions: 1–3 verbatim user questions, prioritise the flagged ones\n- covered: always false (this list is gaps only)\n- suggested_guide_title: short, action-oriented title for the new guide\n- why_gap: one sentence explaining why no existing guide covers this — refer to the existing guide titles where helpful\nReturn 5–12 topics, sorted by (thumbs_down + no_match * 2) desc, then by count desc.",
+  'did-you-mean': "An IT employee asked the chatbot a question that didn't have a confident answer in the knowledge base. Look at their question and the list of every existing guide title, and pick the 2–3 guides MOST LIKELY to be useful even if they don't directly answer it (e.g. cover the same app, the same workflow, or a common neighbouring problem). For each, give a one-sentence reason in plain language an employee would understand.\nOutput a single JSON object on one line, no markdown fence:\n  {\"suggestions\":[{\"guide_title\":\"...\",\"reason\":\"...\"}]}\nIf nothing in the list is even tangentially related, output {\"suggestions\":[]}. Do not invent guides — only use titles from the provided list.",
   table:      "If the user's text has a 'X | Y | Z' / list / labelled-pair structure, convert it to a markdown table. Otherwise return the input unchanged. Output ONLY the table or the original.",
   summary:    "Write a one-paragraph TL;DR of the user's text — what it's for, when to use it, the single most important step. Output ONLY the paragraph.",
   continue:   "Continue the user's text in the same voice and structure. Add 2–4 sentences max. Output ONLY the continuation, no overlap with the existing text.",
@@ -569,6 +570,60 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
       }
     }
 
+    // "Did you mean…?" — when retrieval was empty OR Claude declined to
+    // answer ("the excerpts don't contain…" / "I don't know"), ask Claude
+    // a second time with the FULL list of guide titles to pick 2-3 that
+    // might still be tangentially useful. Cheap second-pass fallback so
+    // the user doesn't get a dead-end "no match" response.
+    let suggestions = [];
+    const looksLikeNoAnswer = !answer || /\b(don'?t (have|know)|doesn'?t (contain|cover|mention)|not (in|covered|available)|no (guide|info|information))\b/i.test(answer);
+    if (matches.length === 0 || looksLikeNoAnswer) {
+      const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
+      if (SLICEDESK_API_URL) {
+        try {
+          const allGuides = await pool.query(`SELECT title FROM guides WHERE deleted_at IS NULL ORDER BY title`);
+          const titleList = allGuides.rows.map((g) => `- ${g.title}`).join('\n').slice(0, 5000);
+          const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: req.headers.cookie || '' },
+            body: JSON.stringify({
+              model: CHAT_MODEL,
+              max_tokens: 600,
+              system: AI_PROMPTS['did-you-mean'],
+              messages: [{
+                role: 'user',
+                content: `User question: ${query}\n\nAvailable guide titles:\n${titleList}`,
+              }],
+            }),
+          });
+          if (upstream.ok) {
+            const msg = await upstream.json();
+            const txt = (msg.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+            const stripped = txt.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+            const parsed = JSON.parse(stripped);
+            if (Array.isArray(parsed?.suggestions)) {
+              // Look up guide ids by title so the UI can deep-link
+              const titles = parsed.suggestions.map((s) => s.guide_title).filter(Boolean);
+              if (titles.length) {
+                const ids = await pool.query(
+                  `SELECT id, title, category FROM guides
+                    WHERE deleted_at IS NULL AND title = ANY($1::text[])`,
+                  [titles],
+                );
+                const byTitle = new Map(ids.rows.map((r) => [r.title, r]));
+                suggestions = parsed.suggestions.map((s) => {
+                  const g = byTitle.get(s.guide_title);
+                  return g ? { guide_id: g.id, title: g.title, category: g.category, reason: s.reason } : null;
+                }).filter(Boolean);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[chat] did-you-mean failed:', err.message);
+        }
+      }
+    }
+
     const log = await pool.query(
       `INSERT INTO chat_logs (query, answer, retrieved_chunk_ids, citations, mode)
        VALUES ($1, $2, $3, $4::jsonb, $5) RETURNING id`,
@@ -580,6 +635,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
       mode,
       answer,
       citations,
+      suggestions,
       usage,
     });
   } catch (e) { next(e); }
@@ -616,10 +672,22 @@ app.get('/api/admin/insights/topics', requireSliceAdmin, async (req, res, next) 
       return res.json({ ..._topicsCache.data, cached: true });
     }
     const [questions, guides] = await Promise.all([
+      // Join with chat_feedback so questions that got a thumbs-down weigh
+      // heavier — those are confirmed gaps, not just "asked once". The
+      // 'unhelpful_count' field signals the topic-cluster prompt where
+      // users actively complained the existing guide didn't help.
       pool.query(`
-        SELECT query, COUNT(*) AS cnt FROM chat_logs
-        WHERE created_at > NOW() - INTERVAL '60 days' AND COALESCE(query, '') <> ''
-        GROUP BY query ORDER BY cnt DESC LIMIT 200`),
+        SELECT
+          cl.query,
+          COUNT(*) AS cnt,
+          COALESCE(SUM(CASE WHEN cf.rating = -1 THEN 1 ELSE 0 END), 0) AS unhelpful_count,
+          COALESCE(SUM(CASE WHEN cl.mode = 'retrieval' AND cl.answer IS NULL THEN 1 ELSE 0 END), 0) AS no_match_count
+        FROM chat_logs cl
+        LEFT JOIN chat_feedback cf ON cf.chat_log_id = cl.id
+        WHERE cl.created_at > NOW() - INTERVAL '60 days' AND COALESCE(cl.query, '') <> ''
+        GROUP BY cl.query
+        ORDER BY unhelpful_count DESC, no_match_count DESC, cnt DESC
+        LIMIT 200`),
       pool.query(`SELECT title FROM guides WHERE deleted_at IS NULL ORDER BY title`),
     ]);
     if (questions.rows.length === 0) {
@@ -627,7 +695,16 @@ app.get('/api/admin/insights/topics', requireSliceAdmin, async (req, res, next) 
       _topicsCache = { at: Date.now(), data };
       return res.json(data);
     }
-    const qText = questions.rows.map((r) => `- (${r.cnt}×) ${r.query}`).join('\n').slice(0, 8000);
+    const qText = questions.rows.map((r) => {
+      // Mark each question with frequency + signal: 👎 for thumbs-down,
+      // 🚫 for "no match found" responses. Both flags tell Claude this
+      // topic is a higher-priority gap than a one-off curiosity ask.
+      const flags = [];
+      if (Number(r.unhelpful_count) > 0) flags.push(`${r.unhelpful_count}× 👎`);
+      if (Number(r.no_match_count) > 0) flags.push(`${r.no_match_count}× 🚫no-match`);
+      const flagStr = flags.length ? ` [${flags.join(', ')}]` : '';
+      return `- (${r.cnt}× asked)${flagStr} ${r.query}`;
+    }).join('\n').slice(0, 8000);
     const gText = guides.rows.map((g) => `- ${g.title}`).join('\n').slice(0, 4000);
     const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
     if (!SLICEDESK_API_URL) {
