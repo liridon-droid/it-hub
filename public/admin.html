@@ -8291,6 +8291,11 @@ function navigate(section) {
   const t = pageMeta(section);
   document.title = t.ttl ? `${t.ttl} · IT Hub admin` : 'IT Hub admin';
   render();
+  // Scroll to top on every section change — without this, opening a
+  // new section while half-way down the previous one strands the user
+  // mid-page (Insights → Guides etc).
+  try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch { window.scrollTo(0, 0); }
+  $('main')?.scrollTo?.({ top: 0, behavior: 'auto' });
 }
 
 function render() {
@@ -9268,12 +9273,81 @@ async function renderInsights(root) {
     <div class="page-header" style="margin-bottom:18px;">
       <div>${pageTitleHTML('insights')}</div>
     </div>
+    <div id="insightsTopics" style="margin-bottom:18px;"></div>
     <div id="insightsBody"><div class="empty sub">Loading…</div></div>`;
   try {
     const data = await fetch('/api/admin/insights').then((r) => r.json());
     renderInsightsBody(data);
   } catch (e) {
     $('insightsBody').innerHTML = `<div class="empty sub">Failed to load: ${esc(e.message)}</div>`;
+  }
+  // Topics load async — they take a Claude round-trip so we don't block
+  // the rest of the page on them.
+  loadAndRenderTopics();
+}
+
+async function loadAndRenderTopics() {
+  const host = $('insightsTopics');
+  if (!host) return;
+  host.innerHTML = `
+    <div class="card" style="padding:16px 18px;">
+      <div class="card-head" style="margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+        <h2 class="card-title" style="margin:0;">✨ What should I write next?</h2>
+        <span class="badge neutral">AI</span>
+      </div>
+      <div class="text-3" style="font-size:12.5px;color:var(--ink-3);margin-bottom:14px;">
+        Claude clusters the last 60 days of user questions into topics, flags which
+        already have a guide, and proposes titles for the gaps.
+      </div>
+      <div id="topicsList"><div class="empty sub" style="padding:14px 0;">Analyzing recent questions…</div></div>
+    </div>`;
+  try {
+    const r = await fetch('/api/admin/insights/topics');
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">${esc(j.detail || j.error || `HTTP ${r.status}`)}</div>`;
+      return;
+    }
+    const data = await r.json();
+    if (data.note) {
+      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">${esc(data.note)}</div>`;
+      return;
+    }
+    const topics = Array.isArray(data.topics) ? data.topics : [];
+    if (topics.length === 0) {
+      $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">No clear topics emerged from recent chats.</div>`;
+      return;
+    }
+    $('topicsList').innerHTML = topics.map((t) => {
+      const samples = (t.sample_questions || []).slice(0, 2)
+        .map((q) => `<span style="font-size:11.5px;color:var(--ink-3);font-style:italic;">"${esc(q)}"</span>`)
+        .join(' · ');
+      const action = t.covered
+        ? `<span class="badge pos" title="${esc(t.covering_guide || '')}" style="white-space:nowrap;">✓ Covered</span>`
+        : `<button class="btn primary sm" data-write="${esc(t.suggested_guide_title || t.topic)}" style="white-space:nowrap;">Write a guide</button>`;
+      return `
+        <div class="between" style="padding:12px 0;border-bottom:1px solid var(--border);gap:14px;align-items:flex-start;">
+          <div style="min-width:0;flex:1;">
+            <div class="row-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              ${esc(t.topic)}
+              <span class="badge ${t.covered ? 'pos' : 'neutral'}" style="font-size:10px;">${Number(t.count) || 0} ${Number(t.count) === 1 ? 'question' : 'questions'}</span>
+            </div>
+            <div style="margin-top:4px;line-height:1.4;">${samples || ''}</div>
+            ${!t.covered && t.suggested_guide_title ? `<div style="margin-top:6px;font-size:12.5px;color:var(--ink-2);">Suggested title: <strong>${esc(t.suggested_guide_title)}</strong></div>` : ''}
+          </div>
+          ${action}
+        </div>
+      `;
+    }).join('');
+    $('topicsList').querySelectorAll('button[data-write]').forEach((b) => {
+      b.onclick = () => {
+        // Pre-fill the editor with the suggested title and jump there.
+        state.editing = { mode: 'new', id: null, snapshot: { title: b.dataset.write, category: '', source_type: 'guide', tags: [], body: '' } };
+        navigate('editor');
+      };
+    });
+  } catch (e) {
+    $('topicsList').innerHTML = `<div class="empty sub" style="padding:8px 0;">Couldn't reach the AI service — ${esc(e.message)}</div>`;
   }
 }
 

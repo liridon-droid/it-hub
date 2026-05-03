@@ -415,7 +415,10 @@ const AI_PROMPTS = {
   'tone-pro': "Rewrite the user's text in a crisp, neutral, business-ready tone. Keep the same content. Output ONLY the rewritten text.",
   'tone-friendly': "Rewrite the user's text in a warm, conversational tone — like a senior IT teammate explaining it. Output ONLY the rewritten text.",
   bullets:    "Convert the user's text into a tight bullet list. Each bullet one idea. Output ONLY the markdown bullet list.",
-  steps:      "Convert the user's text into numbered steps a non-technical IT-Hub user can follow. Each step starts with an action verb (Open, Click, Enter, Confirm…). If the steps need a precondition or a 'when this fails' note, add them as separate sentences inside the step. Output ONLY the numbered markdown list.",
+  steps:      "You're rewriting an IT-support guide for non-technical employees. Convert the user's text into numbered markdown steps. Rules:\n  - Each step starts with an imperative verb (Open, Click, Enter, Confirm, Verify, Wait for…).\n  - One action per step — split combined sentences.\n  - If a step requires something first (e.g. 'Connected to VPN' or 'Admin role'), add a `> Before you start:` line above the list.\n  - If a step commonly fails, add a sub-bullet under it starting with `If you don't see…` or `If this fails…`.\n  - Use **bold** for any UI label, button name, menu item, or keyboard shortcut the reader has to find.\n  - Don't add steps that aren't in the source; preserve every fact.\nOutput ONLY the numbered markdown list, plus the optional `> Before…` quote line.",
+  'steps-from-title': "You're drafting an IT-support guide from scratch. Given the guide title, output a numbered markdown list of 4–8 steps a non-technical employee can follow to accomplish it. Same rules as the 'steps' transform: imperative verbs, one action per step, **bold** UI labels, optional `> Before you start:` line above, optional `If this fails…` sub-bullets where relevant. Output ONLY the markdown list (and optional Before-you-start line).",
+  categorize: "You're tagging an internal IT support guide. Look at the title and body and output a single JSON object on one line, no markdown fence: {\"category\":\"...\",\"tags\":[\"...\",\"...\",\"...\"]}\n  - category: one short phrase, lowercase except first letter (examples: \"Passwords & MFA\", \"Networking\", \"Hardware\", \"Email & calendar\", \"Onboarding\", \"Apps & licenses\", \"VPN & remote access\")\n  - tags: 3–6 lowercase keywords a user might search for (examples: \"onelogin\", \"sso\", \"reset\", \"locked-out\")\nOutput ONLY the JSON object.",
+  'topic-cluster': "You're an IT-support analyst looking at the questions employees recently asked the IT-Hub chatbot. Group them into topics, rank by frequency, and for each topic note whether the team likely already has a guide that covers it (we'll provide the existing guide titles).\nOutput a single JSON object on one line, no markdown fence:\n  {\"topics\":[{\"topic\":\"...\",\"count\":N,\"sample_questions\":[\"...\",\"...\"],\"covered\":true|false,\"covering_guide\":\"...\" or null,\"suggested_guide_title\":\"...\" or null}]}\n- topic: a short noun phrase (e.g. 'OneLogin password resets')\n- count: how many questions belong to this cluster\n- sample_questions: 1–3 verbatim user questions from this cluster\n- covered: true if an existing guide directly answers this topic\n- covering_guide: the existing title that best matches, or null\n- suggested_guide_title: a short title for a new guide if covered=false, or null\nReturn 5–10 topics, sorted by count desc.",
   table:      "If the user's text has a 'X | Y | Z' / list / labelled-pair structure, convert it to a markdown table. Otherwise return the input unchanged. Output ONLY the table or the original.",
   summary:    "Write a one-paragraph TL;DR of the user's text — what it's for, when to use it, the single most important step. Output ONLY the paragraph.",
   continue:   "Continue the user's text in the same voice and structure. Add 2–4 sentences max. Output ONLY the continuation, no overlap with the existing text.",
@@ -599,6 +602,68 @@ app.post('/api/chat/:id/feedback', requireSliceUser, async (req, res, next) => {
       }
     }
     res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
+// Cluster recent chat questions into topics via Claude. The model
+// receives the raw queries + the existing guide titles, returns a
+// JSON list of topics with coverage gaps. Cached for 60s in-memory
+// to avoid re-paying for the same expensive call when admins refresh.
+let _topicsCache = { at: 0, data: null };
+app.get('/api/admin/insights/topics', requireSliceAdmin, async (req, res, next) => {
+  try {
+    if (Date.now() - _topicsCache.at < 60_000 && _topicsCache.data) {
+      return res.json({ ..._topicsCache.data, cached: true });
+    }
+    const [questions, guides] = await Promise.all([
+      pool.query(`
+        SELECT query, COUNT(*) AS cnt FROM chat_logs
+        WHERE created_at > NOW() - INTERVAL '60 days' AND COALESCE(query, '') <> ''
+        GROUP BY query ORDER BY cnt DESC LIMIT 200`),
+      pool.query(`SELECT title FROM guides WHERE deleted_at IS NULL ORDER BY title`),
+    ]);
+    if (questions.rows.length === 0) {
+      const data = { topics: [], note: 'No chat questions in the last 60 days yet.' };
+      _topicsCache = { at: Date.now(), data };
+      return res.json(data);
+    }
+    const qText = questions.rows.map((r) => `- (${r.cnt}×) ${r.query}`).join('\n').slice(0, 8000);
+    const gText = guides.rows.map((g) => `- ${g.title}`).join('\n').slice(0, 4000);
+    const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
+    if (!SLICEDESK_API_URL) {
+      return res.status(503).json({ error: 'SLICEDESK_API_URL not configured' });
+    }
+    const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: req.headers.cookie || '' },
+      body: JSON.stringify({
+        model: CHAT_MODEL,
+        max_tokens: 1500,
+        system: AI_PROMPTS['topic-cluster'],
+        messages: [{
+          role: 'user',
+          content:
+            `Recent user questions (with frequency):\n${qText}\n\n` +
+            `Existing guide titles:\n${gText}`,
+        }],
+      }),
+    });
+    if (!upstream.ok) {
+      const body = await upstream.text().catch(() => '');
+      return res.status(502).json({ error: 'AI service unavailable', detail: body.slice(0, 200) });
+    }
+    const j = await upstream.json();
+    const text = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+    let parsed;
+    try {
+      // Strip a stray code-fence if Claude added one despite instructions
+      const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+      parsed = JSON.parse(stripped);
+    } catch (err) {
+      return res.status(502).json({ error: 'AI returned invalid JSON', raw: text.slice(0, 400) });
+    }
+    _topicsCache = { at: Date.now(), data: parsed };
+    res.json(parsed);
   } catch (e) { next(e); }
 });
 
