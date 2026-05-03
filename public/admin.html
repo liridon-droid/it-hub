@@ -8154,7 +8154,7 @@ async function loadData() {
     state.stats = stats; state.guides = guides; state.health = health;
     $('navGuideCount').textContent = guides.length;
     $('navChatCount').textContent = stats.counts.chats;
-    const llmOn = !!health.has_anthropic_key;
+    const llmOn = !!(health.has_anthropic_key || health.slicedesk_proxy);
     if ($('modePill')) {
       $('modePill').className = 'topbar-pill ' + (llmOn ? 'green' : '');
       $('modePill').innerHTML = llmOn
@@ -9833,8 +9833,8 @@ function renderSystem(root) {
       <div class="card">
         <div class="card-head"><h2 class="card-title">Chat (LLM)</h2></div>
         <div class="between" style="margin-bottom:8px;"><span>Model</span><strong>${esc(h.chat_model || '—')}</strong></div>
-        <div class="between" style="margin-bottom:8px;"><span>Anthropic API key</span>${h.has_anthropic_key ? '<span class="badge pos">Configured</span>' : '<span class="badge neutral">Not set</span>'}</div>
-        <div class="text-3" style="font-size:12.5px;margin-top:8px;">${h.has_anthropic_key ? 'LLM mode active — answers are synthesized using retrieved chunks as context.' : 'Retrieval-only mode — chat returns top guides without a generated answer. Add ANTHROPIC_API_KEY to enable Claude synthesis.'}</div>
+        <div class="between" style="margin-bottom:8px;"><span>Claude API</span>${(h.has_anthropic_key || h.slicedesk_proxy) ? `<span class="badge pos">${h.slicedesk_proxy ? 'Slicedesk proxy' : 'Direct (key)'}</span>` : '<span class="badge neutral">Not set</span>'}</div>
+        <div class="text-3" style="font-size:12.5px;margin-top:8px;">${(h.has_anthropic_key || h.slicedesk_proxy) ? `LLM mode active — answers are synthesized using retrieved chunks as context${h.slicedesk_proxy ? '. Calls go through slicedesk\'s /api/ai/proxy so the API key + billing live there' : ''}.` : 'Retrieval-only mode — chat returns top guides without a generated answer. Set SLICEDESK_API_URL to enable Claude synthesis via the slicedesk proxy.'}</div>
       </div>
       <div class="card">
         <div class="card-head"><h2 class="card-title">Database</h2></div>
