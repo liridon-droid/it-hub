@@ -49,21 +49,39 @@ window.useLayoutEffect = React.useLayoutEffect;
 import App from './app.jsx';
 
 // Hydrate the current user from /api/me (which proxies to slicedesk's
-// session) before mounting. Wrapped in an IIFE rather than top-level
-// await so esbuild can target older browsers without complaint.
+// session) before mounting. If the user isn't authenticated we redirect
+// to the Slice-branded /portal/login page instead of rendering — the
+// React tree never mounts for logged-out visitors. Wrapped in an IIFE
+// rather than top-level await so esbuild can target older browsers
+// without complaint.
+const LOGIN_URL = '/portal/login';
 (async function bootstrap() {
+  let authed = false;
   try {
     const r = await fetch('/api/me', { credentials: 'include', cache: 'no-store' });
     if (r.ok) {
+      authed = true;
       const j = await r.json();
       if (j?.name)  window.PORTAL_CURRENT_USER  = j.name;
       if (j?.email) window.PORTAL_CURRENT_EMAIL = j.email;
       if (j?.role)  window.PORTAL_CURRENT_ROLE  = j.role;
+    } else if (r.status === 401) {
+      // Unauthenticated → bounce to the Slice-branded SSO page. The
+      // `next=` param is preserved through OneLogin so the user lands
+      // back here after sign-in.
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.replace(`${LOGIN_URL}?next=${next}`);
+      return;
     }
-  } catch { /* fall through to defaults below */ }
+  } catch {
+    // Network error or auth-server unreachable. Don't lock anyone out
+    // on a transient failure — render with placeholder identity.
+  }
 
-  if (!window.PORTAL_CURRENT_USER)  window.PORTAL_CURRENT_USER  = 'Slice IT';
-  if (!window.PORTAL_CURRENT_EMAIL) window.PORTAL_CURRENT_EMAIL = 'it@slice.com';
+  if (!authed) {
+    if (!window.PORTAL_CURRENT_USER)  window.PORTAL_CURRENT_USER  = 'Slice IT';
+    if (!window.PORTAL_CURRENT_EMAIL) window.PORTAL_CURRENT_EMAIL = 'it@slice.com';
+  }
 
   const root = ReactDOM.createRoot(document.getElementById('root'));
   root.render(<App />);
