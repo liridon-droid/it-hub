@@ -4481,7 +4481,7 @@ function openImagePicker() {
         insertBtn.disabled = true;
         status.hidden = false;
         try {
-          const url = await uploadImageFile(pickedFile);
+          const { url } = await uploadImageFile(pickedFile);
           finish(url);
         } catch (err) {
           toast(`Upload failed: ${err.message}`, 'err');
@@ -4849,7 +4849,42 @@ async function uploadImageFile(file) {
     throw new Error(j.error || `Upload failed (${r.status})`);
   }
   const j = await r.json();
-  return j.url;
+  return { url: j.url, dataUrl };
+}
+
+// Best-effort: ask Claude (via /api/ai-edit) to generate alt-text for an
+// uploaded screenshot. Returns '' on any failure so callers can fall
+// back to the filename-derived alt without erroring out.
+async function generateImageAlt(dataUrl) {
+  try {
+    const r = await fetch('/api/ai-edit', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'image-alt', imageDataUrl: dataUrl }),
+    });
+    if (!r.ok) return '';
+    const j = await r.json();
+    return (j.text || '').trim().replace(/^["'`]|["'`]$/g, '').slice(0, 200);
+  } catch { return ''; }
+}
+
+// Walk the editor doc, find the most recent <img> with the given src,
+// and patch its alt attribute. Used after insertImageSmart() so the
+// async alt-text round-trip can update the image in place.
+function applyAltToLastImage(editor, url, alt) {
+  if (!editor || editor.isDestroyed) return;
+  let lastPos = -1;
+  editor.state.doc.descendants((node, pos) => {
+    if (node.type?.name === 'image' && node.attrs?.src === url) lastPos = pos;
+  });
+  if (lastPos < 0) return;
+  editor
+    .chain()
+    .setNodeSelection(lastPos)
+    .updateAttributes('image', { alt })
+    .setTextSelection(lastPos + 1)
+    .run();
 }
 
 function attachImagePasteAndDrop(editor) {
@@ -4863,9 +4898,18 @@ function attachImagePasteAndDrop(editor) {
         if (!file) return;
         try {
           toast('Uploading image…');
-          const url = await uploadImageFile(file);
+          const { url, dataUrl } = await uploadImageFile(file);
           insertImageSmart(editor, url);
-          toast('Image inserted', 'ok');
+          toast('Image inserted — generating alt text…', 'ok');
+          // Fire-and-forget: ask Claude to look at the screenshot and write
+          // a one-line alt. We don't block the insert on this; if it
+          // succeeds, we patch the most-recently-inserted image's alt
+          // attribute in place.
+          generateImageAlt(dataUrl).then((alt) => {
+            if (!alt) return;
+            applyAltToLastImage(editor, url, alt);
+            toast('Alt text added', 'ok');
+          });
         } catch (err) { toast(`Upload failed: ${err.message}`, 'err'); }
         return;
       }
@@ -4881,9 +4925,12 @@ function attachImagePasteAndDrop(editor) {
     e.preventDefault();
     for (const file of files) {
       try {
-        const url = await uploadImageFile(file);
+        const { url, dataUrl } = await uploadImageFile(file);
         insertImageSmart(editor, url);
         toast('Image inserted', 'ok');
+        generateImageAlt(dataUrl).then((alt) => {
+          if (alt) { applyAltToLastImage(editor, url, alt); toast('Alt text added', 'ok'); }
+        });
       } catch (err) { toast(`Upload failed: ${err.message}`, 'err'); }
     }
   };
@@ -5682,35 +5729,71 @@ async function runAICommand(editor, kind) {
   const { from, to, empty } = editor.state.selection;
   const hasSelection = !empty;
   const selText = hasSelection ? editor.state.doc.textBetween(from, to, '\n') : '';
-  // For "continue" / "brainstorm" / "summary" we don't need a selection — they
-  // operate on whole-doc context.
   const wholeText = editor.getText();
   const title = $('ed-title')?.value || '';
+  // Whole-doc actions don't need a text selection; they operate on the
+  // entire guide context (or just the title for brainstorm).
+  const isAppendKind = kind === 'summary' || kind === 'continue' || kind === 'brainstorm' || kind === 'related';
+  const inputText = isAppendKind ? wholeText : (hasSelection ? selText : wholeText);
   toast(`AI: ${kind}…`);
-  // Brief shimmer over the selection (visual only)
   if (hasSelection) editor.view.dom.classList.add('ai-thinking');
-  await new Promise((r) => setTimeout(r, 280));
+
+  // Map UI kind → server action. 'related' has no Claude prompt yet, so
+  // fall back to the local mock for now.
+  const actionMap = {
+    improve: 'improve', shorter: 'shorter', longer: 'longer', grammar: 'grammar',
+    'tone-pro': 'tone-pro', 'tone-friendly': 'tone-friendly',
+    bullets: 'bullets', steps: 'steps', table: 'table',
+    summary: 'summary', continue: 'continue', brainstorm: 'brainstorm',
+  };
+  const serverAction = actionMap[kind];
+
   let replacement = null;
-  let appendBelow = false;
-  switch (kind) {
-    case 'improve':       replacement = aiPolish(selText); break;
-    case 'shorter':       replacement = aiShorter(selText); break;
-    case 'longer':        replacement = aiLonger(selText); break;
-    case 'grammar':       replacement = aiGrammar(selText); break;
-    case 'tone-pro':      replacement = aiTone(selText, 'pro'); break;
-    case 'tone-friendly': replacement = aiTone(selText, 'friendly'); break;
-    case 'bullets':       replacement = aiToBullets(selText); break;
-    case 'steps':         replacement = aiToSteps(selText); break;
-    case 'table':         replacement = aiToTable(selText); break;
-    case 'summary':       appendBelow = true; replacement = aiSummary(wholeText); break;
-    case 'continue':      appendBelow = true; replacement = aiContinue(wholeText, title); break;
-    case 'brainstorm':    appendBelow = true; replacement = aiBrainstorm(title); break;
-    case 'related':       appendBelow = true; replacement = aiRelated(title); break;
-    default: replacement = selText;
+  if (serverAction) {
+    try {
+      const r = await fetch('/api/ai-edit', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: serverAction,
+          text: kind === 'brainstorm' ? '' : inputText,
+          title,
+        }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j.detail || j.error || `HTTP ${r.status}`);
+      }
+      const j = await r.json();
+      replacement = (j.text || '').trim();
+    } catch (err) {
+      console.warn('[ai] server call failed, falling back to local transform:', err.message);
+      // Local fallback so the UI keeps working when slicedesk is unreachable
+      switch (kind) {
+        case 'improve':       replacement = aiPolish(inputText); break;
+        case 'shorter':       replacement = aiShorter(inputText); break;
+        case 'longer':        replacement = aiLonger(inputText); break;
+        case 'grammar':       replacement = aiGrammar(inputText); break;
+        case 'tone-pro':      replacement = aiTone(inputText, 'pro'); break;
+        case 'tone-friendly': replacement = aiTone(inputText, 'friendly'); break;
+        case 'bullets':       replacement = aiToBullets(inputText); break;
+        case 'steps':         replacement = aiToSteps(inputText); break;
+        case 'table':         replacement = aiToTable(inputText); break;
+        case 'summary':       replacement = aiSummary(inputText); break;
+        case 'continue':      replacement = aiContinue(inputText, title); break;
+        case 'brainstorm':    replacement = aiBrainstorm(title); break;
+      }
+      toast('AI offline — used local fallback. Check Slicedesk proxy.', 'err');
+    }
+  } else {
+    // Actions without a server prompt (e.g. 'related') stay on local mocks.
+    if (kind === 'related') replacement = aiRelated(title);
   }
+
   editor.view.dom.classList.remove('ai-thinking');
-  if (replacement == null) { toast('AI returned nothing — selection may be empty.', 'err'); return; }
-  if (appendBelow) {
+  if (!replacement) { toast('AI returned nothing — selection may be empty.', 'err'); return; }
+  if (isAppendKind) {
     editor.chain().focus('end').insertContent('\n\n' + replacement).run();
   } else if (hasSelection) {
     editor.chain().focus().deleteRange({ from, to }).insertContent(replacement).run();
@@ -10578,7 +10661,9 @@ $('cmdkModal').addEventListener('click', (e) => {
   if (e.target === $('cmdkModal')) closeCommandPalette();
 });
 
-// Avatar menu (top right)
+// Avatar menu (top right) — hydrate from /api/me so the admin sees
+// their real OneLogin name + role instead of the placeholder "Slice IT
+// Team". Falls back silently if /api/me is unreachable (local dev).
 const avatarBtn = $('topbarAvatarBtn');
 const avatarMenu = $('topbarAvatarMenu');
 function closeAvatar() { avatarMenu.classList.remove('is-show'); }
@@ -10586,7 +10671,23 @@ avatarBtn.addEventListener('click', (e) => { e.stopPropagation(); avatarMenu.cla
 document.addEventListener('click', (e) => { if (!avatarMenu.contains(e.target) && e.target !== avatarBtn) closeAvatar(); });
 $('avatarKbd').onclick = () => { closeAvatar(); $('shortcutModal').showModal(); };
 $('avatarExport').onclick = () => { closeAvatar(); exportAllGuides(); };
-$('avatarHub').onclick = () => { window.location.href = '/'; };
+$('avatarHub').onclick = () => { window.location.href = '/portal/'; };
+
+(async function hydrateAdminUser() {
+  try {
+    const r = await fetch('/api/me', { credentials: 'include', cache: 'no-store' });
+    if (!r.ok) return; // 401: middleware will already have bounced; 5xx: ignore
+    const me = await r.json();
+    if (me?.name) {
+      avatarBtn.textContent = me.name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+      avatarBtn.title = me.email ? `${me.name} (${me.email})` : me.name;
+      const nameEl = avatarMenu.querySelector('.head .name');
+      const roleEl = avatarMenu.querySelector('.head .role');
+      if (nameEl) nameEl.textContent = me.name;
+      if (roleEl) roleEl.textContent = `${me.roleLabel || me.role || 'Employee'} · signed in`;
+    }
+  } catch { /* offline / network blip — keep placeholder */ }
+})();
 
 // =========== NAV ===========
 document.querySelectorAll('.nav-link').forEach((n) => n.onclick = () => navigate(n.dataset.section));

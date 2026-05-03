@@ -397,6 +397,98 @@ async function ftsSearch(query) {
   return trgm.rows;
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// AI editor + insights actions, all through slicedesk's /api/ai/proxy.
+//
+// Single endpoint with an `action` discriminator so the admin UI doesn't
+// need a dozen routes. Each action maps to a system prompt + a message
+// shape; the proxy hands back Claude's raw response and we extract the
+// text. Image actions accept a base64 data URL (same shape the existing
+// uploader uses) and route it to Claude via the vision message format.
+// ────────────────────────────────────────────────────────────────────────
+
+const AI_PROMPTS = {
+  improve:    "Tighten and polish the user's text. Keep the voice. Don't change meaning. Output ONLY the rewritten text — no preamble, no explanation, no markdown fence.",
+  shorter:    "Rewrite the user's text to be roughly half the length while preserving every fact and step. Output ONLY the shorter text.",
+  longer:     "Expand the user's text with concrete details, examples, and edge cases relevant to internal-IT users. Keep the same structure. Output ONLY the expanded text.",
+  grammar:    "Fix grammar, spelling, and punctuation in the user's text. Don't restructure or re-word. Output ONLY the corrected text.",
+  'tone-pro': "Rewrite the user's text in a crisp, neutral, business-ready tone. Keep the same content. Output ONLY the rewritten text.",
+  'tone-friendly': "Rewrite the user's text in a warm, conversational tone — like a senior IT teammate explaining it. Output ONLY the rewritten text.",
+  bullets:    "Convert the user's text into a tight bullet list. Each bullet one idea. Output ONLY the markdown bullet list.",
+  steps:      "Convert the user's text into numbered steps a non-technical IT-Hub user can follow. Each step starts with an action verb (Open, Click, Enter, Confirm…). If the steps need a precondition or a 'when this fails' note, add them as separate sentences inside the step. Output ONLY the numbered markdown list.",
+  table:      "If the user's text has a 'X | Y | Z' / list / labelled-pair structure, convert it to a markdown table. Otherwise return the input unchanged. Output ONLY the table or the original.",
+  summary:    "Write a one-paragraph TL;DR of the user's text — what it's for, when to use it, the single most important step. Output ONLY the paragraph.",
+  continue:   "Continue the user's text in the same voice and structure. Add 2–4 sentences max. Output ONLY the continuation, no overlap with the existing text.",
+  brainstorm: "The user is starting a guide titled below. Output a markdown bullet list of 6–10 section headings (## level) the guide should cover. No prose, just the headings.",
+  // Image-only actions
+  'image-alt':     "Look at this screenshot from an internal IT support guide. Write one short sentence (max ~140 chars) describing what the screenshot shows — focus on the UI element or app and the key piece of info visible. Output ONLY the alt text, no quotes.",
+  'image-extract': "Look at this screenshot. Extract any visible text, error messages, button labels, or step indicators. Output as plain text in the order they appear, top-to-bottom. If the image has no text, output ONE LINE describing what's shown.",
+};
+
+async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
+  const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
+  if (!SLICEDESK_API_URL) throw new Error('SLICEDESK_API_URL not configured');
+  const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      Cookie: req.headers.cookie || '',
+    },
+    body: JSON.stringify({ model: CHAT_MODEL, max_tokens, system, messages }),
+  });
+  if (!upstream.ok) {
+    const body = await upstream.text().catch(() => '');
+    throw new Error(`proxy ${upstream.status}: ${body.slice(0, 200)}`);
+  }
+  const j = await upstream.json();
+  const text = (j.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+  return { text, usage: j.usage || null };
+}
+
+app.post('/api/ai-edit', requireSliceAdmin, async (req, res, next) => {
+  const { action, text, title, imageDataUrl } = req.body ?? {};
+  if (!AI_PROMPTS[action]) {
+    return res.status(400).json({ error: `unknown action: ${action}. valid: ${Object.keys(AI_PROMPTS).join(', ')}` });
+  }
+  const system = AI_PROMPTS[action];
+
+  try {
+    let messages;
+    if (action.startsWith('image-')) {
+      // Vision: parse data URL → { type: 'base64', media_type, data }
+      const m = String(imageDataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+      if (!m) return res.status(400).json({ error: 'imageDataUrl must be a base64 image data URL' });
+      messages = [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
+          { type: 'text', text: 'Apply the system instructions to this image.' },
+        ],
+      }];
+    } else if (action === 'brainstorm') {
+      // Brainstorm uses the title (not the body) as input.
+      const t = String(title || text || '').slice(0, 400);
+      if (!t.trim()) return res.status(400).json({ error: 'title required for brainstorm' });
+      messages = [{ role: 'user', content: `Guide title: ${t}` }];
+    } else {
+      const t = String(text || '').slice(0, 8000);
+      if (!t.trim()) return res.status(400).json({ error: 'text required' });
+      messages = [{ role: 'user', content: t }];
+    }
+
+    const { text: outText, usage } = await callClaudeProxy(req, {
+      system,
+      messages,
+      max_tokens: action === 'longer' || action === 'continue' || action === 'brainstorm' ? 1500 : 800,
+    });
+    res.json({ text: outText, usage });
+  } catch (err) {
+    console.warn('[ai-edit]', action, err.message);
+    res.status(502).json({ error: 'AI service unavailable', detail: err.message });
+  }
+});
+
 app.post('/api/chat', requireSliceUser, async (req, res, next) => {
   const { query } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
