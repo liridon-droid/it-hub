@@ -4,15 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Slice IT Hub — Admin</title>
-  <link rel="icon" href="/portal2/assets/slice-logo.png" />
+  <link rel="icon" href="/portal/assets/slice-logo.png" />
   <script>
     // Path-prefix fetch wrapper — see src/main.jsx for the rationale.
-    // Hardcoded /portal2 here because admin.html is a static file and Vite
+    // Hardcoded /portal here because admin.html is a static file and Vite
     // doesn't process it; runtime override via window.IT_HUB_BASE works.
     (function () {
       var base = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined)
         ? String(window.IT_HUB_BASE)
-        : '/portal2';
+        : '/portal';
       if (!base) return;
       var orig = window.fetch.bind(window);
       window.fetch = function (input, init) {
@@ -2973,12 +2973,12 @@
 
   <!-- ============== SIDEBAR ============== -->
   <aside class="sidebar">
-    <a class="brand" href="/portal2/" title="Back to IT Hub" style="text-decoration:none;cursor:pointer;">
-      <img class="brand-mark" src="/portal2/assets/slice-logo.png" alt="Slice" />
+    <a class="brand" href="/portal/" title="Back to IT Hub" style="text-decoration:none;cursor:pointer;">
+      <img class="brand-mark" src="/portal/assets/slice-logo.png" alt="Slice" />
       <span class="brand-name">IT Hub<small>Admin</small></span>
     </a>
     <div class="sidebar-body">
-    <a href="/portal2/" class="nav-link" style="font-weight:600;">
+    <a href="/portal/" class="nav-link" style="font-weight:600;">
       <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></span>
       Back to IT Hub
     </a>
@@ -3283,7 +3283,7 @@
     </div>
     <div class="field">
       <label class="field-label" for="linkUrlInput">URL</label>
-      <input class="tx" id="linkUrlInput" type="url" inputmode="url" placeholder="https://… or /portal2/path" autocomplete="off" />
+      <input class="tx" id="linkUrlInput" type="url" inputmode="url" placeholder="https://… or /portal/path" autocomplete="off" />
     </div>
     <div class="actions">
       <button class="btn ghost" id="linkRemove" type="button" hidden style="color:var(--neg);">Remove link</button>

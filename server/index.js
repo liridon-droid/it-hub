@@ -14,7 +14,7 @@ const PORT = Number(process.env.PORT) || 3001;
 // version can be tuned per-app without re-deploying slicedesk.
 const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-4-5';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://portal2:portal2@postgres:5432/portal2';
-// In production this app is mounted under /portal2/ on the slicedesk
+// In production this app is mounted under /portal/ on the slicedesk
 // domain, so any URLs we hand back (image upload URLs, etc.) need to
 // include that prefix or the browser will resolve them against the
 // origin root and 404. Empty string in dev (no prefix) is fine.

@@ -2398,6 +2398,27 @@ function FiledToast({ ticket, onClose, onView }) {
 // URLs (/help, /knowledge, /onboarding, etc.); transient sub-states
 // (/help → questions → search-results) all live under the parent path so
 // users can still bookmark / share / refresh and land in the right place.
+// In production the IT Hub is mounted under /portal/ on slicedesk's
+// nginx, so every URL we push to the browser needs that prefix or
+// we'd accidentally bounce users out to slicedesk's catch-all. The
+// base is read once at load time from the server-rendered <base> tag
+// or window.IT_HUB_BASE, with a sensible /portal default. Set
+// window.IT_HUB_BASE='' for local dev without a prefix.
+const APP_BASE = (() => {
+  if (typeof window !== "undefined") {
+    if (window.IT_HUB_BASE !== undefined) return String(window.IT_HUB_BASE).replace(/\/$/, "");
+    // Detect from <base href="..."> emitted by Vite when base != "/"
+    const baseEl = document.querySelector("base[href]");
+    if (baseEl) {
+      const u = baseEl.getAttribute("href") || "/";
+      const trimmed = u.replace(/\/$/, "");
+      if (trimmed) return trimmed;
+    }
+  }
+  return "/portal";
+})();
+const withBase = (p) => APP_BASE + p;
+
 const STAGE_TO_PATH = {
   landing: "/",
   questions: "/help",
@@ -2421,9 +2442,12 @@ const PATH_TO_STAGE = {
   "/notifications": "notifications",
 };
 function stageFromPath(path) {
-  // Normalize: only keep the first path segment so /onboarding/foo still
+  // Strip the deploy base path first so /portal/onboarding → /onboarding,
+  // then keep only the first path segment so /onboarding/foo still
   // resolves to onboarding. Falls back to landing for unknown paths.
-  const seg = "/" + ((path || "/").split("/").filter(Boolean)[0] || "");
+  let p = path || "/";
+  if (APP_BASE && p.startsWith(APP_BASE)) p = p.slice(APP_BASE.length) || "/";
+  const seg = "/" + ((p || "/").split("/").filter(Boolean)[0] || "");
   return PATH_TO_STAGE[seg] || "landing";
 }
 
@@ -2443,7 +2467,7 @@ function App() {
       const prevPath = STAGE_TO_PATH[prev] || "/";
       const nextPath = STAGE_TO_PATH[next] || "/";
       if (prevPath !== nextPath && typeof window !== "undefined") {
-        try { window.history.pushState({ stage: next }, "", nextPath); } catch {}
+        try { window.history.pushState({ stage: next }, "", withBase(nextPath)); } catch {}
       }
       return next;
     });
@@ -4346,7 +4370,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
           .brand-btn span { transition: letter-spacing .2s var(--ease, cubic-bezier(.22,.61,.36,1)), color .2s; }
           .brand-btn:hover span { letter-spacing: 0.10em; }
         `}</style>
-        <img src="/portal2/assets/slice-logo.png" alt="Slice" width="32" height="32" style={{
+        <img src={withBase("/assets/slice-logo.png")} alt="Slice" width="32" height="32" style={{
           display: "block", transform: "rotate(-10deg)", transformOrigin: "center",
         }} />
         <span style={{
@@ -4838,7 +4862,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
                   setOpen(false);
                   if (it.action === "profile" && onOpenProfile) onOpenProfile();
                   else if (it.action === "notifications" && onOpenNotifications) onOpenNotifications();
-                  else if (it.action === "admin") window.location.href = "/portal2/admin.html";
+                  else if (it.action === "admin") window.location.href = withBase("/admin.html");
                 }}
                 style={{
                   width: "100%",

@@ -1,8 +1,8 @@
 # it-hub stack — three services that boot together.
 #
 # Production: deployed alongside slicedesk's it-catalog on the same
-# docker network. Slicedesk's nginx proxies /portal2/* → it-hub-client,
-# /portal2/api/* → it-hub-server. See it-catalog's nginx.conf and
+# docker network. Slicedesk's nginx proxies /portal/* → it-hub-client,
+# /portal/api/* → it-hub-server. See it-catalog's nginx.conf and
 # docker-compose.yml for the outer routing.
 #
 # Local dev: run `docker compose up` from this directory. The frontend
@@ -37,9 +37,9 @@ services:
       # On the same docker network these are container DNS names.
       - SLICEDESK_API_URL=${SLICEDESK_API_URL:-http://it-catalog-server:3001}
       - SLICEDESK_LOGIN_URL=${SLICEDESK_LOGIN_URL:-/login}
-      # In prod the app is mounted under /portal2/, so any URLs we
+      # In prod the app is mounted under /portal/, so any URLs we
       # hand back (image upload URLs etc.) need the prefix.
-      - URL_PREFIX=${URL_PREFIX:-/portal2}
+      - URL_PREFIX=${URL_PREFIX:-/portal}
     depends_on:
       it-hub-postgres:
         condition: service_healthy
