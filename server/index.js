@@ -427,6 +427,10 @@ const AI_PROMPTS = {
   // Image-only actions
   'image-alt':     "Look at this screenshot from an internal IT support guide. Write one short sentence (max ~140 chars) describing what the screenshot shows — focus on the UI element or app and the key piece of info visible. Output ONLY the alt text, no quotes.",
   'image-extract': "Look at this screenshot. Extract any visible text, error messages, button labels, or step indicators. Output as plain text in the order they appear, top-to-bottom. If the image has no text, output ONE LINE describing what's shown.",
+  // Help-page triage: turn a free-form user query into 2–3 tailored
+  // multiple-choice clarifying questions so the chatbot's downstream
+  // answer can target the actual problem instead of a generic bucket.
+  clarify: "You're an IT support triage assistant for Slice employees. The user typed a problem into the help page. Generate 2–3 short multiple-choice clarifying questions that pin down the exact issue, in order of importance:\n  1. SUBJECT — which device / app / account / item is affected (skip this if the query already names it specifically)\n  2. SYMPTOM — what's actually happening (won't connect, no audio, error message, slow, crashing, …)\n  3. CONTEXT — when it started, what changed, what they've already tried (only if it would actually steer the fix)\n\nRules:\n  - Each question is type 'choice' with 3–5 options, plus an 'Other / not sure' option as the LAST option (id 'other').\n  - Each option has: id (short kebab-case), label (short noun phrase or clause), and an OPTIONAL hint (one short clarifying phrase, ≤ 6 words).\n  - Use plain employee-friendly language. No jargon, no 'have you considered'.\n  - Do NOT ask questions whose answer is already obvious from the user's query.\n  - If the query is already extremely specific, return ONLY 1–2 questions (skip context).\n  - Never ask about urgency or severity — that's not useful for routing the fix.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"questions\":[{\"id\":\"subject\",\"label\":\"...\",\"type\":\"choice\",\"options\":[{\"id\":\"...\",\"label\":\"...\",\"hint\":\"...\"}]}]}",
 };
 
 async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
@@ -490,6 +494,46 @@ app.post('/api/ai-edit', requireSliceAdmin, async (req, res, next) => {
   } catch (err) {
     console.warn('[ai-edit]', action, err.message);
     res.status(502).json({ error: 'AI service unavailable', detail: err.message });
+  }
+});
+
+app.post('/api/help/clarify', requireSliceUser, async (req, res) => {
+  const q = String(req.body?.query || '').trim().slice(0, 500);
+  if (!q) return res.status(400).json({ error: 'query required' });
+  try {
+    const { text } = await callClaudeProxy(req, {
+      system: AI_PROMPTS.clarify,
+      messages: [{ role: 'user', content: q }],
+      max_tokens: 700,
+    });
+    // Tolerant JSON extract — strip code fences or stray prose.
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch {
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
+    }
+    const questions = Array.isArray(parsed?.questions) ? parsed.questions : [];
+    // Defensive shape coercion — drop anything that won't render.
+    const clean = questions
+      .map((qst) => ({
+        id: String(qst.id || '').slice(0, 32) || 'q',
+        label: String(qst.label || '').slice(0, 200),
+        type: qst.type === 'multi' ? 'multi' : 'choice',
+        options: Array.isArray(qst.options)
+          ? qst.options.slice(0, 6).map((o) => ({
+              id: String(o.id || '').slice(0, 32) || 'o',
+              label: String(o.label || '').slice(0, 120),
+              hint: o.hint ? String(o.hint).slice(0, 80) : undefined,
+            })).filter((o) => o.label)
+          : [],
+      }))
+      .filter((qst) => qst.label && qst.options.length >= 2)
+      .slice(0, 3);
+    res.json({ questions: clean });
+  } catch (err) {
+    console.warn('[clarify]', err.message);
+    // Soft-fail — client falls back to its hardcoded route questions.
+    res.json({ questions: [], error: err.message });
   }
 });
 

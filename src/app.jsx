@@ -1381,16 +1381,47 @@ function OnCallCard({ onSubmit }) {
 // ---------- QUESTION FLOW ----------
 function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
   const t = useCopy();
-  const route = useMemo(() => routeFor(query), [query]);
+  // Hardcoded fallback route — used while the AI questions are loading and
+  // if the /api/help/clarify call fails or returns nothing usable.
+  const fallbackRoute = useMemo(() => routeFor(query), [query]);
+  const [aiQuestions, setAiQuestions] = useState(null); // null = not loaded yet
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({});
   const [thinking, setThinking] = useState(true);
 
+  // Ask Claude for clarifying questions tailored to the user's actual query.
+  // While we wait we show the same "thinking…" state the page already had.
   useEffect(() => {
-    const t = setTimeout(() => setThinking(false), 900);
-    return () => clearTimeout(t);
+    let cancelled = false;
+    setAiQuestions(null);
+    setThinking(true);
+    (async () => {
+      try {
+        const r = await fetch('/api/help/clarify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const j = await r.json();
+        if (cancelled) return;
+        if (Array.isArray(j.questions) && j.questions.length > 0) {
+          setAiQuestions(j.questions);
+        } else {
+          setAiQuestions([]); // signal: use fallback
+        }
+      } catch {
+        if (!cancelled) setAiQuestions([]);
+      } finally {
+        if (!cancelled) setThinking(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [query]);
 
+  // Use AI questions when present; otherwise the hardcoded route.
+  const route = (aiQuestions && aiQuestions.length > 0)
+    ? { ...fallbackRoute, questions: aiQuestions }
+    : fallbackRoute;
   const total = route.questions.length;
   const question = route.questions[step];
   const answer = answers[question?.id];
