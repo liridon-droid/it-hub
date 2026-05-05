@@ -19,11 +19,6 @@ const PORT = Number(process.env.PORT) || 3001;
 // version can be tuned per-app without re-deploying slicedesk.
 const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-4-5';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://portal2:portal2@postgres:5432/portal2';
-// In production this app is mounted under /portal/ on the slicedesk
-// domain, so any URLs we hand back (image upload URLs, etc.) need to
-// include that prefix or the browser will resolve them against the
-// origin root and 404. Empty string in dev (no prefix) is fine.
-const URL_PREFIX = (process.env.URL_PREFIX || '').replace(/\/$/, '');
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
@@ -316,7 +311,7 @@ app.post('/api/uploads', requireSliceAdmin, async (req, res, next) => {
     const safe = String(filename || 'image').replace(/[^a-z0-9._-]/gi, '_').slice(0, 40).replace(/\.[^.]*$/, '');
     const final = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe || 'image'}.${ext}`;
     await writeFile(path.join(UPLOAD_DIR, final), buf);
-    res.json({ url: `${URL_PREFIX}/uploads/${final}`, bytes: buf.length });
+    res.json({ url: `/uploads/${final}`, bytes: buf.length });
   } catch (e) { next(e); }
 });
 
