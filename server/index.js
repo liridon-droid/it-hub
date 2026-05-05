@@ -19,6 +19,22 @@ const PORT = Number(process.env.PORT) || 3001;
 // version can be tuned per-app without re-deploying slicedesk.
 const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-4-5';
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://portal2:portal2@postgres:5432/portal2';
+// Image upload URLs go straight into <img src="">, which bypasses the
+// client-side fetch/XHR prefix shim, so the URL must already contain
+// whatever path the app is mounted at (/portal, /portal2, ...). We
+// derive that from the request's Referer at upload time so the URL is
+// always correct regardless of how the slicedesk env var is set.
+const FALLBACK_PREFIX = (process.env.URL_PREFIX || '').replace(/\/$/, '');
+function prefixFromRequest(req) {
+  const ref = req.get('Referer') || '';
+  if (ref) {
+    try {
+      const p = new URL(ref).pathname.replace(/\/[^/]*$/, '');
+      if (p && p !== '/') return p.replace(/\/$/, '');
+    } catch {}
+  }
+  return FALLBACK_PREFIX;
+}
 
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
@@ -311,7 +327,7 @@ app.post('/api/uploads', requireSliceAdmin, async (req, res, next) => {
     const safe = String(filename || 'image').replace(/[^a-z0-9._-]/gi, '_').slice(0, 40).replace(/\.[^.]*$/, '');
     const final = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${safe || 'image'}.${ext}`;
     await writeFile(path.join(UPLOAD_DIR, final), buf);
-    res.json({ url: `/uploads/${final}`, bytes: buf.length });
+    res.json({ url: `${prefixFromRequest(req)}/uploads/${final}`, bytes: buf.length });
   } catch (e) { next(e); }
 });
 
