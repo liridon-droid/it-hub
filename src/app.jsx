@@ -1470,8 +1470,14 @@ function OnCallCard({ onSubmit }) {
         Urgent? Ping us on Slack. Everything else — drop a ticket.
       </div>
 
-      {/* Slack path — prominent */}
-      <button className="oncall-btn-primary" onClick={() => onSubmit && onSubmit("Open #it-support in Slack")}>
+      {/* Slack path — prominent. Direct deep-link to #it-support: macOS/Windows
+          Slack desktop registers as a handler for app.slack.com URLs, so this
+          opens the channel in Slack desktop without a browser detour. Falls
+          back to Slack web if desktop isn't installed. Same-tab nav rather
+          than target=_blank because the Slice Mac App swallows new-tab. */}
+      <a className="oncall-btn-primary"
+         href="https://app.slack.com/client/T04HEPC7P/C9FPB2M1S"
+         style={{ textDecoration: "none", color: "inherit" }}>
         <div className="oncall-slack-icon" style={{
           width: 36, height: 36, borderRadius: 8,
           background: "#FFFFFF",
@@ -1511,7 +1517,7 @@ function OnCallCard({ onSubmit }) {
           fontFamily: "'Archivo', sans-serif",
           fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
         }}>OPEN →</div>
-      </button>
+      </a>
 
       {/* Divider */}
       <div style={{
@@ -4723,7 +4729,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
 function ItServicesButton() {
   return (
     <a
-      href="https://it.slice.services"
+      href="https://slicedesk.slice.services/"
       title="Back to SliceDesk"
       aria-label="Back to SliceDesk"
       className="back-to-slicedesk"
