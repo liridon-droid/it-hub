@@ -21967,7 +21967,16 @@ window.ScreenshotEntry = ScreenshotEntry;
 
 function renderMarkdown(md, opts = {}) {
   const stepStyle = opts.stepStyle === 'cards' ? 'cards' : 'plain';
-  const lines = String(md ?? '').replace(/\r\n/g, '\n').split('\n');
+  // Chat answers reference excerpt cards shown below as [1] [2] [3]. Those
+  // markers add noise inline — strip them before rendering. (Real markdown
+  // links of the form [Text](url) survive because the regex only matches
+  // brackets containing digits.)
+  const stripCitations = opts.stripCitations === true || stepStyle === 'cards';
+  let raw = String(md ?? '').replace(/\r\n/g, '\n');
+  if (stripCitations) {
+    raw = raw.replace(/\s*\[\d+\](?:\s*\[\d+\])*/g, '');
+  }
+  const lines = raw.split('\n');
   const out = [];
   let i = 0;
   let key = 0;
@@ -22147,37 +22156,57 @@ function renderMarkdown(md, opts = {}) {
     }
 
     if (line.match(/^\d+\.\s+/)) {
+      // Group consecutive numbered items. Be tolerant of blank lines between
+      // them — Claude often writes `1.\n\n1.\n\n1.` and we want it to render
+      // as ONE list (auto-renumbered 1, 2, 3…), not three lists each starting
+      // at 1.
       const items = [];
-      while (i < lines.length && lines[i].match(/^\d+\.\s+/)) { items.push(lines[i].replace(/^\d+\.\s+/, '')); i++; }
+      while (i < lines.length) {
+        const cur = lines[i];
+        if (cur.match(/^\d+\.\s+/)) {
+          items.push(cur.replace(/^\d+\.\s+/, ''));
+          i++;
+        } else if (cur.trim() === '') {
+          let k = i + 1;
+          while (k < lines.length && lines[k].trim() === '') k++;
+          if (k < lines.length && lines[k].match(/^\d+\.\s+/)) {
+            i = k; // jump past the blank gap, keep the list going
+          } else {
+            break;
+          }
+        } else {
+          break;
+        }
+      }
       if (stepStyle === 'cards') {
-        // Card-style steps for chat answers — the help page surfaces these
-        // and the rhythm-of-cards reads better there than a plain ordered list.
-        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'block' }}>
+        // Compact card-style steps for chat answers.
+        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 14px', display: 'block' }}>
           {items.map((it, k) => (
             <li key={k} style={{
               display: 'grid',
-              gridTemplateColumns: '36px 1fr',
-              gap: 14,
+              gridTemplateColumns: '28px 1fr',
+              gap: 10,
               alignItems: 'start',
-              padding: '14px 18px',
-              marginBottom: 10,
+              padding: '10px 14px',
+              marginBottom: 6,
               background: '#FFFFFF',
               border: '1.5px solid #211E1E',
               borderRadius: 8,
-              boxShadow: '3px 3px 0 #211E1E',
+              boxShadow: '2px 2px 0 #211E1E',
               width: '100%',
               boxSizing: 'border-box',
             }}>
               <div style={{
-                width: 28, height: 28, borderRadius: '50%',
+                width: 22, height: 22, borderRadius: '50%',
                 background: '#FDC831', border: '1.5px solid #211E1E',
                 color: '#211E1E',
                 display: 'grid', placeItems: 'center',
                 fontFamily: "'Archivo', sans-serif",
-                fontSize: 12, fontWeight: 800,
+                fontSize: 11, fontWeight: 800,
                 flexShrink: 0,
+                marginTop: 1,
               }}>{k + 1}</div>
-              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E', paddingTop: 4, minWidth: 0, wordBreak: 'break-word' }}>
+              <div style={{ fontSize: 14, lineHeight: 1.5, color: '#211E1E', minWidth: 0, wordBreak: 'break-word' }}>
                 {inline(it)}
               </div>
             </li>
@@ -23122,33 +23151,70 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           }}>Searching the knowledge base…</div>
         )}
 
-        {!loading && answer && (
-          <div style={{
-            background: '#FFF9E6', border: '2px solid #211E1E', borderRadius: 14,
-            padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
-          }}>
+        {!loading && answer && (() => {
+          // Split off the "Still stuck? … Support" trailer so it can render
+          // right-aligned as a button rather than as another paragraph in
+          // the body. Server always emits the canonical line; we match it
+          // generously in case the model paraphrased.
+          const m = answer.match(/(.*?)(\n+\s*(?:>\s*)?_?Still stuck\?[^\n]*?https:\/\/it\.slicelife\.com[^\n]*_?\s*)$/is);
+          const mainText = m ? m[1].trimEnd() : answer;
+          const hasTrailer = !!m;
+          return (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
+              background: '#FFF9E6', border: '2px solid #211E1E', borderRadius: 14,
+              padding: '22px 26px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
             }}>
               <div style={{
-                width: 26, height: 26, borderRadius: '50%',
-                background: '#FDC831', border: '2px solid #211E1E',
-                display: 'grid', placeItems: 'center',
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11, fontWeight: 900, color: '#211E1E',
-                flexShrink: 0,
-              }}>S</div>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
-                textTransform: 'uppercase', color: '#4A3F2E',
-              }}>Slice IT · here's what to try</div>
+                display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
+              }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: '50%',
+                  background: '#FDC831', border: '2px solid #211E1E',
+                  display: 'grid', placeItems: 'center',
+                  fontFamily: "'Archivo', sans-serif",
+                  fontSize: 11, fontWeight: 900, color: '#211E1E',
+                  flexShrink: 0,
+                }}>S</div>
+                <div style={{
+                  fontFamily: "'Archivo', sans-serif",
+                  fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
+                  textTransform: 'uppercase', color: '#4A3F2E',
+                }}>Slice IT · here's what to try</div>
+              </div>
+              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E' }}>
+                {renderMarkdown(mainText, { stepStyle: 'cards' })}
+              </div>
+              {hasTrailer && (
+                <div style={{
+                  display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
+                  marginTop: 8, gap: 8,
+                  fontSize: 12.5, color: '#4A3F2E',
+                  fontFamily: "'Archivo', sans-serif",
+                }}>
+                  <span>Still stuck?</span>
+                  <a
+                    href="https://it.slicelife.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      padding: '6px 12px',
+                      background: '#211E1E', color: '#FDC831',
+                      border: '1.5px solid #211E1E', borderRadius: 999,
+                      fontWeight: 800, fontSize: 12,
+                      letterSpacing: '0.04em', textTransform: 'uppercase',
+                      textDecoration: 'none',
+                      boxShadow: '2px 2px 0 #FDC831',
+                    }}
+                  >
+                    Open a Support ticket
+                    <span aria-hidden style={{ fontSize: 13 }}>→</span>
+                  </a>
+                </div>
+              )}
             </div>
-            <div style={{ fontSize: 15, lineHeight: 1.65, color: '#211E1E' }}>
-              {renderMarkdown(answer, { stepStyle: 'cards' })}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {!loading && citations.length > 0 && (
           <>
