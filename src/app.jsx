@@ -65,7 +65,7 @@ const ROUTES = [
     ],
     guides: ["g.pwd.self", "g.pwd.mfa", "g.pwd.secure"],
     tickets: ["t.pwd.okta","t.pwd.mfa"],
-    suggestedTeam: "Identity & Access",
+    suggestedTeam: "IT Team",
     eta: "~4 min",
   },
   {
@@ -112,7 +112,7 @@ const ROUTES = [
     ],
     guides: ["g.net.triage","g.net.vpn","g.net.hq"],
     tickets: ["t.net.vpn","t.net.hq"],
-    suggestedTeam: "Network Operations",
+    suggestedTeam: "IT Team",
     eta: "~6 min",
   },
   {
@@ -201,7 +201,7 @@ const ROUTES = [
     ],
     guides: ["g.acc.flow","g.acc.sla"],
     tickets: ["t.acc.std","t.acc.sec"],
-    suggestedTeam: "Identity & Access",
+    suggestedTeam: "IT Team",
     eta: "~3 min",
   },
   {
@@ -312,7 +312,7 @@ const DEFAULT_ROUTE = {
   ],
   guides: ["g.general.slo","g.general.contact"],
   tickets: ["t.general.std"],
-  suggestedTeam: "IT Service Desk",
+  suggestedTeam: "IT Team",
   eta: "~5 min",
 };
 
@@ -337,17 +337,17 @@ const GUIDES = {
 };
 
 const TICKETS = {
-  "t.pwd.okta": { title: "OneLogin password reset",            team: "Identity & Access", sla: "2 hour SLA",  priority: "P2", hot: true, avg: "12 min median" },
-  "t.pwd.mfa":  { title: "OneLogin Protect re‑enrollment",     team: "Identity & Access", sla: "4 hour SLA",  priority: "P2", avg: "30 min median" },
-  "t.net.vpn":  { title: "VPN / WARP not connecting",         team: "Network Operations", sla: "4 hour SLA", priority: "P2", avg: "45 min median" },
-  "t.net.hq":   { title: "On‑site network issue",             team: "Network Operations", sla: "1 hour SLA",  priority: "P1", avg: "25 min median" },
+  "t.pwd.okta": { title: "OneLogin password reset",            team: "IT Team", sla: "2 hour SLA",  priority: "P2", hot: true, avg: "12 min median" },
+  "t.pwd.mfa":  { title: "OneLogin Protect re‑enrollment",     team: "IT Team", sla: "4 hour SLA",  priority: "P2", avg: "30 min median" },
+  "t.net.vpn":  { title: "VPN / WARP not connecting",         team: "IT Team", sla: "4 hour SLA", priority: "P2", avg: "45 min median" },
+  "t.net.hq":   { title: "On‑site network issue",             team: "IT Team", sla: "1 hour SLA",  priority: "P1", avg: "25 min median" },
   "t.dev.swap": { title: "Laptop replacement",                team: "End‑user Compute",   sla: "1 business day", priority: "P3", avg: "1.2 days" },
   "t.dev.repair":{title: "In‑warranty Mac repair",            team: "End‑user Compute",   sla: "3 business days", priority: "P3", avg: "2.4 days" },
   "t.dev.order":{ title: "Peripheral / device order",         team: "End‑user Compute",   sla: "2 business days", priority: "P3", avg: "1.8 days" },
-  "t.acc.std":  { title: "App access request",                team: "Identity & Access",  sla: "1 business day", priority: "P3", avg: "6 hours" },
+  "t.acc.std":  { title: "App access request",                team: "IT Team",  sla: "1 business day", priority: "P3", avg: "6 hours" },
   "t.acc.sec":  { title: "Privileged access request",         team: "Security",           sla: "3 business days", priority: "P2", avg: "1.8 days" },
   "t.mail.std": { title: "Email / calendar issue",             team: "Collaboration",      sla: "4 hour SLA",  priority: "P2", avg: "1.5 hours" },
-  "t.general.std":{title:"General IT request",                 team: "IT Service Desk",    sla: "1 business day", priority: "P3", avg: "4 hours" },
+  "t.general.std":{title:"General IT request",                 team: "IT Team",    sla: "1 business day", priority: "P3", avg: "4 hours" },
 };
 
 // Prior, similar tickets — shown on the results screen as "people like you asked"
@@ -1584,83 +1584,6 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
         )}
       </div>
 
-      {/* Alternative path on first step: drop a screenshot instead of answering */}
-      {!thinking && step === 0 && onOpenScreenshot && (
-        <div style={{
-          marginBottom: 32,
-          animation: "fadeIn .4s .1s var(--ease) both",
-        }}>
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: 14,
-              padding: "16px 20px",
-              background: "#FFFFFF",
-              border: "2px solid #211E1E",
-              borderRadius: 12,
-              boxShadow: "3px 3px 0 #211E1E",
-              transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
-              cursor: "default",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-2px,-2px)";
-              e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
-            }}
-          >
-            <div style={{
-              width: 44, height: 44, borderRadius: 8,
-              background: "#FFFFFF",
-              border: "2px solid #211E1E",
-              color: "#211E1E",
-              display: "grid", placeItems: "center",
-              flexShrink: 0,
-            }}>
-              {/* Monochrome camera icon */}
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                stroke="#211E1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M3 8h3l2-2.5h8L18 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-                <circle cx="12" cy="13.5" r="3.5"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 15, fontWeight: 800, color: "#211E1E",
-                letterSpacing: "-0.015em",
-                marginBottom: 2,
-              }}>
-                Or just show us — drop a screenshot
-              </div>
-              <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.4 }}>
-                Skip the questions. We'll look at what you're seeing and route you to the right fix.
-              </div>
-            </div>
-            <button
-              onClick={() => onOpenScreenshot(query)}
-              style={{
-                padding: "10px 16px",
-                background: "#DA3327", color: "#FFFFFF",
-                border: "2px solid #DA3327", borderRadius: 4,
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 12,
-                letterSpacing: "0.04em", textTransform: "uppercase",
-                cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: 6,
-                flexShrink: 0,
-                transition: "background .15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#B92A20"; e.currentTarget.style.borderColor = "#B92A20"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "#DA3327"; e.currentTarget.style.borderColor = "#DA3327"; }}
-            >
-              Upload <span style={{ fontSize: 14 }}>↑</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Question */}
       {!thinking && question &&
       <div key={step} style={{ animation: "fadeUp .4s var(--ease) both" }}>
@@ -1820,6 +1743,84 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
           </div>
         </div>
       }
+
+      {/* Screenshot escape hatch — moved BELOW the question so the user
+          considers it after weighing the answers, not as the first thing
+          they see on the page. */}
+      {!thinking && onOpenScreenshot && (
+        <div style={{
+          marginTop: 32,
+          animation: "fadeIn .4s .1s var(--ease) both",
+        }}>
+          <div
+            style={{
+              display: "flex", alignItems: "center", gap: 14,
+              padding: "16px 20px",
+              background: "#FFFFFF",
+              border: "2px solid #211E1E",
+              borderRadius: 12,
+              boxShadow: "3px 3px 0 #211E1E",
+              transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
+              cursor: "default",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "translate(-2px,-2px)";
+              e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "none";
+              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+            }}
+          >
+            <div style={{
+              width: 44, height: 44, borderRadius: 8,
+              background: "#FFFFFF",
+              border: "2px solid #211E1E",
+              color: "#211E1E",
+              display: "grid", placeItems: "center",
+              flexShrink: 0,
+            }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke="#211E1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 8h3l2-2.5h8L18 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+                <circle cx="12" cy="13.5" r="3.5"/>
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontFamily: "'Archivo', sans-serif",
+                fontSize: 15, fontWeight: 800, color: "#211E1E",
+                letterSpacing: "-0.015em",
+                marginBottom: 2,
+              }}>
+                Or just show us — drop a screenshot
+              </div>
+              <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.4 }}>
+                Skip the questions. We'll look at what you're seeing and route you to the right fix.
+              </div>
+            </div>
+            <button
+              onClick={() => onOpenScreenshot(query)}
+              style={{
+                padding: "10px 16px",
+                background: "#DA3327", color: "#FFFFFF",
+                border: "2px solid #DA3327", borderRadius: 4,
+                fontFamily: "'Archivo', sans-serif",
+                fontWeight: 800, fontSize: 12,
+                letterSpacing: "0.04em", textTransform: "uppercase",
+                cursor: "pointer",
+                display: "inline-flex", alignItems: "center", gap: 6,
+                flexShrink: 0,
+                transition: "background .15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "#B92A20"; e.currentTarget.style.borderColor = "#B92A20"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "#DA3327"; e.currentTarget.style.borderColor = "#DA3327"; }}
+            >
+              Upload <span style={{ fontSize: 14 }}>↑</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>);
 
 }
@@ -2648,7 +2649,7 @@ function App() {
         loading={searchResult.loading}
         onBack={goHome}
         onOpenGuide={(g) => setGuide(g)}
-        onFileTicket={(ctx) => setFiledTicket({ team: ctx?.team || 'IT Service Desk', source: ctx?.source || 'search' })} />
+        onFileTicket={(ctx) => setFiledTicket({ team: ctx?.team || 'IT Team', source: ctx?.source || 'search' })} />
       }
 
       {stage === "onboarding" &&
@@ -2726,7 +2727,7 @@ function App() {
         <ScreenshotHelper
           onClose={() => setScreenshotOpen(false)}
           onOpenGuide={(g) => { setGuide(g); }}
-          onFileTicket={(ctx) => { setScreenshotOpen(false); setFiledTicket({ team: ctx.team || "IT Service Desk", source: ctx.source }); }}
+          onFileTicket={(ctx) => { setScreenshotOpen(false); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
         />
       )}
 
@@ -2736,7 +2737,7 @@ function App() {
             guide={guide}
             fromQuery={query}
             onClose={() => setGuide(null)}
-            onFileTicket={(ctx) => { setGuide(null); setFiledTicket({ team: ctx.team || "IT Service Desk", source: ctx.source }); }}
+            onFileTicket={(ctx) => { setGuide(null); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
             onOpenGuide={(g) => setGuide(g)}
             onOpenScreenshot={() => setScreenshotOpen(true)}
           />)}
@@ -21557,7 +21558,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               onOpenGuide={openSuggestedGuide}
               onFileTicket={() => {
                 onFileTicket?.({
-                  team: "IT Service Desk",
+                  team: "IT Team",
                   source: "Screenshot diagnosis: " + result.diagnosis,
                 });
                 onClose();
@@ -22472,10 +22473,12 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         ) : (
           <>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/>
-              <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>
             </svg>
-            Copy link
+            Share
           </>
         )}
       </button>
@@ -22494,7 +22497,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           {error && (
             <div>
               <p style={{ color: '#888', fontStyle: 'italic', margin: '0 0 18px' }}>{error}</p>
-              <button onClick={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Service Desk' })} style={{
+              <button onClick={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team' })} style={{
                 background: '#211E1E', color: '#FDC831',
                 border: 'none', padding: '12px 24px',
                 borderRadius: 8, fontWeight: 800,
@@ -22531,7 +22534,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 } catch {}
               }
             }}
-            onFileTicket={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Service Desk' })}
+            onFileTicket={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team' })}
             relatedGuides={related}
             onOpenGuide={onOpenGuide}
           />
@@ -22564,20 +22567,25 @@ function ImageLightbox({ images, index, onClose }) {
   const total = images.length;
   const current = images[i] || images[0];
 
+  // Bounded navigation — once you reach the first/last image the arrow on
+  // that side disables (no infinite loop). The user found wrap-around
+  // confusing because it looked like the same image was opening again.
+  const atStart = i <= 0;
+  const atEnd = i >= total - 1;
   const prev = React.useCallback(() => {
     setZoomed(false);
-    setI((cur) => (cur - 1 + total) % total);
-  }, [total]);
+    setI((cur) => Math.max(0, cur - 1));
+  }, []);
   const next = React.useCallback(() => {
     setZoomed(false);
-    setI((cur) => (cur + 1) % total);
+    setI((cur) => Math.min(total - 1, cur + 1));
   }, [total]);
 
   React.useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') onClose();
-      else if (e.key === 'ArrowLeft' && total > 1) prev();
-      else if (e.key === 'ArrowRight' && total > 1) next();
+      else if (e.key === 'ArrowLeft' && total > 1 && !atStart) prev();
+      else if (e.key === 'ArrowRight' && total > 1 && !atEnd) next();
     };
     document.addEventListener('keydown', onKey);
     const savedOverflow = document.body.style.overflow;
@@ -22586,9 +22594,9 @@ function ImageLightbox({ images, index, onClose }) {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = savedOverflow;
     };
-  }, [onClose, prev, next, total]);
+  }, [onClose, prev, next, total, atStart, atEnd]);
 
-  const navBtn = (side) => ({
+  const navBtn = (side, disabled) => ({
     position: 'fixed',
     top: '50%', transform: 'translateY(-50%)',
     [side]: 18,
@@ -22596,11 +22604,13 @@ function ImageLightbox({ images, index, onClose }) {
     background: '#FFFFFF', color: '#211E1E',
     border: '2px solid #211E1E',
     boxShadow: '3px 3px 0 rgba(0,0,0,0.45)',
-    cursor: 'pointer',
+    cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'grid', placeItems: 'center',
     fontSize: 22, fontWeight: 800,
     fontFamily: "'Archivo', sans-serif",
     zIndex: 1010,
+    opacity: disabled ? 0.35 : 1,
+    pointerEvents: disabled ? 'none' : 'auto',
   });
 
   return (
@@ -22636,8 +22646,8 @@ function ImageLightbox({ images, index, onClose }) {
 
       {total > 1 && (
         <>
-          <button onClick={(e) => { e.stopPropagation(); prev(); }} aria-label="Previous image" style={navBtn('left')}>‹</button>
-          <button onClick={(e) => { e.stopPropagation(); next(); }} aria-label="Next image" style={navBtn('right')}>›</button>
+          <button onClick={(e) => { e.stopPropagation(); if (!atStart) prev(); }} aria-label="Previous image" disabled={atStart} style={navBtn('left', atStart)}>‹</button>
+          <button onClick={(e) => { e.stopPropagation(); if (!atEnd) next(); }} aria-label="Next image" disabled={atEnd} style={navBtn('right', atEnd)}>›</button>
         </>
       )}
 
@@ -23186,30 +23196,23 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               </div>
               {hasTrailer && (
                 <div style={{
-                  display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-                  marginTop: 8, gap: 8,
-                  fontSize: 12.5, color: '#4A3F2E',
+                  marginTop: 10,
+                  textAlign: 'right',
+                  fontSize: 13, color: '#4A3F2E',
                   fontFamily: "'Archivo', sans-serif",
                 }}>
-                  <span>Still stuck?</span>
+                  Still stuck?{' '}
                   <a
                     href="https://it.slicelife.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      padding: '6px 12px',
-                      background: '#211E1E', color: '#FDC831',
-                      border: '1.5px solid #211E1E', borderRadius: 999,
-                      fontWeight: 800, fontSize: 12,
-                      letterSpacing: '0.04em', textTransform: 'uppercase',
-                      textDecoration: 'none',
-                      boxShadow: '2px 2px 0 #FDC831',
+                      color: '#211E1E', fontWeight: 700,
+                      textDecoration: 'underline', textUnderlineOffset: 3,
                     }}
                   >
-                    Open a Support ticket
-                    <span aria-hidden style={{ fontSize: 13 }}>→</span>
-                  </a>
+                    Submit a ticket
+                  </a>.
                 </div>
               )}
             </div>

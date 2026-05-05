@@ -4787,13 +4787,13 @@ async function generateAIDraftFallback(ctx) {
     if (lengthMul > 1) steps.push('Restart the app if changes aren\'t reflected immediately.', 'Confirm the new state with a quick test.');
     body += steps.map((s, i) => `${i + 1}. ${s}`).join('\n') + '\n\n';
     body += `## If it doesn't work\n\n`;
-    body += `- Quit and reopen ${app}\n- Restart your laptop\n- Try the same steps from a different network\n- File a ticket with the **IT Service Desk** — include a screenshot of where you got stuck\n`;
+    body += `- Quit and reopen ${app}\n- Restart your laptop\n- Try the same steps from a different network\n- File a ticket with the **IT Team** — include a screenshot of where you got stuck\n`;
   } else if (type === 'troubleshoot') {
     body = `If you're seeing issues with ${topic}, work through this in order.\n\n`;
     if (ctx.appDevice) body += `**Affects:** ${ctx.appDevice}\n\n`;
     body += `## Most common cause\n\nUsually a stale session or cached credentials. Sign out, quit ${app}, and sign back in. Resolves ~70% of cases.\n\n`;
     body += `## Other causes\n\n| Symptom | Likely cause | Fix |\n|---|---|---|\n| Nothing loads | Network / VPN | Reconnect to GlobalProtect |\n| Loads but errors | Permissions | Request access via the IT Hub |\n| Intermittent | Cached state | Clear cache + restart |\n\n`;
-    body += `## When to escalate\n\n- Multiple users hit the same issue at once\n- Anything customer-facing\n- You've tried everything above and it's still broken\n\nFile a ticket with the **IT Service Desk**.`;
+    body += `## When to escalate\n\n- Multiple users hit the same issue at once\n- Anything customer-facing\n- You've tried everything above and it's still broken\n\nFile a ticket with the **IT Team**.`;
   } else if (type === 'runbook') {
     body = `**When to run this:** when you need to ${topic}.\n**Who runs it:** ${audience}\n**Estimated duration:** 15–30 min\n\n`;
     body += `## Pre-flight checks\n\n- [ ] You have admin access to ${app}\n- [ ] Change ticket is filed and approved\n- [ ] You're on VPN\n\n`;
@@ -4803,8 +4803,8 @@ async function generateAIDraftFallback(ctx) {
     body = `Common questions about ${topic}.\n\n`;
     body += `## What is ${topic}?\n\n${subject} is a common task for ${audience} working with ${app}.\n\n`;
     body += `## How do I do it?\n\nFollow the steps in the [main guide](#).\n\n`;
-    body += `## What if it doesn't work?\n\nFile a ticket with the **IT Service Desk** — include any error messages and a screenshot.\n\n`;
-    body += `## Who do I ask?\n\nThe **IT Service Desk** team owns this. Slack: \`#it-help\`.`;
+    body += `## What if it doesn't work?\n\nFile a ticket with the **IT Team** — include any error messages and a screenshot.\n\n`;
+    body += `## Who do I ask?\n\nThe **IT Team** team owns this. Slack: \`#it-help\`.`;
   } else if (type === 'announcement') {
     body = `> **TL;DR:** ${topic}.\n\n`;
     body += `## What's changing\n\n${subject} affects ${audience}${ctx.appDevice ? ` using ${ctx.appDevice}` : ''}.\n\n`;
@@ -5468,7 +5468,7 @@ function setupMentionPicker(editor) {
         pill: g.source_type || 'guide',
         attrs: { type: 'guide', id: String(g.id), label: g.title, href: `/admin.html?guide=${g.id}` },
       })),
-      { type: 'user', label: 'IT Service Desk', sub: 'Team', pill: 'team', attrs: { type: 'user', id: 'team:itsd', label: 'IT Service Desk' } },
+      { type: 'user', label: 'IT Team', sub: 'Team', pill: 'team', attrs: { type: 'user', id: 'team:itsd', label: 'IT Team' } },
       { type: 'user', label: 'Security', sub: 'Team', pill: 'team', attrs: { type: 'user', id: 'team:sec', label: 'Security' } },
       { type: 'user', label: 'Slice IT Team', sub: 'Author', pill: 'team', attrs: { type: 'user', id: 'team:slice', label: 'Slice IT Team' } },
       { type: 'date', label: 'Today', sub: fmtDate(today), pill: 'date', attrs: { type: 'date', id: today.toISOString().slice(0, 10), label: fmtDate(today) } },
@@ -5912,7 +5912,7 @@ function aiSummary(t) {
   return `## Summary\n\n${aiShorter(first)}`;
 }
 function aiContinue(t, title) {
-  return `Once those steps are done, save your work and ping the **IT Service Desk** on Slack so they can verify on their end. If anything looks off, capture a screenshot and attach it to your ticket — that's the fastest way to get a follow-up.`;
+  return `Once those steps are done, save your work and ping the **IT Team** on Slack so they can verify on their end. If anything looks off, capture a screenshot and attach it to your ticket — that's the fastest way to get a follow-up.`;
 }
 function aiBrainstorm(title) {
   const t = (title || 'Untitled guide').trim();
@@ -5951,9 +5951,9 @@ function loadSnippets() {
   } catch {}
   // Defaults — sensible IT helpdesk boilerplate
   return [
-    { key: 'sla', label: 'IT Service Desk SLA', body: 'Response within **30 minutes** during business hours (Mon–Fri, 9am–6pm ET). Critical issues are paged to oncall.' },
-    { key: 'escal', label: 'Escalation block', body: '## Escalation\n\nIf this doesn\'t resolve the issue:\n\n1. File a ticket with the **IT Service Desk** — include any error messages and a screenshot.\n2. Tag with `urgent` if it\'s blocking work.\n3. For after-hours emergencies, use the oncall pager.' },
-    { key: 'sig', label: 'Email signature template', body: '— \nYour Name\nIT Service Desk · Slice\nslack: #it-help · pager: 24/7' },
+    { key: 'sla', label: 'IT Team SLA', body: 'Response within **30 minutes** during business hours (Mon–Fri, 9am–6pm ET). Critical issues are paged to oncall.' },
+    { key: 'escal', label: 'Escalation block', body: '## Escalation\n\nIf this doesn\'t resolve the issue:\n\n1. File a ticket with the **IT Team** — include any error messages and a screenshot.\n2. Tag with `urgent` if it\'s blocking work.\n3. For after-hours emergencies, use the oncall pager.' },
+    { key: 'sig', label: 'Email signature template', body: '— \nYour Name\nIT Team · Slice\nslack: #it-help · pager: 24/7' },
     { key: 'wifi', label: 'Wi-Fi reset checklist', body: '- [ ] Toggle Wi-Fi off and on\n- [ ] Forget the network and rejoin\n- [ ] Restart the laptop\n- [ ] Try a different network as a control\n- [ ] Reset network settings if all else fails' },
     { key: 'pwd', label: 'Password requirements', body: 'Passwords must be **at least 14 characters**, include a mix of upper/lowercase, numbers, and symbols, and not match your last 5 passwords. SSO + MFA covers most apps — see [Reset my OneLogin password](#).' },
   ];

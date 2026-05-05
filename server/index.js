@@ -435,7 +435,7 @@ const AI_PROMPTS = {
   // small form (topic, app/device, audience, type, tone, length, extras);
   // the spec is sent here as JSON and Claude produces a Slice-flavoured
   // markdown draft + suggested metadata.
-  'ai-write-guide': "You're drafting an internal IT-support guide for Slice (the pizzeria platform). The user message is a single JSON object with the spec.\n\nSlice environment — assume these unless the spec says otherwise:\n- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are standard.\n- VPN: GlobalProtect on both macOS and Windows.\n- Team chat: Slack.\n- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\nWriting rules:\n- Match the requested type (howto / troubleshoot / runbook / faq / announcement / incident) and tone (friendly / professional / concise / detailed) and length (short ~150w / medium ~400w / long ~800w).\n- Use ## sub-headings, numbered steps for sequences, and **bold** for UI labels and shortcuts.\n- Each step starts with an imperative verb (Open, Click, Enter, Verify…), one action per step.\n- Include a `> Before you start:` line above the first list when prerequisites apply (signed in, on VPN, etc.).\n- Add `If this fails…` sub-bullets under steps that commonly break.\n- Reference specific Slice tools when relevant (GlobalProtect, Jabra USB, CCP in Salesforce, Slack).\n- End with a short troubleshooting / escalation section that points to **Support** as a markdown link to https://it.slicelife.com.\n- Don't include the leading `# Title` — title is stored separately.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"title\":\"...\",\"category\":\"...\",\"tags\":[\"...\",\"...\"],\"sourceType\":\"guide|runbook|faq|announcement\",\"body\":\"... markdown ...\"}\nThe body uses real newlines (\\n). Keep tags lowercase, 3–6 of them.",
+  'ai-write-guide': "You're drafting an internal IT-support guide for Slice (the pizzeria platform). The user message is a single JSON object with the spec.\n\nSlice environment — assume these unless the spec says otherwise:\n- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are standard.\n- VPN: GlobalProtect on both macOS and Windows.\n- Team chat: Slack.\n- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n- Internal IT team is just **the IT Team** — no sub-teams. When you mention escalation, always say 'the IT Team'.\n- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\nWriting rules:\n- Match the requested type (howto / troubleshoot / runbook / faq / announcement / incident) and tone (friendly / professional / concise / detailed) and length (short ~150w / medium ~400w / long ~800w).\n- Use ## sub-headings, numbered steps for sequences, and **bold** for UI labels and shortcuts.\n- Each step starts with an imperative verb (Open, Click, Enter, Verify…), one action per step.\n- Include a `> Before you start:` line above the first list when prerequisites apply (signed in, on VPN, etc.).\n- Add `If this fails…` sub-bullets under steps that commonly break.\n- Reference specific Slice tools when relevant (GlobalProtect, Jabra USB, CCP in Salesforce, Slack).\n- End with a short troubleshooting / escalation section that points to **Support** as a markdown link to https://it.slicelife.com — always direct users to the IT Team there, not any other team name.\n- Don't include the leading `# Title` — title is stored separately.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"title\":\"...\",\"category\":\"...\",\"tags\":[\"...\",\"...\"],\"sourceType\":\"guide|runbook|faq|announcement\",\"body\":\"... markdown ...\"}\nThe body uses real newlines (\\n). Keep tags lowercase, 3–6 of them.",
 };
 
 async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
@@ -614,6 +614,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
               "- VPN: GlobalProtect on both macOS and Windows.\n" +
               "- Team chat: Slack.\n" +
               "- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n" +
+              "- Internal IT team is just **the IT Team** — no sub-teams (no 'Network Operations', 'Identity & Access', etc.). When you mention escalation or who to contact, always say 'the IT Team'.\n" +
               "- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\n" +
               "Tailor language to those tools when it would actually change the steps (e.g. say 'GlobalProtect', 'Jabra USB headset', 'CCP in Salesforce'); skip the qualifier when it doesn't help. Don't invent device-specific steps not in the excerpts.\n\n" +
               "Format:\n" +
@@ -622,7 +623,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
               "- Use [N] citations.\n" +
               "- Keep it tight — no preamble, no recap of the question.\n\n" +
               "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
-              "Still stuck? Open a ticket at [Support](https://it.slicelife.com).",
+              "Still stuck? Submit a ticket at [Support](https://it.slicelife.com).",
             messages: [
               {
                 role: 'user',
@@ -641,7 +642,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
             .join('\n');
           // Safety net: every chat answer must end with the Support link.
           // If the model forgot or rephrased, append the canonical line.
-          const SUPPORT_LINE = 'Still stuck? Open a ticket at [Support](https://it.slicelife.com).';
+          const SUPPORT_LINE = 'Still stuck? Submit a ticket at [Support](https://it.slicelife.com).';
           if (answer && !/it\.slicelife\.com/i.test(answer)) {
             answer = answer.trimEnd() + '\n\n' + SUPPORT_LINE;
           }
