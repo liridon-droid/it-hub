@@ -4757,7 +4757,7 @@ function ItServicesButton() {
         <path d="M19 12H5"/>
         <path d="M12 19l-7-7 7-7"/>
       </svg>
-      Back to SliceDesk
+      SliceDesk
     </a>
   );
 }
