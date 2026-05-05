@@ -5359,24 +5359,26 @@ const PATIENCE_MESSAGES = [
   "Boxing it up — almost there…",
 ];
 
-// "Did you know?" tips that cycle on loading screens — practical Slice-IT
-// nuggets that pay back the wait. Edit / extend freely; order doesn't
-// matter, the picker shuffles on each loading screen.
+// Practical Slice-IT tips that cycle on loading screens. Edit / extend
+// freely; order doesn't matter — the picker shuffles on each loading
+// screen so back-to-back loads don't repeat.
 const IT_TIPS = [
   "Restart your device once a week — most weird issues just go away after a fresh reboot.",
   "**GlobalProtect** is our VPN. If anything internal won't load, connect to GlobalProtect first.",
   "**OneLogin** is the SSO. Most app login issues are actually OneLogin issues — try resetting that first.",
   "After changing your OneLogin password, your **Mac keychain** may need a refresh — open Keychain Access and unlock with your new password.",
-  "Use **Slack** for quick questions; file a ticket at [it.slicelife.com](https://it.slicelife.com) for anything that needs tracking.",
+  "Quick questions go in **Slack** — Slice's company-wide chat. Anything that needs tracking goes to [Support](https://it.slicelife.com).",
+  "Email + docs run on **Gmail** and **Google Workspace** — Drive, Docs, Sheets, Calendar all live there. We don't use Outlook.",
+  "**1Password** is where shared team passwords live. Never paste credentials into Slack or a Google Doc — share via 1Password instead.",
+  "Slice's AI tools are **Claude** (the chat assistant you're using) and **Claude Code** (the CLI for engineering work).",
   "**Jabra USB** headsets are plug-and-play. If yours isn't working, try a different USB port before troubleshooting drivers.",
   "Press **⌘ + Space** (Mac) or **Win + S** (Windows) to find apps quickly — faster than hunting through Applications.",
   "The **CCP** (Contact Control Panel) lives inside **Salesforce** — open Salesforce first, then look for the phone widget.",
   "**Mac password ≠ OneLogin password.** Mac login uses your local password set at provisioning by **Jamf**.",
   "**Windows login = OneLogin password.** Intune-enrolled machines use the same credentials as Slice apps.",
   "Update macOS / Windows when you see the prompt — **Jamf** and **Intune** push security patches automatically.",
-  "If screen-recording audio is missing, check the OS-level **microphone permission** for the recording app.",
   "Two-factor codes expire in 30 seconds — if yours keep failing, your phone's clock may be out of sync.",
-  "Back up important docs to **Google Drive**, not just your desktop — Jamf/Intune can re-image a machine without warning.",
+  "Back up important docs to **Google Drive**, not your desktop — Jamf/Intune can re-image a machine without warning.",
   "Locked out of your laptop? File a **Support** ticket from your phone at [it.slicelife.com](https://it.slicelife.com) — the IT Team can verify you another way.",
 ];
 
@@ -5400,7 +5402,6 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
   return (
     <div
       style={{
-        maxWidth: 807,
         margin: "16px 0 0",
         padding: "14px 18px",
         background: "#FFF9E6",
@@ -5430,7 +5431,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
           fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em",
           textTransform: "uppercase", color: "#78684C",
           marginBottom: 4,
-        }}>Did you know?</div>
+        }}>Tip</div>
         <div
           key={step}
           style={{
@@ -23274,7 +23275,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         Back to hub
       </button>
 
-      <div style={{ maxWidth: 1120, boxSizing: 'content-box', margin: '0 auto', padding: '32px 32px 80px' }}>
+      <div style={{ maxWidth: 920, boxSizing: 'content-box', margin: '0 auto', padding: '32px 32px 80px' }}>
         <div style={{
           fontFamily: "'Archivo', sans-serif",
           fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
@@ -23296,7 +23297,6 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
               padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E',
               display: 'flex', alignItems: 'center', gap: 14,
-              maxWidth: 807,
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: '50%',
