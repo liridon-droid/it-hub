@@ -78,3 +78,82 @@ CREATE TABLE IF NOT EXISTS chat_feedback (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS chat_feedback_chat_log_id_idx ON chat_feedback (chat_log_id);
+
+-- ── Status platform ────────────────────────────────────────────────────────
+-- Replaces the old localStorage-based mock + StatusGator integration.
+-- Service catalog lives in `status_services`, grouped via `status_groups`.
+-- Each `status_checks` row is one poll result; we keep 90 days for the
+-- public history bars. Incidents have a header row + a timeline of updates.
+
+CREATE TABLE IF NOT EXISTS status_groups (
+  id SERIAL PRIMARY KEY,
+  slug TEXT UNIQUE NOT NULL,
+  label TEXT NOT NULL,
+  position INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS status_services (
+  id SERIAL PRIMARY KEY,
+  group_id INT REFERENCES status_groups(id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  vendor TEXT,
+  domain TEXT,
+  icon_url TEXT,
+  -- 'manual' = IT toggles state, 'probe' = HTTP poll, 'statuspage' = vendor's
+  -- statuspage.io summary.json (Cloudflare/GitHub/Slack/Zoom/Figma all use it).
+  source TEXT NOT NULL DEFAULT 'manual',
+  source_url TEXT,
+  -- Effective state — written by pollers (or by admin when source='manual').
+  state TEXT NOT NULL DEFAULT 'operational' CHECK (state IN ('operational','degraded','down')),
+  state_note TEXT,
+  response_ms INT,
+  last_checked_at TIMESTAMPTZ,
+  last_error TEXT,
+  position INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS status_services_group_idx ON status_services (group_id, position);
+
+CREATE TABLE IF NOT EXISTS status_checks (
+  id BIGSERIAL PRIMARY KEY,
+  service_id INT REFERENCES status_services(id) ON DELETE CASCADE,
+  state TEXT NOT NULL CHECK (state IN ('operational','degraded','down')),
+  response_ms INT,
+  http_status INT,
+  error TEXT,
+  checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS status_checks_service_time_idx ON status_checks (service_id, checked_at DESC);
+
+CREATE TABLE IF NOT EXISTS status_incidents (
+  id SERIAL PRIMARY KEY,
+  service_id INT REFERENCES status_services(id) ON DELETE SET NULL,
+  title TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'minor' CHECK (severity IN ('minor','major','critical')),
+  state TEXT NOT NULL DEFAULT 'investigating'
+    CHECK (state IN ('investigating','identified','monitoring','resolved')),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS status_incidents_open_idx
+  ON status_incidents (started_at DESC) WHERE resolved_at IS NULL;
+CREATE INDEX IF NOT EXISTS status_incidents_recent_idx
+  ON status_incidents (resolved_at DESC) WHERE resolved_at IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS status_incident_updates (
+  id SERIAL PRIMARY KEY,
+  incident_id INT REFERENCES status_incidents(id) ON DELETE CASCADE,
+  label TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS status_incident_updates_incident_idx
+  ON status_incident_updates (incident_id, created_at);

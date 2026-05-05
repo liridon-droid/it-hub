@@ -8360,6 +8360,12 @@ function navigate(section) {
     document.body.classList.remove('editor-preview');
     // Dark theme is intentionally preserved across pages — IT team likes it sticky.
   }
+  // Cancel the status-page poll when leaving so we don't keep hitting the API
+  // from a section the user can't see.
+  if (section !== 'status' && statusState?.pollHandle) {
+    clearInterval(statusState.pollHandle);
+    statusState.pollHandle = null;
+  }
   state.section = section;
   document.querySelectorAll('.nav-link').forEach((n) => n.classList.toggle('active', n.dataset.section === section));
   $('main').classList.toggle('main-fluid', section === 'editor');
@@ -9658,108 +9664,81 @@ function renderInsightsBody(data) {
   body.querySelectorAll('[data-edit-guide]').forEach((b) => b.onclick = () => startEditGuide(b.dataset.editGuide));
 }
 
-// =========== STATUS APPS ===========
+// =========== STATUS PLATFORM ===========
 //
-// Manages the service catalog rendered on /status (the public IT status page).
-// Source of truth: localStorage["it-hub.status.config"] = { groups: [...] }
-// The portal (src/app.jsx → loadStatusConfig) reads this on load. If the key
-// is missing or invalid, the portal falls back to its baked-in defaults.
-//
-// We keep the schema deliberately small so it round-trips cleanly:
-//   group   = { id, label, services: [...] }
-//   service = { name, vendor, domain?, iconUrl?, state, uptime, responseMs?,
-//               source, sourceUrl? }
-// `source` ∈ { manual, statusgator, vendor-rss, probe }.
-const STATUS_CONFIG_KEY = 'it-hub.status.config';
-const STATUS_INTEGRATIONS_KEY = 'it-hub.status.integrations';
-
-const DEFAULT_STATUS_CONFIG = {
-  groups: [
-    { id: 'identity', label: 'Identity & secrets', services: [
-      { name: 'OneLogin',  vendor: 'SSO',     domain: 'onelogin.com',  state: 'operational', uptime: 99.98, responseMs: 142, source: 'manual' },
-      { name: '1Password', vendor: 'Secrets', domain: '1password.com', state: 'operational', uptime: 99.99, responseMs: 76,  source: 'manual' },
-    ]},
-    { id: 'network', label: 'Network', services: [
-      { name: 'Cloudflare WARP', vendor: 'VPN', domain: 'cloudflare.com', state: 'operational', uptime: 99.95, responseMs: 38, source: 'vendor-rss', sourceUrl: 'https://www.cloudflarestatus.com/history.rss' },
-    ]},
-    { id: 'productivity', label: 'Productivity', services: [
-      { name: 'Google Workspace', vendor: 'Mail & calendar', domain: 'workspace.google.com', state: 'degraded',    uptime: 97.8,  responseMs: null, source: 'vendor-rss',  sourceUrl: 'https://www.google.com/appsstatus/dashboard/incidents.atom' },
-      { name: 'Slack',            vendor: 'Chat',            domain: 'slack.com',            state: 'operational', uptime: 99.97, responseMs: 54,   source: 'statusgator', sourceUrl: 'slack' },
-      { name: 'Zoom',             vendor: 'Meetings',        domain: 'zoom.us',              state: 'operational', uptime: 99.94, responseMs: 112,  source: 'statusgator', sourceUrl: 'zoom' },
-    ]},
-    { id: 'dev', label: 'Build & design', services: [
-      { name: 'GitHub', vendor: 'Source control', domain: 'github.com', state: 'operational', uptime: 99.99, responseMs: 89,  source: 'vendor-rss',  sourceUrl: 'https://www.githubstatus.com/history.rss' },
-      { name: 'Figma',  vendor: 'Design',         domain: 'figma.com',  state: 'operational', uptime: 99.96, responseMs: 128, source: 'statusgator', sourceUrl: 'figma' },
-    ]},
-  ],
-};
+// Backed by /api/status (read) + /api/admin/status/* (write). The server
+// owns the catalog, polls each non-manual service every 60s, and keeps
+// 90 days of samples in status_checks. This admin surface is a thin
+// editor: every change posts to the API and we re-render from the
+// authoritative response. No localStorage — multiple admins won't fight.
 
 const STATUS_SOURCE_OPTIONS = [
-  { id: 'manual',      label: 'Manual',       hint: 'Set state by hand below.' },
-  { id: 'statusgator', label: 'StatusGator',  hint: 'Slug from your StatusGator board (e.g. "slack").' },
-  { id: 'vendor-rss',  label: 'Vendor RSS',   hint: 'Vendor status page RSS/Atom URL.' },
-  { id: 'probe',       label: 'Health probe', hint: 'HTTPS endpoint we ping every minute.' },
+  { id: 'manual',     label: 'Manual',         hint: 'IT toggles state by hand.' },
+  { id: 'probe',      label: 'HTTP probe',     hint: 'We GET the URL every minute. 5xx = down, 4xx or >2.5s = degraded.' },
+  { id: 'statuspage', label: 'Vendor status',  hint: 'Statuspage.io summary.json (Cloudflare, GitHub, Slack, Zoom, Figma, etc.).' },
 ];
 const STATUS_STATE_OPTIONS = [
   { id: 'operational', label: 'Operational' },
   { id: 'degraded',    label: 'Degraded' },
   { id: 'down',        label: 'Down' },
 ];
-
-function loadStatusConfig() {
-  try {
-    const raw = localStorage.getItem(STATUS_CONFIG_KEY);
-    if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATUS_CONFIG));
-    const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.groups)) throw new Error('bad shape');
-    return parsed;
-  } catch {
-    return JSON.parse(JSON.stringify(DEFAULT_STATUS_CONFIG));
-  }
-}
-function saveStatusConfig(cfg) { localStorage.setItem(STATUS_CONFIG_KEY, JSON.stringify(cfg)); }
-function loadStatusIntegrations() {
-  try { return JSON.parse(localStorage.getItem(STATUS_INTEGRATIONS_KEY) || '{}'); }
-  catch { return {}; }
-}
-function saveStatusIntegrations(v) { localStorage.setItem(STATUS_INTEGRATIONS_KEY, JSON.stringify(v)); }
+const INCIDENT_SEVERITY_OPTIONS = [
+  { id: 'minor',    label: 'Minor' },
+  { id: 'major',    label: 'Major' },
+  { id: 'critical', label: 'Critical' },
+];
+const INCIDENT_STATE_OPTIONS = [
+  { id: 'investigating', label: 'Investigating' },
+  { id: 'identified',    label: 'Identified' },
+  { id: 'monitoring',    label: 'Monitoring' },
+  { id: 'resolved',      label: 'Resolved' },
+];
 
 function statusFaviconUrl(domain, size = 64) {
   if (!domain) return '';
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
 }
 
-// In-memory editing buffer. We mutate this freely while the user edits and
-// only persist on Save. Reset by `restoreStatusDefaults` or page navigation.
-let statusDraft = null;
-let statusDirty = false;
+// Live snapshot from /api/status + last-loaded probes payload. We re-fetch on
+// every successful mutation and on a 30s tick so the page stays in sync.
+const statusState = {
+  payload: null,
+  probes: [],
+  loadError: null,
+  pollHandle: null,
+};
 
-function ensureStatusDraft() {
-  if (!statusDraft) statusDraft = loadStatusConfig();
-  return statusDraft;
+async function fetchStatusPayload() {
+  const r = await fetch('/api/status', { credentials: 'include', cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
-function markStatusDirty(dirty = true) {
-  statusDirty = dirty;
-  const saveBtn = $('statusSaveBtn');
-  if (saveBtn) {
-    saveBtn.disabled = !dirty;
-    saveBtn.textContent = dirty ? 'Save changes' : 'All changes saved';
+async function fetchStatusProbes() {
+  const r = await fetch('/api/admin/status/probes', { credentials: 'include', cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+// One unified writer — all CRUD goes through here so toasts + reload-on-success
+// behave consistently. Returns the parsed JSON body or throws.
+async function statusApi(method, path, body) {
+  const r = await fetch(path, {
+    method,
+    credentials: 'include',
+    headers: body ? { 'Content-Type': 'application/json' } : {},
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) {
+    let msg = `HTTP ${r.status}`;
+    try { const j = await r.json(); msg = j.error || j.detail || msg; } catch {}
+    throw new Error(msg);
   }
+  return r.json();
 }
 
 function renderStatus(root) {
-  const cfg = ensureStatusDraft();
-  const integrations = loadStatusIntegrations();
-  const flat = cfg.groups.flatMap((g) => g.services);
-  const counts = {
-    total: flat.length,
-    op:    flat.filter((s) => s.state === 'operational').length,
-    deg:   flat.filter((s) => s.state === 'degraded').length,
-    down:  flat.filter((s) => s.state === 'down').length,
-    sg:    flat.filter((s) => s.source === 'statusgator').length,
-    rss:   flat.filter((s) => s.source === 'vendor-rss').length,
-  };
-
+  // Render the chrome once, then load + paint live data into the panels.
+  // Subsequent edits patch the API directly and re-fetch — no draft buffers.
   root.innerHTML = `
     <div class="page-header" style="margin-bottom:18px;">
       <div>${pageTitleHTML('status')}</div>
@@ -9768,95 +9747,66 @@ function renderStatus(root) {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7"/><path d="M10 14L21 3"/><path d="M21 14v7H3V3h7"/></svg>
           Open /status
         </button>
-        <button class="btn ghost" id="statusResetBtn" title="Replace your edits with the baked-in defaults">Restore defaults</button>
-        <button class="btn primary" id="statusSaveBtn" disabled>All changes saved</button>
+        <button class="btn ghost" id="statusPollNowBtn" title="Run all probes immediately">Re-poll now</button>
+        <button class="btn primary" id="statusAddBtn">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Add service
+        </button>
       </div>
     </div>
 
-    <div class="stat-grid" style="margin-bottom:18px;">
-      <div class="stat"><div class="stat-label">Total services</div><div class="stat-value">${counts.total}</div></div>
-      <div class="stat"><div class="stat-label">Operational</div><div class="stat-value" style="color:#0A8A3E;">${counts.op}</div></div>
-      <div class="stat"><div class="stat-label">Degraded</div><div class="stat-value" style="color:#B8860B;">${counts.deg}</div></div>
-      <div class="stat"><div class="stat-label">Down</div><div class="stat-value" style="color:#DA3327;">${counts.down}</div></div>
-    </div>
+    <div class="stat-grid" style="margin-bottom:18px;" id="statusStatGrid"></div>
 
     <div class="row-grid" style="grid-template-columns: 1fr 360px; gap:18px; align-items:start;">
-      <div class="card" id="statusServicesCard" style="padding:0;overflow:hidden;">
-        <div class="card-head" style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <h2 class="card-title" style="margin:0;">Services</h2>
-            <div class="text-3" style="font-size:12.5px;margin-top:4px;">Drag-free editing — changes are buffered and pushed to /status when you save.</div>
+      <div style="display:flex; flex-direction:column; gap:18px; min-width:0;">
+        <div class="card" id="statusServicesCard" style="padding:0;overflow:hidden;">
+          <div class="card-head" style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <h2 class="card-title" style="margin:0;">Services</h2>
+              <div class="text-3" style="font-size:12.5px;margin-top:4px;">Edits save instantly. Pollers update <code>state</code> automatically for probes + vendor pages.</div>
+            </div>
+            <button class="btn ghost sm" id="statusAddGroupBtn">+ Group</button>
           </div>
-          <button class="btn primary sm" id="statusAddBtn">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Add service
-          </button>
+          <div id="statusGroupsHost"></div>
         </div>
-        <div id="statusGroupsHost"></div>
+
+        <div class="card" id="statusIncidentsCard" style="padding:0;overflow:hidden;">
+          <div class="card-head" style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <h2 class="card-title" style="margin:0;">Incidents</h2>
+              <div class="text-3" style="font-size:12.5px;margin-top:4px;">Open + recent incidents. Post timeline updates as the situation evolves; "Resolved" closes it on the public page.</div>
+            </div>
+            <button class="btn primary sm" id="statusNewIncidentBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              New incident
+            </button>
+          </div>
+          <div id="statusIncidentsHost"></div>
+        </div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:18px;">
         <div class="card">
-          <div class="card-head"><h2 class="card-title">Integrations</h2></div>
-          <div class="text-3" style="font-size:12.5px;margin-bottom:14px;">
-            Hook in third-party monitors. Saved keys live in <code>localStorage</code> — when the server route lands, we'll move these to a real secrets store.
+          <div class="card-head"><h2 class="card-title">Probes</h2></div>
+          <div class="text-3" style="font-size:12.5px;margin-bottom:12px;">
+            Live monitoring we run ourselves. Probes hit the URL every 60 seconds; vendor-status feeds (Statuspage.io <code>summary.json</code>) cover Cloudflare, GitHub, Slack, Zoom, Figma, and others.
           </div>
-          <div style="display:flex;flex-direction:column;gap:14px;">
-            <div class="status-int-row" data-int="statusgator">
-              <div class="status-int-head">
-                <div class="status-int-name">
-                  <span class="status-int-dot" style="background:#1E5FB2;"></span>
-                  StatusGator
-                </div>
-                <span class="badge ${integrations.statusgator?.token ? 'pos' : 'neutral'}" id="sgBadge">${integrations.statusgator?.token ? 'Connected' : 'Not connected'}</span>
-              </div>
-              <div class="text-3" style="font-size:12px;margin:6px 0 8px;">Aggregates 3,500+ vendor status pages. Drop in your API token and we'll poll every minute.</div>
-              <div style="display:flex;gap:6px;">
-                <input class="tx" id="sgToken" placeholder="sk_live_xxxxxxxx" value="${esc(integrations.statusgator?.token || '')}" style="flex:1;" />
-                <button class="btn ghost sm" id="sgSaveBtn">Save</button>
-              </div>
-              <div style="margin-top:8px;font-size:12px;">
-                <span style="color:var(--ink-3);">${counts.sg} service${counts.sg === 1 ? '' : 's'} routing through StatusGator.</span>
-              </div>
-            </div>
-            <div class="status-int-row" data-int="vendor-rss">
-              <div class="status-int-head">
-                <div class="status-int-name">
-                  <span class="status-int-dot" style="background:#5B2A9B;"></span>
-                  Vendor RSS / Atom
-                </div>
-                <span class="badge pos">Always on</span>
-              </div>
-              <div class="text-3" style="font-size:12px;margin:6px 0 0;">Direct vendor feeds — set the URL on each service. ${counts.rss} active.</div>
-            </div>
-            <div class="status-int-row" data-int="probe">
-              <div class="status-int-head">
-                <div class="status-int-name">
-                  <span class="status-int-dot" style="background:#0A8A3E;"></span>
-                  Health probes
-                </div>
-                <span class="badge neutral">Server stub</span>
-              </div>
-              <div class="text-3" style="font-size:12px;margin:6px 0 0;">When the <code>GET /api/status</code> route ships, services with source=<code>probe</code> will be HTTP-checked from us-east, us-west, eu-west.</div>
-            </div>
-          </div>
+          <div id="statusProbesHost" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
 
         <div class="card">
-          <div class="card-head"><h2 class="card-title">Schema</h2></div>
-          <div class="text-3" style="font-size:12px;line-height:1.6;">
-            Each service is stored as JSON in <code>localStorage["it-hub.status.config"]</code>. The portal reads it on every page load and falls back to defaults if missing or invalid.
-          </div>
-          <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn ghost sm" id="statusExportBtn">Export JSON</button>
-            <button class="btn ghost sm" id="statusImportBtn">Import JSON</button>
-          </div>
+          <div class="card-head"><h2 class="card-title">Sources</h2></div>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--ink);">
+            <li><b>Manual</b> — IT toggles state by hand. Use for things we can't probe (rooms, badge readers, etc.).</li>
+            <li><b>HTTP probe</b> — we GET your URL every 60s. 5xx → down, 4xx or &gt;2.5s → degraded.</li>
+            <li><b>Vendor status</b> — paste a Statuspage.io <code>summary.json</code> URL (e.g. <code>https://www.cloudflarestatus.com/api/v2/summary.json</code>).</li>
+          </ul>
         </div>
       </div>
     </div>
 
     <style>
-      .status-svc-row { display:grid; grid-template-columns: 44px 1.4fr 1fr 130px 130px 1fr 90px 32px; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); }
+      .status-svc-row { display:grid; grid-template-columns: 44px 1.5fr 1fr 130px 130px 1.4fr 32px; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); }
       .status-svc-row:last-child { border-bottom:none; }
       .status-svc-row input.tx, .status-svc-row select.tx { padding:7px 9px; font-size:12.5px; }
       .status-icon-cell { width:36px; height:36px; border:1.5px solid var(--border); border-radius:7px; background:#fff; display:grid; place-items:center; overflow:hidden; }
@@ -9871,90 +9821,102 @@ function renderStatus(root) {
       .status-group-meta button:hover { background:#fff; color:var(--neg); }
       .status-row-del { background:none; border:none; cursor:pointer; color:var(--ink-3); padding:6px; border-radius:6px; display:grid; place-items:center; }
       .status-row-del:hover { background:rgba(218,51,39,0.08); color:var(--neg); }
-      .status-svc-state { font-size:11px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; padding:2px 7px; border-radius:3px; display:inline-block; }
-      .status-svc-state.operational { background:#D4F4D4; color:#0A8A3E; }
-      .status-svc-state.degraded { background:#FFE8A3; color:#8A6A14; }
-      .status-svc-state.down { background:#FFD4D0; color:#8A1E17; }
-      .status-int-row { padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--sidebar); }
-      .status-int-head { display:flex; align-items:center; justify-content:space-between; }
-      .status-int-name { display:flex; align-items:center; gap:8px; font-weight:700; font-size:13.5px; }
-      .status-int-dot { width:10px; height:10px; border-radius:50%; }
       .status-empty-group { padding:18px 14px; text-align:center; font-size:12.5px; color:var(--ink-3); }
-      .status-add-row-btn { width:100%; padding:8px; background:transparent; border:1px dashed var(--border); border-radius:8px; cursor:pointer; font-size:12px; color:var(--ink-3); margin:8px 14px 12px; box-sizing:border-box; width:calc(100% - 28px); }
+      .status-add-row-btn { padding:8px; background:transparent; border:1px dashed var(--border); border-radius:8px; cursor:pointer; font-size:12px; color:var(--ink-3); margin:8px 14px 12px; box-sizing:border-box; width:calc(100% - 28px); }
       .status-add-row-btn:hover { background:var(--sidebar); color:var(--ink); border-color:var(--ink-3); }
+      .status-probe-row { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border:1px solid var(--border); border-radius:10px; background:var(--sidebar); }
+      .status-probe-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+      .status-probe-name { font-weight:700; font-size:13px; color:var(--ink); }
+      .status-probe-url { font-family:ui-monospace, SF Mono, Menlo, monospace; font-size:11px; color:var(--ink-3); word-break:break-all; }
+      .status-probe-bars { display:flex; gap:2px; align-items:flex-end; height:18px; }
+      .status-probe-bar { width:4px; height:100%; border-radius:1px; background:#0A8A3E; }
+      .status-probe-bar.degraded { background:#FDC831; }
+      .status-probe-bar.down { background:#DA3327; }
+      .status-incident-row { display:grid; grid-template-columns: 1fr auto; gap:14px; padding:14px 18px; border-bottom:1px solid var(--border); }
+      .status-incident-row:last-child { border-bottom:none; }
+      .status-incident-row .meta { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px; font-size:12px; }
+      .status-incident-row .pill { font-size:10px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; padding:2px 7px; border-radius:3px; border:1.5px solid currentColor; }
+      .status-incident-row .pill.minor    { color:#8A6A14; background:#FFF3CC; }
+      .status-incident-row .pill.major,
+      .status-incident-row .pill.critical { color:#8A1E17; background:#FFE3DF; }
+      .status-incident-row .pill.investigating, .status-incident-row .pill.identified { color:#8A1E17; background:#FFE3DF; }
+      .status-incident-row .pill.monitoring { color:#8A6A14; background:#FFF3CC; }
+      .status-incident-row .pill.resolved   { color:#0A8A3E; background:#D4F4D4; }
+      .status-incident-title { font-weight:700; font-size:14px; color:var(--ink); letter-spacing:-0.005em; }
+      .status-update-list { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+      .status-update-row { display:grid; grid-template-columns:80px 1fr; gap:10px; font-size:12.5px; }
+      .status-update-row .when { font-family:ui-monospace, SF Mono, Menlo, monospace; color:var(--ink-3); }
+      .status-update-row .label { font-size:9.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink); margin-bottom:2px; }
+      .status-incident-actions { display:flex; flex-direction:column; gap:6px; min-width:140px; }
     </style>
   `;
 
-  const host = $('statusGroupsHost');
-  function renderGroups() {
-    const cfg2 = statusDraft;
-    if (!cfg2.groups.length) {
-      host.innerHTML = `<div class="status-empty-group">No groups yet. <button class="btn ghost sm" id="statusAddGroupEmpty">Add a group</button></div>`;
-      $('statusAddGroupEmpty').onclick = addGroup;
-      return;
-    }
-    host.innerHTML = cfg2.groups.map((g, gi) => `
-      <div class="status-group" data-gi="${gi}">
-        <div class="status-group-head">
-          <span style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3);">Group</span>
-          <input data-group-label value="${esc(g.label)}" placeholder="Group name" />
-          <div class="status-group-meta">
-            <span>${g.services.length} service${g.services.length === 1 ? '' : 's'}</span>
-            <button data-group-del title="Remove group">Remove</button>
-          </div>
-        </div>
-        <div data-svc-host>
-          ${g.services.length === 0
-            ? `<div class="status-empty-group">No services in this group yet.</div>`
-            : g.services.map((s, si) => svcRowHtml(s, gi, si)).join('')}
-        </div>
-        <button class="status-add-row-btn" data-group-add-svc>+ Add service to ${esc(g.label || 'group')}</button>
-      </div>
-    `).join('');
+  const statGrid = $('statusStatGrid');
+  const groupsHost = $('statusGroupsHost');
+  const probesHost = $('statusProbesHost');
+  const incidentsHost = $('statusIncidentsHost');
 
-    host.querySelectorAll('[data-group-label]').forEach((el) => {
-      el.oninput = (e) => {
-        const gi = +el.closest('[data-gi]').dataset.gi;
-        statusDraft.groups[gi].label = e.target.value;
-        markStatusDirty();
-      };
-    });
-    host.querySelectorAll('[data-group-del]').forEach((b) => b.onclick = () => {
-      const gi = +b.closest('[data-gi]').dataset.gi;
-      const removed = statusDraft.groups[gi].label;
-      if (!confirm(`Remove the "${removed}" group and ${statusDraft.groups[gi].services.length} service(s)?`)) return;
-      statusDraft.groups.splice(gi, 1);
-      markStatusDirty();
-      renderGroups();
-    });
-    host.querySelectorAll('[data-group-add-svc]').forEach((b) => b.onclick = () => {
-      const gi = +b.closest('[data-gi]').dataset.gi;
-      statusDraft.groups[gi].services.push(blankService());
-      markStatusDirty();
-      renderGroups();
-    });
-    host.querySelectorAll('[data-svc-row]').forEach((row) => bindSvcRow(row));
+  // Single render entry-point — every CRUD success calls this so the panels
+  // reflect server truth.
+  async function reload() {
+    try {
+      const [payload, probesPayload] = await Promise.all([
+        fetchStatusPayload(),
+        fetchStatusProbes().catch(() => ({ probes: [] })),
+      ]);
+      statusState.payload = payload;
+      statusState.probes = probesPayload.probes || [];
+      statusState.loadError = null;
+      paint();
+    } catch (e) {
+      statusState.loadError = e.message;
+      statGrid.innerHTML = `<div class="stat" style="grid-column:1/-1;"><div class="stat-label">Status platform</div><div class="stat-value" style="color:#DA3327;">Sync error: ${esc(e.message)}</div></div>`;
+    }
   }
 
-  function svcRowHtml(s, gi, si) {
-    const iconUrl = s.iconUrl || statusFaviconUrl(s.domain);
+  function paint() {
+    const payload = statusState.payload;
+    if (!payload) return;
+    const flat = payload.groups.flatMap((g) => g.services || []);
+    const counts = {
+      total: flat.length,
+      op:    flat.filter((s) => s.state === 'operational').length,
+      deg:   flat.filter((s) => s.state === 'degraded').length,
+      down:  flat.filter((s) => s.state === 'down').length,
+      open:  (payload.incidents || []).filter((i) => i.state !== 'resolved').length,
+    };
+    statGrid.innerHTML = `
+      <div class="stat"><div class="stat-label">Total services</div><div class="stat-value">${counts.total}</div></div>
+      <div class="stat"><div class="stat-label">Operational</div><div class="stat-value" style="color:#0A8A3E;">${counts.op}</div></div>
+      <div class="stat"><div class="stat-label">Degraded</div><div class="stat-value" style="color:#B8860B;">${counts.deg}</div></div>
+      <div class="stat"><div class="stat-label">Down</div><div class="stat-value" style="color:#DA3327;">${counts.down}</div></div>
+      <div class="stat"><div class="stat-label">Open incidents</div><div class="stat-value" style="color:${counts.open ? '#DA3327' : '#0A8A3E'};">${counts.open}</div></div>
+    `;
+    paintGroups(payload.groups);
+    paintProbes(statusState.probes);
+    paintIncidents(payload.incidents || [], flat);
+  }
+
+  function svcRowHtml(s) {
+    const iconUrl = s.icon_url || statusFaviconUrl(s.domain);
     const initials = (s.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
     const sourceMeta = STATUS_SOURCE_OPTIONS.find((o) => o.id === s.source) || STATUS_SOURCE_OPTIONS[0];
+    const showSourceUrl = s.source !== 'manual';
+    const lastChecked = s.last_checked_at ? new Date(s.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
     return `
-      <div class="status-svc-row" data-svc-row data-gi="${gi}" data-si="${si}">
+      <div class="status-svc-row" data-svc-id="${s.id}" title="${lastChecked ? 'Last checked ' + esc(lastChecked) : ''}">
         <div class="status-icon-cell" data-icon-cell>
           ${iconUrl ? `<img src="${esc(iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className:'fallback', textContent:'${esc(initials)}'}))" />` : `<span class="fallback">${esc(initials)}</span>`}
         </div>
         <input class="tx" data-f="name"   placeholder="Service name"      value="${esc(s.name || '')}" />
         <input class="tx" data-f="vendor" placeholder="Vendor / category" value="${esc(s.vendor || '')}" />
-        <input class="tx" data-f="domain" placeholder="example.com"       value="${esc(s.domain || '')}" />
-        <select class="tx" data-f="state">
+        <select class="tx" data-f="state" ${s.source !== 'manual' ? 'disabled title="State is set by the poller for this source"' : ''}>
           ${STATUS_STATE_OPTIONS.map((o) => `<option value="${o.id}" ${s.state === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
         </select>
         <select class="tx" data-f="source" title="${esc(sourceMeta.hint)}">
           ${STATUS_SOURCE_OPTIONS.map((o) => `<option value="${o.id}" ${s.source === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
         </select>
-        <input class="tx" data-f="uptime" placeholder="99.99" value="${esc(s.uptime != null ? s.uptime : '')}" />
+        <input class="tx" data-f="source_url" placeholder="${s.source === 'statuspage' ? 'https://www.cloudflarestatus.com/api/v2/summary.json' : s.source === 'probe' ? 'https://your-service/health' : 'No URL needed for manual'}" value="${esc(s.source_url || '')}" ${s.source === 'manual' ? 'disabled' : ''} />
         <button class="status-row-del" data-svc-del title="Remove service">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
         </button>
@@ -9962,111 +9924,306 @@ function renderStatus(root) {
     `;
   }
 
-  function bindSvcRow(row) {
-    const gi = +row.dataset.gi;
-    const si = +row.dataset.si;
-    const s = statusDraft.groups[gi].services[si];
-    row.querySelectorAll('[data-f]').forEach((el) => {
-      const f = el.dataset.f;
-      el.oninput = el.onchange = () => {
-        let v = el.value;
-        if (f === 'uptime') v = v === '' ? null : Number(v);
-        s[f] = v;
-        // Re-render the favicon when the domain changes — feels live.
-        if (f === 'domain') {
-          const cell = row.querySelector('[data-icon-cell]');
-          if (cell) {
-            const initials = (s.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-            cell.innerHTML = v
-              ? `<img src="${esc(statusFaviconUrl(v))}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className:'fallback', textContent:'${esc(initials)}'}))" />`
-              : `<span class="fallback">${esc(initials)}</span>`;
-          }
-        }
-        markStatusDirty();
+  // Debounced patch for free-text inputs so we don't fire one PATCH per keystroke.
+  const debounceTimers = new Map();
+  function debouncePatch(id, payload) {
+    if (debounceTimers.has(id)) clearTimeout(debounceTimers.get(id));
+    debounceTimers.set(id, setTimeout(async () => {
+      debounceTimers.delete(id);
+      try { await statusApi('PATCH', `/api/admin/status/services/${id}`, payload); }
+      catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
+    }, 600));
+  }
+
+  function paintGroups(groups) {
+    if (!groups.length) {
+      groupsHost.innerHTML = `<div class="status-empty-group">No services yet. Click "+ Group" up top to start a category.</div>`;
+      return;
+    }
+    groupsHost.innerHTML = groups.map((g) => `
+      <div class="status-group" data-group-id="${g.id}">
+        <div class="status-group-head">
+          <span style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3);">Group</span>
+          <input data-group-label value="${esc(g.label)}" placeholder="Group name" />
+          <div class="status-group-meta">
+            <span>${g.services.length} service${g.services.length === 1 ? '' : 's'}</span>
+            ${g.id === 0 ? '' : `<button data-group-del title="Remove group">Remove</button>`}
+          </div>
+        </div>
+        <div data-svc-host>
+          ${g.services.length === 0
+            ? `<div class="status-empty-group">No services in this group yet.</div>`
+            : g.services.map((s) => svcRowHtml(s)).join('')}
+        </div>
+        ${g.id === 0 ? '' : `<button class="status-add-row-btn" data-group-add-svc>+ Add service to ${esc(g.label || 'group')}</button>`}
+      </div>
+    `).join('');
+
+    // Wire up group label edits + group delete + add-service.
+    groupsHost.querySelectorAll('[data-group-label]').forEach((el) => {
+      el.onchange = async () => {
+        const groupId = +el.closest('[data-group-id]').dataset.groupId;
+        try {
+          await statusApi('PATCH', `/api/admin/status/groups/${groupId}`, { label: el.value });
+          toast('Group renamed.', 'ok');
+        } catch (e) { toast(`Rename failed: ${e.message}`, 'err'); }
       };
     });
-    row.querySelector('[data-svc-del]').onclick = () => {
-      statusDraft.groups[gi].services.splice(si, 1);
-      markStatusDirty();
-      renderGroups();
-    };
+    groupsHost.querySelectorAll('[data-group-del]').forEach((b) => b.onclick = async () => {
+      const groupId = +b.closest('[data-group-id]').dataset.groupId;
+      const g = groups.find((x) => x.id === groupId);
+      const ok = await confirmDialog('Remove group',
+        `Remove the "${g?.label}" group and ${g?.services.length || 0} service(s)?`,
+        true, 'Remove group');
+      if (!ok) return;
+      try {
+        await statusApi('DELETE', `/api/admin/status/groups/${groupId}`);
+        toast('Group removed.', 'ok');
+        await reload();
+      } catch (e) { toast(`Remove failed: ${e.message}`, 'err'); }
+    });
+    groupsHost.querySelectorAll('[data-group-add-svc]').forEach((b) => b.onclick = async () => {
+      const groupId = +b.closest('[data-group-id]').dataset.groupId;
+      try {
+        await statusApi('POST', `/api/admin/status/services`, {
+          group_id: groupId, name: 'New service', source: 'manual', state: 'operational',
+        });
+        await reload();
+      } catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
+    });
+
+    // Wire service rows.
+    groupsHost.querySelectorAll('[data-svc-id]').forEach((row) => {
+      const id = +row.dataset.svcId;
+      row.querySelectorAll('[data-f]').forEach((el) => {
+        const f = el.dataset.f;
+        const isText = el.tagName === 'INPUT';
+        el.addEventListener(isText ? 'input' : 'change', async () => {
+          const v = el.value;
+          if (isText) {
+            debouncePatch(id, { [f]: v });
+          } else {
+            try {
+              await statusApi('PATCH', `/api/admin/status/services/${id}`, { [f]: v });
+              if (f === 'source') await reload(); // refresh URL field's enabled-ness
+            } catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
+          }
+        });
+      });
+      row.querySelector('[data-svc-del]').onclick = async () => {
+        const ok = await confirmDialog('Remove service', 'This will delete the service and all its check history.', true, 'Remove');
+        if (!ok) return;
+        try {
+          await statusApi('DELETE', `/api/admin/status/services/${id}`);
+          toast('Service removed.', 'ok');
+          await reload();
+        } catch (e) { toast(`Remove failed: ${e.message}`, 'err'); }
+      };
+    });
   }
 
-  function blankService() {
-    return { name: '', vendor: '', domain: '', state: 'operational', uptime: 99.9, responseMs: null, source: 'manual' };
+  function paintProbes(probes) {
+    if (!probes.length) {
+      probesHost.innerHTML = `<div class="text-3" style="font-size:12px;">No probes yet — set a service's source to "HTTP probe" or "Vendor status" to see live results here.</div>`;
+      return;
+    }
+    probesHost.innerHTML = probes.map((p) => {
+      const recent = p.recent || [];
+      const okCount = recent.filter((r) => r.state === 'operational').length;
+      const errRate = recent.length ? Math.round(((recent.length - okCount) / recent.length) * 100) : 0;
+      const stateColor = p.state === 'operational' ? '#0A8A3E' : p.state === 'degraded' ? '#B8860B' : '#DA3327';
+      const lastChecked = p.last_checked_at ? new Date(p.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : 'never';
+      return `
+        <div class="status-probe-row">
+          <div class="status-probe-head">
+            <div>
+              <div class="status-probe-name">${esc(p.name)}</div>
+              <div class="text-3" style="font-size:11px;">${p.source === 'statuspage' ? 'Vendor status feed' : 'HTTP probe'} · ${recent.length}/50 samples · ${errRate}% errors</div>
+            </div>
+            <span style="font-size:10px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; color:${stateColor};">${esc(p.state)}</span>
+          </div>
+          <div class="status-probe-bars" title="Last 50 checks · oldest left">
+            ${recent.slice().reverse().map((r) => `<div class="status-probe-bar ${r.state === 'operational' ? '' : r.state}" title="${esc(r.state)} · ${r.response_ms != null ? r.response_ms + 'ms' : '—'} · ${new Date(r.checked_at).toLocaleString()}"></div>`).join('') || '<div class="text-3" style="font-size:11px;">No samples yet — first poll runs within ~60s.</div>'}
+          </div>
+          <div class="status-probe-url">${esc(p.source_url || '(no URL configured)')}</div>
+          ${p.last_error ? `<div style="font-size:11px;color:#8A1E17;font-family:ui-monospace, SF Mono, Menlo, monospace;">Last error: ${esc(p.last_error)}</div>` : ''}
+          <div class="text-3" style="font-size:11px;">Last checked: ${esc(lastChecked)}</div>
+        </div>
+      `;
+    }).join('');
   }
-  function addGroup() {
+
+  function paintIncidents(incidents, services) {
+    if (!incidents.length) {
+      incidentsHost.innerHTML = `<div class="status-empty-group">No incidents on file. Hit "New incident" to post one.</div>`;
+      return;
+    }
+    const open = incidents.filter((i) => i.state !== 'resolved');
+    const resolved = incidents.filter((i) => i.state === 'resolved').slice(0, 5);
+    const sectionHtml = (title, list) => list.length === 0 ? '' : `
+      <div style="padding:8px 18px 4px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-3); background:var(--sidebar); border-bottom:1px solid var(--border);">${title}</div>
+      ${list.map((inc) => incidentRowHtml(inc, services)).join('')}
+    `;
+    incidentsHost.innerHTML = sectionHtml('Open', open) + sectionHtml('Recently resolved', resolved);
+    bindIncidentRows();
+  }
+
+  function incidentRowHtml(inc, services) {
+    const sevClass = inc.severity || 'minor';
+    const stateClass = inc.state || 'investigating';
+    const idLabel = `INC-${String(inc.id).padStart(4, '0')}`;
+    const updates = inc.updates || [];
+    return `
+      <div class="status-incident-row" data-inc-id="${inc.id}">
+        <div style="min-width:0;">
+          <div class="meta">
+            <span style="font-family:ui-monospace, SF Mono, Menlo, monospace; font-size:11px; color:var(--ink-3);">${idLabel}</span>
+            <span class="pill ${sevClass}">${esc(sevClass)}</span>
+            <span class="pill ${stateClass}">${esc(stateClass)}</span>
+            <span class="text-3">${inc.service_name ? esc(inc.service_name) : 'No service'} · started ${new Date(inc.started_at).toLocaleString()}</span>
+          </div>
+          <div class="status-incident-title" data-edit-title>${esc(inc.title)}</div>
+          <div class="status-update-list">
+            ${updates.length === 0 ? '<div class="text-3" style="font-size:12px; font-style:italic;">No updates yet.</div>' :
+              updates.map((u) => `
+                <div class="status-update-row">
+                  <div class="when">${new Date(u.created_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })}</div>
+                  <div>
+                    <div class="label">${esc(u.label)}</div>
+                    <div>${esc(u.body)}</div>
+                  </div>
+                </div>
+              `).join('')}
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px; align-items:flex-start;">
+            <select class="tx" data-update-label style="width:130px;">
+              <option value="Update">Update</option>
+              <option value="Identified">Identified</option>
+              <option value="Monitoring">Monitoring</option>
+              <option value="Fixed">Fixed</option>
+            </select>
+            <input class="tx" data-update-body placeholder="Post a new update — what's changed?" style="flex:1;" />
+            <button class="btn ghost sm" data-post-update>Post</button>
+          </div>
+        </div>
+        <div class="status-incident-actions">
+          <select class="tx" data-inc-state>
+            ${INCIDENT_STATE_OPTIONS.map((o) => `<option value="${o.id}" ${inc.state === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+          <select class="tx" data-inc-severity>
+            ${INCIDENT_SEVERITY_OPTIONS.map((o) => `<option value="${o.id}" ${inc.severity === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+          <select class="tx" data-inc-service title="Affected service">
+            <option value="">— No service —</option>
+            ${services.map((s) => `<option value="${s.id}" ${inc.service_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+          </select>
+          <button class="btn ghost sm" data-inc-del style="color:var(--neg);">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindIncidentRows() {
+    incidentsHost.querySelectorAll('[data-inc-id]').forEach((row) => {
+      const id = +row.dataset.incId;
+      const titleEl = row.querySelector('[data-edit-title]');
+      // Inline title edit — click to edit, blur to save.
+      titleEl.addEventListener('click', () => {
+        const current = titleEl.textContent;
+        titleEl.contentEditable = 'true';
+        titleEl.style.outline = '1.5px solid var(--ink-3)';
+        titleEl.style.borderRadius = '4px';
+        titleEl.focus();
+        const saveTitle = async () => {
+          titleEl.contentEditable = 'false';
+          titleEl.style.outline = '';
+          if (titleEl.textContent.trim() && titleEl.textContent !== current) {
+            try { await statusApi('PATCH', `/api/admin/status/incidents/${id}`, { title: titleEl.textContent.trim() }); }
+            catch (e) { toast(`Save failed: ${e.message}`, 'err'); titleEl.textContent = current; }
+          } else if (!titleEl.textContent.trim()) {
+            titleEl.textContent = current;
+          }
+        };
+        titleEl.onblur = saveTitle;
+        titleEl.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); } if (e.key === 'Escape') { titleEl.textContent = current; titleEl.blur(); } };
+      });
+
+      row.querySelector('[data-inc-state]').onchange = async (e) => {
+        try { await statusApi('PATCH', `/api/admin/status/incidents/${id}`, { state: e.target.value }); await reload(); }
+        catch (err) { toast(`Save failed: ${err.message}`, 'err'); }
+      };
+      row.querySelector('[data-inc-severity]').onchange = async (e) => {
+        try { await statusApi('PATCH', `/api/admin/status/incidents/${id}`, { severity: e.target.value }); await reload(); }
+        catch (err) { toast(`Save failed: ${err.message}`, 'err'); }
+      };
+      row.querySelector('[data-inc-service]').onchange = async (e) => {
+        const svcId = e.target.value ? Number(e.target.value) : null;
+        try { await statusApi('PATCH', `/api/admin/status/incidents/${id}`, { service_id: svcId }); await reload(); }
+        catch (err) { toast(`Save failed: ${err.message}`, 'err'); }
+      };
+      row.querySelector('[data-inc-del]').onclick = async () => {
+        const ok = await confirmDialog('Delete incident', 'This is permanent — the incident and all its updates are removed.', true, 'Delete');
+        if (!ok) return;
+        try { await statusApi('DELETE', `/api/admin/status/incidents/${id}`); toast('Incident deleted.', 'ok'); await reload(); }
+        catch (err) { toast(`Delete failed: ${err.message}`, 'err'); }
+      };
+      row.querySelector('[data-post-update]').onclick = async () => {
+        const label = row.querySelector('[data-update-label]').value;
+        const bodyEl = row.querySelector('[data-update-body]');
+        const body = bodyEl.value.trim();
+        if (!body) { toast('Type the update first.', 'err'); return; }
+        try {
+          await statusApi('POST', `/api/admin/status/incidents/${id}/updates`, { label, body });
+          bodyEl.value = '';
+          toast('Update posted.', 'ok');
+          await reload();
+        } catch (err) { toast(`Post failed: ${err.message}`, 'err'); }
+      };
+    });
+  }
+
+  // Header buttons
+  $('statusPreviewBtn').onclick = () => window.open('/portal/#status', '_blank');
+  $('statusPollNowBtn').onclick = async () => {
+    const btn = $('statusPollNowBtn'); btn.disabled = true; btn.textContent = 'Polling…';
+    try { await statusApi('POST', '/api/admin/status/poll'); toast('Polled all sources.', 'ok'); await reload(); }
+    catch (e) { toast(`Poll failed: ${e.message}`, 'err'); }
+    finally { btn.disabled = false; btn.textContent = 'Re-poll now'; }
+  };
+  $('statusAddBtn').onclick = async () => {
+    const firstGroup = statusState.payload?.groups.find((g) => g.id !== 0);
+    if (!firstGroup) { $('statusAddGroupBtn').click(); return; }
+    try {
+      await statusApi('POST', '/api/admin/status/services', {
+        group_id: firstGroup.id, name: 'New service', source: 'manual', state: 'operational',
+      });
+      await reload();
+    } catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
+  };
+  $('statusAddGroupBtn').onclick = async () => {
     const label = prompt('Name this group (e.g. "Identity & secrets"):', '');
     if (!label || !label.trim()) return;
-    statusDraft.groups.push({
-      id: label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) || `g-${Date.now()}`,
-      label: label.trim(),
-      services: [],
-    });
-    markStatusDirty();
-    renderGroups();
-  }
-
-  // Wire up controls
-  $('statusAddBtn').onclick = () => {
-    if (!statusDraft.groups.length) { addGroup(); return; }
-    statusDraft.groups[0].services.push(blankService());
-    markStatusDirty();
-    renderGroups();
+    const slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 24) || `g-${Date.now()}`;
+    const position = (statusState.payload?.groups.length || 0);
+    try { await statusApi('POST', '/api/admin/status/groups', { slug, label: label.trim(), position }); await reload(); }
+    catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
   };
-  $('statusResetBtn').onclick = () => {
-    if (!confirm('Replace your current edits with the baked-in defaults? This cannot be undone unless you re-edit.')) return;
-    statusDraft = JSON.parse(JSON.stringify(DEFAULT_STATUS_CONFIG));
-    markStatusDirty();
-    renderGroups();
-  };
-  $('statusSaveBtn').onclick = () => {
-    // Light validation: every service needs a name.
-    const missing = statusDraft.groups.some((g) => g.services.some((s) => !String(s.name || '').trim()));
-    if (missing) { toast('Every service needs a name.', 'err'); return; }
-    saveStatusConfig(statusDraft);
-    markStatusDirty(false);
-    toast('Status config saved — refresh /status to see it.', 'ok');
-  };
-  $('statusPreviewBtn').onclick = () => window.open('/#status', '_blank');
-  $('statusExportBtn').onclick = () => {
-    const blob = new Blob([JSON.stringify(statusDraft, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'it-hub-status-config.json';
-    a.click(); URL.revokeObjectURL(url);
-  };
-  $('statusImportBtn').onclick = () => {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = 'application/json';
-    input.onchange = async () => {
-      const f = input.files?.[0]; if (!f) return;
-      try {
-        const txt = await f.text();
-        const parsed = JSON.parse(txt);
-        if (!parsed || !Array.isArray(parsed.groups)) throw new Error('Missing groups array');
-        statusDraft = parsed;
-        markStatusDirty();
-        renderGroups();
-        toast('Imported.', 'ok');
-      } catch (e) {
-        toast(`Import failed: ${e.message}`, 'err');
-      }
-    };
-    input.click();
-  };
-  $('sgSaveBtn').onclick = () => {
-    const token = ($('sgToken').value || '').trim();
-    const next = { ...loadStatusIntegrations(), statusgator: { token } };
-    saveStatusIntegrations(next);
-    $('sgBadge').textContent = token ? 'Connected' : 'Not connected';
-    $('sgBadge').className = `badge ${token ? 'pos' : 'neutral'}`;
-    toast(token ? 'StatusGator token saved.' : 'StatusGator disconnected.', 'ok');
+  $('statusNewIncidentBtn').onclick = async () => {
+    const title = prompt('Incident title (e.g. "OneLogin SSO sign-in failures"):', '');
+    if (!title || !title.trim()) return;
+    try {
+      await statusApi('POST', '/api/admin/status/incidents', {
+        title: title.trim(), severity: 'minor', state: 'investigating',
+      });
+      toast('Incident created — fill in service + post updates as it evolves.', 'ok');
+      await reload();
+    } catch (e) { toast(`Create failed: ${e.message}`, 'err'); }
   };
 
-  renderGroups();
-  // After the initial render, treat the buffer as clean — only user edits flip it dirty.
-  markStatusDirty(false);
+  // Initial load + 30s refresh poll so probes/incidents update without F5.
+  reload();
+  if (statusState.pollHandle) clearInterval(statusState.pollHandle);
+  statusState.pollHandle = setInterval(reload, 30000);
 }
 
 // =========== SYSTEM ===========

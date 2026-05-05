@@ -7,6 +7,11 @@ import {
   requireSliceUser,
   requireSliceAdmin,
 } from './middleware/sliceAuth.js';
+import {
+  bootstrapStatusServices,
+  runStatusPollers,
+  mountStatusRoutes,
+} from './status.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 // Claude calls are proxied to slicedesk's /api/ai/proxy — it-hub never holds
@@ -60,6 +65,11 @@ function chunkText(text, size = 800, overlap = 100) {
 }
 
 await initDb();
+// Seed the status catalog on first boot, then start polling. The pollers run
+// in-process on a 60s interval; bootstrapping doesn't block requests because
+// it's idempotent and finishes in tens of ms once the rows exist.
+await bootstrapStatusServices(pool);
+runStatusPollers(pool);
 
 const app = express();
 app.use(express.json({ limit: '10mb' }));
@@ -1110,6 +1120,9 @@ app.get('/api/admin/stats', requireSliceAdmin, async (req, res, next) => {
     });
   } catch (e) { next(e); }
 });
+
+// Status platform — services, pollers, incidents. All routes registered here.
+mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdmin });
 
 app.use((err, req, res, _next) => {
   console.error('[server]', err);

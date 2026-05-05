@@ -19734,226 +19734,155 @@ const inputStyle = {
 //  STATUS
 // ====================================================================
 //
-// Default service catalog. The admin page (admin.html → "Status apps")
-// can layer overrides on top via localStorage key `it-hub.status.config`.
-// Each service has a `source` describing how its state is gathered:
-//   - "manual": set by IT in admin
-//   - "statusgator": polled from a StatusGator board (slug)
-//   - "vendor-rss": vendor's official status RSS/Atom feed
-//   - "probe": HTTP probe from our infra
-// `source` is informational on the page; wiring real polling is a
-// follow-up — server stub will live at GET /api/status.
+// Backed by /api/status — the server polls each service every 60s and
+// records samples to status_checks; that table powers the 90-day history
+// bars and uptime numbers. The page polls this endpoint every 30s so an
+// open tab reflects state changes without a manual refresh.
 
-const STATUS_CONFIG_KEY = "it-hub.status.config";
-
-const DEFAULT_SERVICE_GROUPS = [
-  {
-    id: "identity", label: "Identity & secrets",
-    services: [
-      { name: "OneLogin",  vendor: "SSO",     domain: "onelogin.com",  state: "operational", uptime: 99.98, responseMs: 142, source: "manual" },
-      { name: "1Password", vendor: "Secrets", domain: "1password.com", state: "operational", uptime: 99.99, responseMs: 76,  source: "manual" },
-    ],
-  },
-  {
-    id: "network", label: "Network",
-    services: [
-      { name: "Cloudflare WARP", vendor: "VPN", domain: "cloudflare.com", state: "operational", uptime: 99.95, responseMs: 38, source: "vendor-rss", sourceUrl: "https://www.cloudflarestatus.com/history.rss" },
-    ],
-  },
-  {
-    id: "productivity", label: "Productivity",
-    services: [
-      { name: "Google Workspace", vendor: "Mail & calendar", domain: "workspace.google.com", state: "degraded",    uptime: 97.8,  responseMs: null, source: "vendor-rss", sourceUrl: "https://www.google.com/appsstatus/dashboard/incidents.atom", note: "Calendar invites delayed", _recent: true },
-      { name: "Slack",            vendor: "Chat",            domain: "slack.com",            state: "operational", uptime: 99.97, responseMs: 54,   source: "statusgator", sourceUrl: "slack" },
-      { name: "Zoom",             vendor: "Meetings",        domain: "zoom.us",              state: "operational", uptime: 99.94, responseMs: 112,  source: "statusgator", sourceUrl: "zoom" },
-    ],
-  },
-  {
-    id: "dev", label: "Build & design",
-    services: [
-      { name: "GitHub", vendor: "Source control", domain: "github.com", state: "operational", uptime: 99.99, responseMs: 89,  source: "vendor-rss", sourceUrl: "https://www.githubstatus.com/history.rss" },
-      { name: "Figma",  vendor: "Design",         domain: "figma.com",  state: "operational", uptime: 99.96, responseMs: 128, source: "statusgator", sourceUrl: "figma" },
-    ],
-  },
-];
-
-// Read admin overrides from localStorage. Shape:
-//   { groups: [{ id, label, services: [...] }] }
-// Falls back to defaults on parse error or missing config.
-function loadStatusConfig() {
-  try {
-    const raw = typeof localStorage !== "undefined" ? localStorage.getItem(STATUS_CONFIG_KEY) : null;
-    if (!raw) return DEFAULT_SERVICE_GROUPS;
-    const parsed = JSON.parse(raw);
-    if (parsed && Array.isArray(parsed.groups) && parsed.groups.length) {
-      return parsed.groups;
-    }
-  } catch {}
-  return DEFAULT_SERVICE_GROUPS;
-}
-
-const SERVICE_GROUPS = loadStatusConfig();
-
-// Hydrate each service: history bars (deterministic) + numeric coercion for
-// uptime/response so admin-imported entries with missing fields don't crash
-// the page (.toFixed on null, etc).
-SERVICE_GROUPS.forEach(g => g.services.forEach(s => {
-  if (!Array.isArray(s.history)) {
-    s.history = genHistory(90, s.state === "degraded" ? 0.04 : 0.015, !!s._recent);
-  }
-  if (typeof s.uptime !== "number" || Number.isNaN(s.uptime)) s.uptime = 99.9;
-  if (s.responseMs != null && typeof s.responseMs !== "number") {
-    const n = Number(s.responseMs);
-    s.responseMs = Number.isFinite(n) ? n : null;
-  }
-  if (!s.state) s.state = "operational";
-  if (!s.source) s.source = "manual";
-}));
-
-// Flat list helper
-const ALL_SERVICES = SERVICE_GROUPS.flatMap(g => g.services);
-
-// Map a service to its icon URL. We default to Google's S2 favicon
-// service (no API key, broad coverage). Admin can override via iconUrl.
+// Map a service to its icon URL. Default to Google's S2 favicon service
+// (no API key, broad coverage). Admin can override via icon_url.
 function serviceIconUrl(s, size = 64) {
-  if (s.iconUrl) return s.iconUrl;
+  if (s.icon_url) return s.icon_url;
   const domain = s.domain || `${(s.name || "").toLowerCase().replace(/\s+/g, "")}.com`;
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
 }
 
 const SOURCE_LABELS = {
-  manual:      { label: "Manual",       tone: "#4A3F2E", bg: "#F7F4EF" },
-  statusgator: { label: "StatusGator",  tone: "#1E5FB2", bg: "#E5EFFA" },
-  "vendor-rss":{ label: "Vendor RSS",   tone: "#5B2A9B", bg: "#EFE5F5" },
-  probe:       { label: "Health probe", tone: "#0A8A3E", bg: "#E8F5EC" },
+  manual:     { label: "Manual",        tone: "#4A3F2E", bg: "#F7F4EF" },
+  probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E8F5EC" },
+  statuspage: { label: "Vendor status", tone: "#1E5FB2", bg: "#E5EFFA" },
 };
 
-const INCIDENTS = [
-  {
-    id: "INC-PUB-0412",
-    when: "Today · 09:42 ET",
-    service: "Google Workspace",
-    title: "Calendar invites delayed to external recipients",
-    severity: "Minor",
-    severityTone: "amber",
-    state: "Investigating",
-    stateTone: "amber",
-    updates: [
-      { when: "09:42", label: "Identified", text: "Users reported delays sending invites to Gmail addresses. Pulling traces." },
-      { when: "09:58", label: "Monitoring", text: "Google acknowledged the issue. Recovery trending up per status.google.com." },
-      { when: "10:12", label: "Update", text: "Back-queue draining — delivery times from 15 min → 2 min. Will close when steady." },
-    ],
-  },
-  {
-    id: "INC-PUB-0410",
-    when: "Nov 14 · 03:15 ET",
-    service: "OneLogin",
-    title: "SSO sign-in failures for ~18 minutes",
-    severity: "Major",
-    severityTone: "red",
-    state: "Resolved",
-    stateTone: "green",
-    updates: [
-      { when: "03:15", label: "Identified", text: "OneLogin's us-east region returned 503s on all auth endpoints. Couldn't sign in anywhere." },
-      { when: "03:22", label: "Monitoring", text: "Vendor confirmed regional DB failover in progress. Failing over reads." },
-      { when: "03:33", label: "Fixed", text: "All endpoints green. Sign-ins restored. No password changes required." },
-    ],
-    resolvedIn: "Resolved in 18 min",
-  },
-  {
-    id: "INC-PUB-0411",
-    when: "Yesterday · 14:22 ET",
-    service: "Cloudflare WARP",
-    title: "Brief reconnect loop on macOS 15 clients",
-    severity: "Minor",
-    severityTone: "amber",
-    state: "Resolved",
-    stateTone: "green",
-    updates: [
-      { when: "14:22", label: "Identified", text: "WARP on macOS 15.1 was reconnecting every ~10 min." },
-      { when: "14:44", label: "Fixed", text: "Rolled out policy 2025.11.18 — split-tunnel toggle. Clients stable." },
-    ],
-    resolvedIn: "Resolved in 22 min",
-  },
-];
+// Severity / state palettes for incident pills.
+const SEVERITY_TONE = {
+  minor:    { bg: "#FFE8A3", ink: "#8A6A14", label: "Minor" },
+  major:    { bg: "#FFD4D0", ink: "#8A1E17", label: "Major" },
+  critical: { bg: "#FFD4D0", ink: "#8A1E17", label: "Critical" },
+};
+const INCIDENT_STATE_TONE = {
+  investigating: { bg: "#FFE8A3", ink: "#8A6A14", label: "Investigating" },
+  identified:    { bg: "#FFD4D0", ink: "#8A1E17", label: "Identified" },
+  monitoring:    { bg: "#FFE8A3", ink: "#8A6A14", label: "Monitoring" },
+  resolved:      { bg: "#D4F4D4", ink: "#0A8A3E", label: "Resolved" },
+};
+const UPDATE_LABEL_TONE = {
+  identified: "#DA3327",
+  monitoring: "#8A6A14",
+  fixed:      "#0A8A3E",
+  resolved:   "#0A8A3E",
+  update:     "#211E1E",
+};
 
-function genHistory(days, badProb, includeRecent) {
-  const out = [];
-  for (let i = 0; i < days; i++) {
-    const seed = (i * 9301 + 49297) % 233280;
-    const r = seed / 233280;
-    let state = 0;
-    if (r < badProb) state = 2;
-    else if (r < badProb * 3) state = 1;
-    out.push(state);
-  }
-  if (includeRecent) {
-    // Concentrate degradation NEAR today (end of array) for coherent storytelling
-    for (let i = 0; i < 18; i++) out[out.length - 1 - i] = 0;
-    out[out.length - 1] = 1;
-    out[out.length - 2] = 1;
-    out[out.length - 5] = 1;
-    out[out.length - 9] = 2;
-  }
-  return out;
+function relativeTime(input) {
+  if (!input) return "—";
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  const sec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (sec < 5) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function clockHM(input) {
+  if (!input) return "";
+  const d = input instanceof Date ? input : new Date(input);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function StatusPage({ onBack }) {
-  const operationalCount = ALL_SERVICES.filter((s) => s.state === "operational").length;
-  const degraded = ALL_SERVICES.filter((s) => s.state === "degraded");
-  const down = ALL_SERVICES.filter((s) => s.state === "down");
-  const overallTone = down.length ? "red" : degraded.length ? "amber" : "green";
+  // Live data from /api/status. Initial render shows a skeleton; we re-fetch
+  // every 30s so the page reflects poller updates without a manual refresh.
+  const [payload, setPayload] = React.useState(null);
+  const [lastCheck, setLastCheck] = React.useState(null);
+  const [loadError, setLoadError] = React.useState(null);
 
-  // Live-ish ticking timer — seconds since "last check"
-  const [lastCheck, setLastCheck] = React.useState(new Date());
-  const [tick, setTick] = React.useState(0);
   React.useEffect(() => {
-    const t = setInterval(() => setTick(x => x + 1), 1000);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/status', { credentials: 'include', cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        if (cancelled) return;
+        setPayload(j);
+        setLastCheck(new Date());
+        setLoadError(null);
+      } catch (e) {
+        if (!cancelled) setLoadError(e.message);
+      }
+    };
+    load();
+    const t = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  // Force a re-render every second so the "last checked" label ticks.
+  const [, setNow] = React.useState(0);
+  React.useEffect(() => {
+    const t = setInterval(() => setNow((n) => n + 1), 1000);
     return () => clearInterval(t);
   }, []);
-  React.useEffect(() => {
-    const r = setInterval(() => setLastCheck(new Date()), 60000);
-    return () => clearInterval(r);
-  }, []);
-  const agoSec = Math.max(0, Math.round((Date.now() - lastCheck.getTime()) / 1000));
-  const agoLabel = agoSec < 5 ? "just now" : agoSec < 60 ? `${agoSec}s ago` : `${Math.floor(agoSec/60)}m ago`;
+
+  const groups = payload?.groups || [];
+  const allServices = React.useMemo(() => groups.flatMap((g) => g.services || []), [groups]);
+  const incidents = payload?.incidents || [];
+  const openIncidentList = incidents.filter((i) => i.state !== 'resolved');
+  const resolvedIncidentList = incidents.filter((i) => i.state === 'resolved').slice(0, 12);
+
+  const operationalCount = allServices.filter((s) => s.state === 'operational').length;
+  const degraded = allServices.filter((s) => s.state === 'degraded');
+  const down = allServices.filter((s) => s.state === 'down');
+  const overallTone = down.length ? 'red' : degraded.length ? 'amber' : 'green';
+  const toneAccent = overallTone === 'green' ? '#0A8A3E' : overallTone === 'amber' ? '#B8860B' : '#DA3327';
 
   const [subOpen, setSubOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [expandedSvc, setExpandedSvc] = React.useState(null);
-  const [filter, setFilter] = React.useState("all"); // all | issues | operational
-  const [query, setQuery] = React.useState("");
-  const toneAccent = overallTone === "green" ? "#0A8A3E" : overallTone === "amber" ? "#B8860B" : "#DA3327";
+  const [filter, setFilter] = React.useState('all'); // all | issues | operational
+  const [query, setQuery] = React.useState('');
 
-  // KPI roll-ups
-  const totalServices = ALL_SERVICES.length;
-  const avgUptime = totalServices
-    ? ALL_SERVICES.reduce((sum, s) => sum + (s.uptime || 0), 0) / totalServices
-    : 100;
-  const responding = ALL_SERVICES.filter((s) => s.responseMs != null);
-  const avgResponse = responding.length
-    ? Math.round(responding.reduce((sum, s) => sum + s.responseMs, 0) / responding.length)
+  // KPI roll-ups derived from the live payload.
+  const totalServices = allServices.length;
+  const upWith90d = allServices.filter((s) => typeof s.uptime_90d === 'number');
+  const avgUptime = upWith90d.length
+    ? upWith90d.reduce((sum, s) => sum + s.uptime_90d, 0) / upWith90d.length
     : null;
-  const openIncidents = INCIDENTS.filter((i) => i.state !== "Resolved").length;
+  const responding = allServices.filter((s) => s.response_ms != null);
+  const avgResponse = responding.length
+    ? Math.round(responding.reduce((sum, s) => sum + s.response_ms, 0) / responding.length)
+    : null;
+  const openIncidents = openIncidentList.length;
 
-  // Filter + search applied to grouped layout. We keep group structure, only
-  // hiding services that don't match — and skipping a group entirely if nothing
-  // remains. This way users searching for "slack" see just Slack in its group.
+  const agoSec = lastCheck ? Math.max(0, Math.round((Date.now() - lastCheck.getTime()) / 1000)) : null;
+  const agoLabel = agoSec == null ? 'syncing…'
+    : agoSec < 5 ? 'just now'
+    : agoSec < 60 ? `${agoSec}s ago`
+    : `${Math.floor(agoSec / 60)}m ago`;
+
+  // Filter + search applied to grouped layout. Hide services that don't match
+  // and drop any group that ends up empty so the table doesn't show stale headers.
   const q = query.trim().toLowerCase();
   const matches = (s) => {
-    if (filter === "issues" && s.state === "operational") return false;
-    if (filter === "operational" && s.state !== "operational") return false;
+    if (filter === 'issues' && s.state === 'operational') return false;
+    if (filter === 'operational' && s.state !== 'operational') return false;
     if (!q) return true;
     return (
-      s.name.toLowerCase().includes(q) ||
-      (s.vendor || "").toLowerCase().includes(q) ||
-      (s.domain || "").toLowerCase().includes(q)
+      (s.name || '').toLowerCase().includes(q) ||
+      (s.vendor || '').toLowerCase().includes(q) ||
+      (s.domain || '').toLowerCase().includes(q)
     );
   };
-  const filteredGroups = SERVICE_GROUPS
-    .map((g) => ({ ...g, services: g.services.filter(matches) }))
+  const filteredGroups = groups
+    .map((g) => ({ ...g, services: (g.services || []).filter(matches) }))
     .filter((g) => g.services.length > 0);
-  const noMatches = filteredGroups.length === 0;
+  const noMatches = filteredGroups.length === 0 && payload != null;
 
   return (
     <div className="page" style={{
@@ -20004,8 +19933,13 @@ function StatusPage({ onBack }) {
             <div style={{ fontSize: 14, color: "#4A3F2E", marginTop: 10, fontWeight: 600, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
               <span>Last checked <b style={{ color: "#211E1E" }}>{agoLabel}</b></span>
               <span style={{ opacity: 0.5 }}>·</span>
-              <span>Auto-refreshes every minute</span>
-              <span style={{ display: "none" }}>{tick}</span>
+              <span>Auto-refreshes every 30 seconds</span>
+              {loadError && (
+                <>
+                  <span style={{ opacity: 0.5 }}>·</span>
+                  <span style={{ color: "#DA3327" }}>Sync error: {loadError}</span>
+                </>
+              )}
             </div>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -20030,7 +19964,7 @@ function StatusPage({ onBack }) {
         }}>
           <KpiTile label="Operational" value={`${operationalCount} / ${totalServices}`} accent="#0A8A3E" />
           <KpiTile label="Open incidents" value={openIncidents} accent={openIncidents ? "#DA3327" : "#0A8A3E"} />
-          <KpiTile label="Avg uptime · 90d" value={`${avgUptime.toFixed(2)}%`} accent="#FDC831" />
+          <KpiTile label="Avg uptime · 90d" value={avgUptime != null ? `${avgUptime.toFixed(2)}%` : "—"} accent="#FDC831" />
           <KpiTile label="Avg response" value={avgResponse != null ? `${avgResponse}ms` : "—"} accent="#FFFFFF" />
         </div>
       </div>
@@ -20042,11 +19976,11 @@ function StatusPage({ onBack }) {
         flex: "1 0 auto", display: "flex", flexDirection: "column",
       }}>
         {/* Active incidents */}
-        {INCIDENTS.some((i) => i.state !== "Resolved") && (
+        {openIncidentList.length > 0 && (
           <React.Fragment>
             <SectionTitle kicker="Active right now" title="Open incidents" />
             <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 48 }}>
-              {INCIDENTS.filter((i) => i.state !== "Resolved").map((inc) => (
+              {openIncidentList.map((inc) => (
                 <IncidentCard key={inc.id} incident={inc} open />
               ))}
             </div>
@@ -20129,7 +20063,13 @@ function StatusPage({ onBack }) {
             <div/>
           </div>
 
-          {noMatches ? (
+          {!payload ? (
+            <div style={{
+              padding: "32px 22px",
+              textAlign: "center",
+              color: "#4A3F2E", fontSize: 13.5, fontWeight: 600,
+            }}>Syncing services from the platform…</div>
+          ) : noMatches ? (
             <div style={{
               padding: "32px 22px",
               textAlign: "center",
@@ -20146,7 +20086,7 @@ function StatusPage({ onBack }) {
               >Clear filters</button>
             </div>
           ) : filteredGroups.map((group, gi) => (
-            <React.Fragment key={group.id}>
+            <React.Fragment key={group.id || group.slug}>
               <div style={{
                 padding: "10px 22px",
                 background: "#FFFDF5",
@@ -20159,11 +20099,11 @@ function StatusPage({ onBack }) {
                 const isLast = gi === filteredGroups.length - 1 && i === group.services.length - 1;
                 return (
                   <ServiceRow
-                    key={s.name}
+                    key={s.id}
                     service={s}
                     isLast={isLast}
-                    expanded={expandedSvc === s.name}
-                    onToggle={() => setExpandedSvc(expandedSvc === s.name ? null : s.name)}
+                    expanded={expandedSvc === s.id}
+                    onToggle={() => setExpandedSvc(expandedSvc === s.id ? null : s.id)}
                   />
                 );
               })}
@@ -20174,26 +20114,28 @@ function StatusPage({ onBack }) {
         {/* Past incidents */}
         <SectionTitle kicker="Last 30 days" title="Incident history" />
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {INCIDENTS.filter((i) => i.state === "Resolved").map((inc) => (
+          {resolvedIncidentList.map((inc) => (
             <IncidentCard key={inc.id} incident={inc} open={false} />
           ))}
           {/* Empty quiet day — typographic, no emoji */}
-          <div style={{
-            background: "#F7F4EF",
-            border: "2px dashed #78684C", borderRadius: 10,
-            padding: "18px 20px",
-            display: "flex", alignItems: "center", gap: 14,
-            color: "#4A3F2E", fontSize: 13.5, fontWeight: 600,
-          }}>
+          {resolvedIncidentList.length === 0 && (
             <div style={{
-              width: 28, height: 28,
-              background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: "50%",
-              display: "grid", placeItems: "center",
-              fontFamily: "Archivo, sans-serif", fontSize: 16, fontWeight: 900, color: "#0A8A3E",
-              lineHeight: 1,
-            }}>·</div>
-            <span>No other incidents in the last 30 days — nice and quiet.</span>
-          </div>
+              background: "#F7F4EF",
+              border: "2px dashed #78684C", borderRadius: 10,
+              padding: "18px 20px",
+              display: "flex", alignItems: "center", gap: 14,
+              color: "#4A3F2E", fontSize: 13.5, fontWeight: 600,
+            }}>
+              <div style={{
+                width: 28, height: 28,
+                background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: "50%",
+                display: "grid", placeItems: "center",
+                fontFamily: "Archivo, sans-serif", fontSize: 16, fontWeight: 900, color: "#0A8A3E",
+                lineHeight: 1,
+              }}>·</div>
+              <span>No other incidents in the last 30 days — nice and quiet.</span>
+            </div>
+          )}
         </div>
 
         {/* In-page footer line — pinned to the bottom of the status content
@@ -20214,7 +20156,7 @@ function StatusPage({ onBack }) {
       </div>
 
       {subOpen && <SubscribeModal onClose={() => setSubOpen(false)}/>}
-      {reportOpen && <ReportIssueModal onClose={() => setReportOpen(false)} services={ALL_SERVICES}/>}
+      {reportOpen && <ReportIssueModal onClose={() => setReportOpen(false)} services={allServices}/>}
 
       <style>{`
         @keyframes livePulse {
@@ -20320,13 +20262,20 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
     : service.state === "degraded" ? { bg: "#FFE8A3", ink: "#8A6A14", label: "Degraded" }
     : { bg: "#FFD4D0", ink: "#8A1E17", label: "Down" };
 
-  const isOutlier = service.uptime < 99;
+  const uptime = typeof service.uptime_90d === "number" ? service.uptime_90d : null;
+  const isOutlier = uptime != null && uptime < 99;
   const uptimeColor = isOutlier ? "#DA3327" : "#211E1E";
+  const responseMs = service.response_ms;
+
+  // The server returns a 90-element history array (oldest first, today last,
+  // values 0|1|2). Pad if the service is too new to have 90 days of samples.
+  const rawHist = Array.isArray(service.history) ? service.history : [];
+  const hist = rawHist.length >= 90 ? rawHist.slice(-90) : new Array(90 - rawHist.length).fill(0).concat(rawHist);
 
   // Week-grouped bars: 13 weeks × 7 days, with small gap between weeks
   const weeks = [];
-  for (let w = 0; w < Math.ceil(service.history.length / 7); w++) {
-    weeks.push(service.history.slice(w * 7, (w + 1) * 7));
+  for (let w = 0; w < Math.ceil(hist.length / 7); w++) {
+    weeks.push(hist.slice(w * 7, (w + 1) * 7));
   }
 
   const initials = (service.name || "?")
@@ -20417,8 +20366,13 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
             {stateTone.label}
           </span>
           <div style={{ fontSize: 11, color: "#78684C", marginTop: 4, fontWeight: 600 }}>
-            Response: <b style={{ color: "#211E1E" }}>{service.responseMs != null ? `${service.responseMs}ms` : "—"}</b>
+            Response: <b style={{ color: "#211E1E" }}>{responseMs != null ? `${responseMs}ms` : "—"}</b>
           </div>
+          {service.state_note && service.state !== 'operational' && (
+            <div style={{ fontSize: 11, color: "#8A1E17", marginTop: 4, fontWeight: 600, lineHeight: 1.4 }}>
+              {service.state_note}
+            </div>
+          )}
         </div>
         <div style={{ position: "relative" }}>
           <div style={{ display: "flex", gap: 4, alignItems: "center", height: 28 }}>
@@ -20426,7 +20380,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
               <div key={wi} style={{ display: "flex", gap: 1.5, flex: 1, height: "100%" }}>
                 {wk.map((v, di) => {
                   const globalIdx = wi * 7 + di;
-                  const fromEnd = service.history.length - 1 - globalIdx;
+                  const fromEnd = hist.length - 1 - globalIdx;
                   return (
                     <div key={di}
                       onMouseEnter={(e) => { e.stopPropagation(); setHover(globalIdx); }}
@@ -20450,7 +20404,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           </div>
           {hover >= 0 && (
             <div style={{
-              position: "absolute", top: -32, left: `${(hover / service.history.length) * 100}%`,
+              position: "absolute", top: -32, left: `${(hover / hist.length) * 100}%`,
               transform: "translateX(-50%)",
               background: "#211E1E", color: "#FFFFFF",
               padding: "4px 8px", borderRadius: 4,
@@ -20458,13 +20412,13 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
               whiteSpace: "nowrap", pointerEvents: "none",
               boxShadow: "2px 2px 0 rgba(0,0,0,0.2)",
             }}>
-              {bucketLabel(service.history.length - 1 - hover)} — {service.history[hover] === 0 ? "Up" : service.history[hover] === 1 ? "Degraded" : "Down"}
+              {bucketLabel(hist.length - 1 - hover)} — {hist[hover] === 0 ? "Up" : hist[hover] === 1 ? "Degraded" : "Down"}
             </div>
           )}
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 22, color: uptimeColor, letterSpacing: "-0.01em", lineHeight: 1 }}>
-            {service.uptime.toFixed(2)}%
+            {uptime != null ? `${uptime.toFixed(2)}%` : "—"}
           </div>
           <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, marginTop: 3 }}>90-day uptime</div>
         </div>
@@ -20488,13 +20442,25 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           borderBottom: isLast ? "none" : "1.5px solid #E7E1D4",
         }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 12 }}>
-            <MiniStat label="24h uptime" value={`${(99.5 + Math.random() * 0.5).toFixed(2)}%`} />
-            <MiniStat label="Avg response" value={service.responseMs != null ? `${service.responseMs}ms` : "—"} />
-            <MiniStat label="Checks / min" value="12" />
-            <MiniStat label="Monitored since" value="Mar 2024" />
+            <MiniStat label="90d uptime" value={uptime != null ? `${uptime.toFixed(2)}%` : "—"} />
+            <MiniStat label="Last response" value={responseMs != null ? `${responseMs}ms` : "—"} />
+            <MiniStat label="Last checked"
+              value={service.last_checked_at ? relativeTime(service.last_checked_at) : "—"} />
+            <MiniStat label="Source" value={sourceMeta.label} />
           </div>
           <div style={{ fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.5 }}>
-            <b style={{ color: "#211E1E" }}>{service.name}</b> is monitored from 3 regions (us-east, us-west, eu-west). We count a day as <b>degraded</b> if responses exceed 500ms for &gt;10 min, and <b>down</b> if any probe returns a 5xx for &gt;3 min.
+            {service.source === 'manual' ? (
+              <><b style={{ color: "#211E1E" }}>{service.name}</b> is set manually by the IT Team. Status changes when an admin updates it.</>
+            ) : service.source === 'statuspage' ? (
+              <><b style={{ color: "#211E1E" }}>{service.name}</b> is polled every 60 seconds from the vendor's public statuspage feed. We mark a service as <b>degraded</b> when the vendor reports a minor incident, and <b>down</b> for major or critical incidents.</>
+            ) : (
+              <><b style={{ color: "#211E1E" }}>{service.name}</b> is health-probed every 60 seconds. We mark it <b>degraded</b> when responses exceed {Math.round(2500)}ms or return 4xx, and <b>down</b> on 5xx or connection failure.</>
+            )}
+            {service.last_error && (
+              <div style={{ marginTop: 8, padding: "8px 10px", background: "#FFE8E5", border: "1.5px solid #DA3327", borderRadius: 6, color: "#7A1A14", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11.5 }}>
+                Last error: {service.last_error}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -20516,12 +20482,20 @@ function MiniStat({ label, value }) {
 
 function IncidentCard({ incident, open }) {
   const [expanded, setExpanded] = React.useState(!!open);
-  const sevTone = incident.severityTone === "amber" ? { bg: "#FFE8A3", ink: "#8A6A14" }
-    : incident.severityTone === "red" ? { bg: "#FFD4D0", ink: "#8A1E17" }
-    : { bg: "#F7F4EF", ink: "#211E1E" };
-  const stateTone = incident.stateTone === "green" ? { bg: "#D4F4D4", ink: "#0A8A3E" }
-    : incident.stateTone === "amber" ? { bg: "#FFE8A3", ink: "#8A6A14" }
-    : { bg: "#FFD4D0", ink: "#8A1E17" };
+  const sevTone = SEVERITY_TONE[incident.severity] || SEVERITY_TONE.minor;
+  const stateTone = INCIDENT_STATE_TONE[incident.state] || INCIDENT_STATE_TONE.investigating;
+  const idLabel = `INC-${String(incident.id).padStart(4, '0')}`;
+  const startedRel = relativeTime(incident.started_at);
+  // Compute "Resolved in Xm" from started_at → resolved_at when present.
+  const resolvedDuration = (() => {
+    if (!incident.resolved_at || !incident.started_at) return null;
+    const ms = new Date(incident.resolved_at).getTime() - new Date(incident.started_at).getTime();
+    if (!Number.isFinite(ms) || ms <= 0) return null;
+    const min = Math.round(ms / 60000);
+    if (min < 60) return `Resolved in ${min} min`;
+    const hr = Math.round(min / 60);
+    return `Resolved in ${hr}h`;
+  })();
 
   return (
     <div style={{
@@ -20546,27 +20520,27 @@ function IncidentCard({ incident, open }) {
               fontSize: 11, fontWeight: 700,
               background: "#F7F4EF", border: "1.5px solid #211E1E",
               borderRadius: 3, padding: "2px 7px", color: "#211E1E",
-            }}>{incident.id}</span>
+            }}>{idLabel}</span>
             <span style={{
               background: sevTone.bg, color: sevTone.ink,
               border: `1.5px solid ${sevTone.ink}`, borderRadius: 3,
               fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
               padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
-            }}>{incident.severity}</span>
+            }}>{sevTone.label}</span>
             <span style={{
               background: stateTone.bg, color: stateTone.ink,
               border: `1.5px solid ${stateTone.ink}`, borderRadius: 3,
               fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
               padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
-            }}>{incident.state}</span>
-            <span style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>· {incident.when}</span>
+            }}>{stateTone.label}</span>
+            <span style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>· Started {startedRel}</span>
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.005em" }}>
-            {incident.service} — {incident.title}
+            {incident.service_name ? `${incident.service_name} — ${incident.title}` : incident.title}
           </div>
-          {incident.resolvedIn && (
+          {resolvedDuration && (
             <div style={{ fontSize: 11.5, color: "#0A8A3E", fontWeight: 700, marginTop: 4 }}>
-              ✓ {incident.resolvedIn}
+              ✓ {resolvedDuration}
             </div>
           )}
         </div>
@@ -20589,30 +20563,35 @@ function IncidentCard({ incident, open }) {
           <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>
             Timeline
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {incident.updates.map((u, i) => (
-              <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <div style={{
-                  width: 56,
-                  fontFamily: "ui-monospace, Menlo, monospace",
-                  fontSize: 12, fontWeight: 700, color: "#211E1E",
-                  flexShrink: 0, paddingTop: 2,
-                }}>{u.when}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{
-                    fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
-                    letterSpacing: "0.04em", textTransform: "uppercase",
-                    color: u.label === "Fixed" ? "#0A8A3E"
-                         : u.label === "Identified" ? "#DA3327"
-                         : u.label === "Monitoring" ? "#8A6A14"
-                         : "#211E1E",
-                    marginBottom: 3,
-                  }}>{u.label}</div>
-                  <div style={{ fontSize: 13.5, color: "#211E1E", lineHeight: 1.5 }}>{u.text}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {(!incident.updates || incident.updates.length === 0) ? (
+            <div style={{ fontSize: 13, color: "#78684C", fontStyle: "italic" }}>
+              No updates yet — the IT Team will post one as soon as they have more info.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {incident.updates.map((u) => {
+                const tone = UPDATE_LABEL_TONE[(u.label || '').toLowerCase()] || UPDATE_LABEL_TONE.update;
+                return (
+                  <div key={u.id} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+                    <div style={{
+                      width: 56,
+                      fontFamily: "ui-monospace, Menlo, monospace",
+                      fontSize: 12, fontWeight: 700, color: "#211E1E",
+                      flexShrink: 0, paddingTop: 2,
+                    }}>{clockHM(u.created_at)}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
+                        letterSpacing: "0.04em", textTransform: "uppercase",
+                        color: tone, marginBottom: 3,
+                      }}>{u.label}</div>
+                      <div style={{ fontSize: 13.5, color: "#211E1E", lineHeight: 1.5 }}>{u.body}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
