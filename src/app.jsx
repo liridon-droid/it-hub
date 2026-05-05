@@ -1611,6 +1611,17 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
             index={i} />
 
           )}
+              {/* Screenshot escape-hatch as a sibling card under the last
+                  option. Same height/border-radius/shadow as ChoiceCard so
+                  the rhythm doesn't break — the only visual difference is
+                  the camera tile (vs the radio circle) so the user can
+                  spot it as a different kind of action. */}
+              {onOpenScreenshot && (
+                <ScreenshotChoiceCard
+                  onSelect={() => onOpenScreenshot(query)}
+                  index={question.options.length}
+                />
+              )}
             </div>
         }
 
@@ -1649,6 +1660,17 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
               </button>
             </div>
         }
+
+          {/* Same screenshot escape-hatch under multi questions, on its
+              own row so it doesn't get mixed into the chip flow. */}
+          {question.type === "multi" && onOpenScreenshot && (
+            <div style={{ marginTop: 16 }}>
+              <ScreenshotChoiceCard
+                onSelect={() => onOpenScreenshot(query)}
+                index={(question.options?.length || 0)}
+              />
+            </div>
+          )}
 
           {question.type === "text" &&
         <textarea
@@ -1743,86 +1765,76 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
           </div>
         </div>
       }
-
-      {/* Screenshot escape hatch — moved BELOW the question so the user
-          considers it after weighing the answers, not as the first thing
-          they see on the page. */}
-      {!thinking && onOpenScreenshot && (
-        <div style={{
-          marginTop: 32,
-          animation: "fadeIn .4s .1s var(--ease) both",
-        }}>
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: 14,
-              padding: "16px 20px",
-              background: "#FFFFFF",
-              border: "2px solid #211E1E",
-              borderRadius: 12,
-              boxShadow: "3px 3px 0 #211E1E",
-              transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
-              cursor: "default",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translate(-2px,-2px)";
-              e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
-            }}
-          >
-            <div style={{
-              width: 44, height: 44, borderRadius: 8,
-              background: "#FFFFFF",
-              border: "2px solid #211E1E",
-              color: "#211E1E",
-              display: "grid", placeItems: "center",
-              flexShrink: 0,
-            }}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                stroke="#211E1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M3 8h3l2-2.5h8L18 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-                <circle cx="12" cy="13.5" r="3.5"/>
-              </svg>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 15, fontWeight: 800, color: "#211E1E",
-                letterSpacing: "-0.015em",
-                marginBottom: 2,
-              }}>
-                Or just show us — drop a screenshot
-              </div>
-              <div style={{ fontSize: 13, color: "#4A3F2E", lineHeight: 1.4 }}>
-                Skip the questions. We'll look at what you're seeing and route you to the right fix.
-              </div>
-            </div>
-            <button
-              onClick={() => onOpenScreenshot(query)}
-              style={{
-                padding: "10px 16px",
-                background: "#DA3327", color: "#FFFFFF",
-                border: "2px solid #DA3327", borderRadius: 4,
-                fontFamily: "'Archivo', sans-serif",
-                fontWeight: 800, fontSize: 12,
-                letterSpacing: "0.04em", textTransform: "uppercase",
-                cursor: "pointer",
-                display: "inline-flex", alignItems: "center", gap: 6,
-                flexShrink: 0,
-                transition: "background .15s",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "#B92A20"; e.currentTarget.style.borderColor = "#B92A20"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "#DA3327"; e.currentTarget.style.borderColor = "#DA3327"; }}
-            >
-              Upload <span style={{ fontSize: 14 }}>↑</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>);
 
+}
+
+// A card that matches ChoiceCard's geometry exactly so it slots into the
+// answer list as the last "option" — but with a camera tile instead of a
+// radio bullet, signalling it's a different kind of action ("show us"
+// instead of "answer"). Stateless: tapping it fires onSelect.
+function ScreenshotChoiceCard({ onSelect, index }) {
+  return (
+    <button
+      onClick={onSelect}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translate(-2px, -2px)";
+        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+        e.currentTarget.style.background = "#FFF9E6";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "none";
+        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.background = "#FFFFFF";
+      }}
+      onMouseDown={(e) => {
+        e.currentTarget.style.transform = "translate(1px, 1px)";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+      }}
+      onMouseUp={(e) => {
+        e.currentTarget.style.transform = "translate(-2px, -2px)";
+        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+      }}
+      style={{
+        textAlign: "left",
+        display: "flex", alignItems: "flex-start", gap: 14,
+        padding: "16px 18px",
+        width: "100%",
+        background: "#FFFFFF",
+        border: "2px solid #211E1E",
+        borderRadius: 14,
+        cursor: "pointer",
+        transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
+        boxShadow: "3px 3px 0 #211E1E",
+        transform: "translateZ(0)",
+        animation: `fadeUp .45s var(--ease) both`,
+        animationDelay: `${(index || 0) * 50}ms`,
+        fontFamily: "inherit",
+      }}
+    >
+      <div style={{
+        width: 22, height: 22, borderRadius: 6,
+        border: "2px solid #211E1E",
+        background: "#FFFFFF",
+        display: "grid", placeItems: "center",
+        marginTop: 1, flexShrink: 0,
+      }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+          stroke="#211E1E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M3 8h3l2-2.5h8L18 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+          <circle cx="12" cy="13.5" r="3.5"/>
+        </svg>
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em" }}>
+          Or just show us — drop a screenshot
+        </div>
+        <div style={{ fontSize: 12.5, color: "#4A3F2E", marginTop: 3 }}>
+          Skip the questions. We'll look at what you're seeing and route you to the right fix.
+        </div>
+      </div>
+    </button>
+  );
 }
 
 // ---------- RESULTS ----------
