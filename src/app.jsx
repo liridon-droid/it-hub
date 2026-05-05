@@ -4605,9 +4605,55 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
 
       <div style={{display: "flex", alignItems: "center", gap: 12}}>
         <NotificationsMenu onViewAll={onOpenNotifications} />
+        <ItServicesButton />
         <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} />
       </div>
     </nav>
+  );
+}
+
+// --- IT Services hop-out button -----------------------------------------------
+// Sits between the Notifications bell and the user avatar. Sends the user out
+// to the real IT portal at it.slice.services — separate from /portal/, which is
+// just this self-service hub. Same circular vocabulary as the bell so the nav
+// reads as one cohesive cluster.
+function ItServicesButton() {
+  return (
+    <a
+      href="https://it.slice.services"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Open IT Services (it.slice.services)"
+      aria-label="Open IT Services in a new tab"
+      style={{
+        width: 34, height: 34,
+        background: "#FFFFFF",
+        color: "#211E1E",
+        display: "grid", placeItems: "center",
+        borderRadius: "50%", border: "2px solid #211E1E",
+        cursor: "pointer", textDecoration: "none",
+        transition: "transform .15s ease, box-shadow .15s ease, background .15s ease",
+        boxShadow: "none",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translate(-1px,-1px)";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+        e.currentTarget.style.background = "#FDC831";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "none";
+        e.currentTarget.style.boxShadow = "none";
+        e.currentTarget.style.background = "#FFFFFF";
+      }}
+    >
+      {/* Headset / support glyph — matches the IT-Team mental model better
+          than a generic external-link arrow. */}
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 14a8 8 0 0 1 16 0v3a2 2 0 0 1-2 2h-1v-6h3"/>
+        <path d="M4 17v-3h3v6H6a2 2 0 0 1-2-2z"/>
+      </svg>
+    </a>
   );
 }
 
@@ -21310,102 +21356,26 @@ Object.assign(window, {
 // (hooks already destructured at top of file)
 
 // --------------------------------------------------------------------
-//  Mock AI analysis — pattern-matches the file name + describes findings.
-//  In a real build this would POST to a vision endpoint; we simulate the
-//  shape of the response so the UX is real.
+//  Real screenshot analysis — POSTs the image to /api/help/screenshot,
+//  which routes it through Claude vision with the live KB title list as
+//  grounding so suggestions point at real guides instead of inventing them.
+//  Returns the server's already-validated payload (or throws so the UI can
+//  surface the failure cleanly).
 // --------------------------------------------------------------------
-function analyzeScreenshot({ fileName = "", note = "" }) {
-  const text = (fileName + " " + note).toLowerCase();
-  const matchers = [
-    {
-      keys: ["wifi", "wi-fi", "vpn", "warp", "network", "internet", "offline"],
-      result: {
-        diagnosis: "Cloudflare WARP appears disconnected",
-        confidence: 0.86,
-        clues: [
-          "Top-right menubar icon shows the slashed cloud",
-          "Browser is showing 'cannot reach internal site' for roster.slice.com",
-        ],
-        guideId: "g.net.vpn",
-        nextSteps: [
-          "Open the WARP menubar icon and toggle it off, then on",
-          "If that doesn't work, run the WARP reset command from the guide",
-          "Sign back in via OneLogin when prompted",
-        ],
-      },
-    },
-    {
-      keys: ["password", "login", "onelogin", "locked", "expired", "credential"],
-      result: {
-        diagnosis: "OneLogin password rejected — likely expired",
-        confidence: 0.82,
-        clues: [
-          "OneLogin banner reads 'Your password has expired'",
-          "Email field is filled, password field is empty",
-        ],
-        guideId: "g.pwd.self",
-        nextSteps: [
-          "Use the password reset link on the login screen",
-          "Approve the MFA push that follows",
-          "Pick a new 16+ character passphrase",
-        ],
-      },
-    },
-    {
-      keys: ["slow", "spinning", "beachball", "frozen", "activity", "monitor", "cpu", "memory"],
-      result: {
-        diagnosis: "High CPU from a runaway browser process",
-        confidence: 0.74,
-        clues: [
-          "Activity Monitor shows Chrome Helper (Renderer) using 240% CPU",
-          "Memory pressure indicator is in the yellow zone",
-        ],
-        guideId: "g.dev.triage",
-        nextSteps: [
-          "Force-quit the runaway Chrome Helper process",
-          "Check disk space — under 15% free will keep slowing things down",
-          "Restart cleanly without reopening windows",
-        ],
-      },
-    },
-    {
-      keys: ["mfa", "push", "authenticator", "verify", "code"],
-      result: {
-        diagnosis: "MFA push isn't reaching your phone",
-        confidence: 0.78,
-        clues: [
-          "OneLogin is sitting on 'Waiting for approval…' for >60s",
-          "Device shown is registered to a previous phone",
-        ],
-        guideId: "g.pwd.mfa",
-        nextSteps: [
-          "Re-enroll OneLogin Protect on your current phone",
-          "Use a recovery code if you have one available",
-          "If neither works, file an identity-verify ticket",
-        ],
-      },
-    },
-  ];
-
-  for (const m of matchers) {
-    if (m.keys.some(k => text.includes(k))) return m.result;
+async function analyzeScreenshot({ dataUrl, note = "" }) {
+  if (!dataUrl) throw new Error('Missing screenshot data URL');
+  const r = await fetch('/api/help/screenshot', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageDataUrl: dataUrl, note }),
+  });
+  if (!r.ok) {
+    let detail = `HTTP ${r.status}`;
+    try { const j = await r.json(); detail = j.error || j.detail || detail; } catch {}
+    throw new Error(detail);
   }
-
-  // Generic fallback — still useful, points at triage
-  return {
-    diagnosis: "Connectivity or app-state issue",
-    confidence: 0.42,
-    clues: [
-      "Image shows an error state, but I can't pin the exact app",
-      "A short note from you would sharpen the read",
-    ],
-    guideId: "g.net.triage",
-    nextSteps: [
-      "Try the 5-minute network triage checklist first",
-      "If you can add a one-line note above ('error on Slack login'), I can be more specific",
-      "Otherwise file a ticket — your screenshot will be attached",
-    ],
-  };
+  return r.json();
 }
 
 // --------------------------------------------------------------------
@@ -21471,32 +21441,42 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
 
   const removeFile = () => { setFile(null); setResult(null); setPhase("empty"); };
 
-  const runAnalysis = () => {
+  const [error, setError] = useState(null);
+
+  const runAnalysis = async () => {
     if (!file) return;
     setPhase("analyzing");
     setProgress(0);
-    // Simulate streaming progress
+    setError(null);
+    // Soft progress bar while the vision call is in flight — capped at 92%
+    // until the response actually arrives.
     let p = 0;
     const tick = setInterval(() => {
-      p += 10 + Math.random() * 18;
-      setProgress(Math.min(p, 95));
-      if (p >= 95) clearInterval(tick);
-    }, 180);
-    setTimeout(() => {
+      p += 6 + Math.random() * 10;
+      setProgress(Math.min(p, 92));
+    }, 220);
+    try {
+      const r = await analyzeScreenshot({ dataUrl: file.dataUrl, note });
       clearInterval(tick);
       setProgress(100);
-      const r = analyzeScreenshot({ fileName: file.name, note });
       setResult(r);
       setPhase("result");
-    }, 1900);
+    } catch (err) {
+      clearInterval(tick);
+      setProgress(0);
+      setError(err.message || 'Analysis failed');
+      setPhase("empty");
+    }
   };
 
+  const openGuide = (g) => {
+    if (!g || !onOpenGuide) return;
+    onOpenGuide({ id: g.id, title: g.title, category: g.category });
+    onClose();
+  };
   const openSuggestedGuide = () => {
-    const g = window.GUIDES?.[result.guideId];
-    if (g && onOpenGuide) {
-      onOpenGuide({ id: result.guideId, ...g });
-      onClose();
-    }
+    const first = result?.guide_suggestions?.[0];
+    if (first) openGuide(first);
   };
 
   return (
@@ -21760,6 +21740,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               file={file}
               result={result}
               onOpenGuide={openSuggestedGuide}
+              onOpenSpecificGuide={openGuide}
               onFileTicket={() => {
                 onFileTicket?.({
                   team: "IT Team",
@@ -21767,8 +21748,25 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                 });
                 onClose();
               }}
-              onRetry={() => { setPhase("empty"); setResult(null); }}
+              onRetry={() => { setPhase("empty"); setResult(null); setError(null); }}
             />
+          )}
+
+          {/* Error banner — surfaced when the vision call fails so the user
+              isn't left staring at a stalled progress bar. Stays on the empty
+              phase so they can retry or remove the file. */}
+          {error && phase === "empty" && (
+            <div style={{
+              marginTop: 14,
+              padding: "10px 14px",
+              background: "#FFE8E5",
+              border: "1.5px solid #DA3327",
+              borderRadius: 8,
+              fontSize: 12.5, color: "#7A1A14", fontWeight: 600,
+              lineHeight: 1.45,
+            }}>
+              Couldn't analyze this screenshot — {error}. Try again, or file a ticket and we'll review it manually.
+            </div>
           )}
         </div>
       </div>
@@ -21881,12 +21879,14 @@ function AnalyzingView({ file, progress }) {
 // --------------------------------------------------------------------
 //  ResultView — diagnosis + suggested guide + next steps + ticket
 // --------------------------------------------------------------------
-function ResultView({ file, result, onOpenGuide, onFileTicket, onRetry }) {
-  const confPct = Math.round(result.confidence * 100);
+function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTicket, onRetry }) {
+  const confPct = Math.round((result.confidence || 0) * 100);
   const confTone = result.confidence >= 0.7 ? "high" : (result.confidence >= 0.5 ? "med" : "low");
   const confColor = confTone === "high" ? "#0A8A3E" : (confTone === "med" ? "#B8860B" : "#DA3327");
-
-  const suggested = window.GUIDES?.[result.guideId];
+  const isHardware = result.is_hardware_issue === true;
+  const suggestions = Array.isArray(result.guide_suggestions) ? result.guide_suggestions : [];
+  const steps = Array.isArray(result.next_steps) ? result.next_steps : [];
+  const clues = Array.isArray(result.clues) ? result.clues : [];
 
   return (
     <div>
@@ -21906,20 +21906,17 @@ function ResultView({ file, result, onOpenGuide, onFileTicket, onRetry }) {
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "3px 10px",
-            background: confColor,
+            background: isHardware ? "#DA3327" : confColor,
             color: "#FFFFFF",
-            border: `1.5px solid ${confColor}`,
+            border: `1.5px solid ${isHardware ? "#DA3327" : confColor}`,
             borderRadius: 999,
             fontFamily: "Archivo, sans-serif",
             fontSize: 10, fontWeight: 800,
             letterSpacing: "0.06em", textTransform: "uppercase",
             marginBottom: 8,
           }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: "#FFFFFF",
-            }}/>
-            {confPct}% confident
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FFFFFF" }}/>
+            {isHardware ? "Hardware issue" : `${confPct}% confident`}
           </div>
           <div style={{
             fontFamily: "Archivo, sans-serif",
@@ -21938,103 +21935,149 @@ function ResultView({ file, result, onOpenGuide, onFileTicket, onRetry }) {
         </div>
       </div>
 
-      {/* Clues */}
-      <div style={{
-        background: "#FFFFFF",
-        border: "2px solid #211E1E",
-        borderRadius: 8,
-        padding: "14px 18px",
-        marginBottom: 18,
-      }}>
+      {/* Hardware short-circuit — replaces Clues + Steps + Guides with one
+          clear "go file a ticket" message so users don't try to self-repair
+          a damaged device. */}
+      {isHardware && (
         <div style={{
-          fontFamily: "Archivo, sans-serif",
-          fontSize: 10.5, fontWeight: 800,
-          letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#4A3F2E", marginBottom: 8,
-        }}>What gave it away</div>
-        <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: "#211E1E", lineHeight: 1.6 }}>
-          {result.clues.map((c, i) => <li key={i}>{c}</li>)}
-        </ul>
-      </div>
-
-      {/* Suggested guide card */}
-      {suggested && (
-        <div
-          onClick={onOpenGuide}
-          className="ss-action-btn"
-          style={{
-            background: "#FDC831",
-            border: "2px solid #211E1E",
-            borderRadius: 10,
-            boxShadow: "3px 3px 0 #211E1E",
-            padding: "14px 18px",
-            cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 14,
-            marginBottom: 16,
-          }}
-        >
+          background: "#FFE8E5",
+          border: "2px solid #DA3327",
+          borderRadius: 10,
+          boxShadow: "3px 3px 0 #DA3327",
+          padding: "16px 18px",
+          marginBottom: 18,
+        }}>
           <div style={{
-            width: 40, height: 40, borderRadius: 8,
-            background: "#211E1E", color: "#FDC831",
-            border: "2px solid #211E1E",
-            display: "grid", placeItems: "center",
             fontFamily: "Archivo, sans-serif",
-            fontSize: 18, fontWeight: 900,
-            flexShrink: 0,
-          }}>→</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontFamily: "Archivo, sans-serif",
-              fontSize: 10.5, fontWeight: 800,
-              letterSpacing: "0.06em", textTransform: "uppercase",
-              color: "#4A3F2E", marginBottom: 2,
-            }}>Recommended fix</div>
-            <div style={{
-              fontFamily: "Archivo, sans-serif",
-              fontSize: 16, fontWeight: 800,
-              color: "#211E1E", letterSpacing: "-0.012em",
-            }}>
-              {suggested.title}
-            </div>
-            <div style={{ fontSize: 12, color: "#4A3F2E", marginTop: 2 }}>
-              {suggested.tag} · {suggested.time} · {suggested.steps} steps
-            </div>
+            fontSize: 10.5, fontWeight: 900,
+            letterSpacing: "0.06em", textTransform: "uppercase",
+            color: "#7A1A14", marginBottom: 6,
+          }}>Hardware repair — IT Team only</div>
+          <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.55, marginBottom: 6 }}>
+            This looks like physical damage or a hardware failure. Don't try to fix it yourself —
+            stop using the device if it's unsafe (battery swelling, smoke, liquid damage), back up
+            anything you can still reach, and file a ticket so the <strong>IT Team</strong> can
+            inspect it or swap the device.
           </div>
+          {clues.length > 0 && (
+            <ul style={{ margin: "8px 0 0", paddingLeft: 20, fontSize: 13, color: "#3D1E1B", lineHeight: 1.55 }}>
+              {clues.map((c, i) => <li key={i}>{c}</li>)}
+            </ul>
+          )}
         </div>
       )}
 
-      {/* What to try */}
-      <div style={{ marginBottom: 22 }}>
-        <div style={{
-          fontFamily: "Archivo, sans-serif",
-          fontSize: 10.5, fontWeight: 800,
-          letterSpacing: "0.06em", textTransform: "uppercase",
-          color: "#4A3F2E", marginBottom: 10,
-        }}>Try this in order</div>
-        <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
-          {result.nextSteps.map((s, i) => (
-            <li key={i} style={{
-              display: "grid", gridTemplateColumns: "26px 1fr",
-              gap: 12, padding: "8px 0",
-              borderBottom: i < result.nextSteps.length - 1 ? "1px dashed rgba(33,30,30,0.18)" : "none",
+      {/* Clues + Next-steps + Guide suggestions — software path only */}
+      {!isHardware && (
+        <>
+          {clues.length > 0 && (
+            <div style={{
+              background: "#FFFFFF",
+              border: "2px solid #211E1E",
+              borderRadius: 8,
+              padding: "14px 18px",
+              marginBottom: 18,
             }}>
               <div style={{
-                width: 22, height: 22, borderRadius: "50%",
-                background: "#FFFFFF",
-                border: "2px solid #211E1E",
-                display: "grid", placeItems: "center",
                 fontFamily: "Archivo, sans-serif",
-                fontSize: 11, fontWeight: 800,
-                color: "#211E1E",
-                flexShrink: 0,
-              }}>{i + 1}</div>
-              <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.5, paddingTop: 1 }}>
-                {s}
+                fontSize: 10.5, fontWeight: 800,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                color: "#4A3F2E", marginBottom: 8,
+              }}>What gave it away</div>
+              <ul style={{ margin: 0, paddingLeft: 20, fontSize: 13.5, color: "#211E1E", lineHeight: 1.6 }}>
+                {clues.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {/* Suggested guides — up to 3, real KB rows. Click opens the guide. */}
+          {suggestions.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{
+                fontFamily: "Archivo, sans-serif",
+                fontSize: 10.5, fontWeight: 800,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                color: "#4A3F2E", marginBottom: 10,
+              }}>{suggestions.length === 1 ? "Recommended guide" : "Recommended guides"}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {suggestions.map((g, i) => (
+                  <div
+                    key={g.id ?? i}
+                    onClick={() => onOpenSpecificGuide && onOpenSpecificGuide(g)}
+                    className="ss-action-btn"
+                    style={{
+                      background: i === 0 ? "#FDC831" : "#FFFFFF",
+                      border: "2px solid #211E1E",
+                      borderRadius: 10,
+                      boxShadow: "3px 3px 0 #211E1E",
+                      padding: "12px 16px",
+                      cursor: "pointer",
+                      display: "flex", alignItems: "center", gap: 14,
+                    }}
+                  >
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 8,
+                      background: "#211E1E", color: "#FDC831",
+                      border: "2px solid #211E1E",
+                      display: "grid", placeItems: "center",
+                      fontFamily: "Archivo, sans-serif",
+                      fontSize: 16, fontWeight: 900,
+                      flexShrink: 0,
+                    }}>→</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontFamily: "Archivo, sans-serif",
+                        fontSize: 15, fontWeight: 800,
+                        color: "#211E1E", letterSpacing: "-0.01em",
+                      }}>{g.title}</div>
+                      {(g.reason || g.category) && (
+                        <div style={{ fontSize: 12, color: "#4A3F2E", marginTop: 2, lineHeight: 1.4 }}>
+                          {g.reason || g.category}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            </li>
-          ))}
-        </ol>
-      </div>
+            </div>
+          )}
+
+          {/* What to try */}
+          {steps.length > 0 && (
+            <div style={{ marginBottom: 22 }}>
+              <div style={{
+                fontFamily: "Archivo, sans-serif",
+                fontSize: 10.5, fontWeight: 800,
+                letterSpacing: "0.06em", textTransform: "uppercase",
+                color: "#4A3F2E", marginBottom: 10,
+              }}>Try this in order</div>
+              <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none" }}>
+                {steps.map((s, i) => (
+                  <li key={i} style={{
+                    display: "grid", gridTemplateColumns: "26px 1fr",
+                    gap: 12, padding: "8px 0",
+                    borderBottom: i < steps.length - 1 ? "1px dashed rgba(33,30,30,0.18)" : "none",
+                  }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: "50%",
+                      background: "#FFFFFF",
+                      border: "2px solid #211E1E",
+                      display: "grid", placeItems: "center",
+                      fontFamily: "Archivo, sans-serif",
+                      fontSize: 11, fontWeight: 800,
+                      color: "#211E1E",
+                      flexShrink: 0,
+                    }}>{i + 1}</div>
+                    <div style={{ fontSize: 14, color: "#211E1E", lineHeight: 1.5, paddingTop: 1 }}>
+                      {s}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Footer actions */}
       <div style={{
@@ -22061,19 +22104,19 @@ function ResultView({ file, result, onOpenGuide, onFileTicket, onRetry }) {
             className="ss-action-btn"
             style={{
               padding: "11px 18px",
-              background: "#FFFFFF",
-              color: "#211E1E",
+              background: isHardware ? "#211E1E" : "#FFFFFF",
+              color: isHardware ? "#FDC831" : "#211E1E",
               border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: "3px 3px 0 #211E1E",
+              boxShadow: isHardware ? "3px 3px 0 #FDC831" : "3px 3px 0 #211E1E",
               fontFamily: "Archivo, sans-serif",
               fontWeight: 800, fontSize: 12.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
             }}
           >
-            File ticket with screenshot
+            {isHardware ? "File ticket with the IT Team →" : "File ticket with screenshot"}
           </button>
-          {suggested && (
+          {!isHardware && suggestions.length > 0 && (
             <button
               onClick={onOpenGuide}
               className="ss-action-btn"

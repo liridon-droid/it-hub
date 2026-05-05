@@ -430,12 +430,12 @@ const AI_PROMPTS = {
   // Help-page triage: turn a free-form user query into 2–3 tailored
   // multiple-choice clarifying questions so the chatbot's downstream
   // answer can target the actual problem instead of a generic bucket.
-  clarify: "You're an IT support triage assistant for Slice employees. The user typed a problem into the help page. Generate 2–3 short multiple-choice clarifying questions that pin down the exact issue, in order of importance:\n  1. SUBJECT — which device / app / account / item is affected (skip this if the query already names it specifically)\n  2. SYMPTOM — what's actually happening (won't connect, no audio, error message, slow, crashing, …)\n  3. CONTEXT — when it started, what changed, what they've already tried (only if it would actually steer the fix)\n\nSlice environment — these are the ONLY tools you should reference in options. Never invent vendors that aren't in this list:\n  - SSO / identity: **OneLogin** (NOT Okta, NOT Azure AD, NOT Google SSO directly)\n  - MFA app: **OneLogin Protect** (NOT Duo, NOT Authy, NOT Google Authenticator)\n  - Email + calendar: **Gmail** and **Google Workspace** — Slice does **NOT** use Outlook, Microsoft 365, Hotmail, or Exchange. Never offer those as options.\n  - Devices: MacBooks (provisioned by **Jamf**) and Windows laptops (provisioned by **Microsoft Intune**).\n  - Mac login uses a **local password set at provisioning** (NOT OneLogin). Windows login uses **OneLogin**.\n  - VPN: **GlobalProtect** (NOT Cisco AnyConnect, NOT WARP, NOT NordLayer).\n  - Team chat: **Slack** (NOT Teams).\n  - Shared passwords: **1Password** (NOT LastPass, NOT Bitwarden).\n  - Headsets: **Jabra USB** (wired USB, not Bluetooth).\n  - Customer-support agents use **Amazon Connect inside Salesforce** — the soft-phone is **CCP**.\n  - Internal ticket portal: https://it.slicelife.com (referred to as **Support**).\n\nRules:\n  - Each question is type 'choice' with 3–5 options, plus an 'Other / not sure' option as the LAST option (id 'other').\n  - Each option has: id (short kebab-case), label (short noun phrase or clause), and an OPTIONAL hint (one short clarifying phrase, ≤ 6 words).\n  - Use plain employee-friendly language. No jargon, no 'have you considered'.\n  - Do NOT ask questions whose answer is already obvious from the user's query.\n  - If the query is already extremely specific, return ONLY 1–2 questions (skip context).\n  - Never ask about urgency or severity — that's not useful for routing the fix.\n  - When listing apps/services as options, ONLY use names from the Slice environment list above. If the relevant tool isn't there (e.g. user mentions a third-party SaaS like Figma or Notion), you may use that name verbatim from the user's query.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"questions\":[{\"id\":\"subject\",\"label\":\"...\",\"type\":\"choice\",\"options\":[{\"id\":\"...\",\"label\":\"...\",\"hint\":\"...\"}]}]}",
+  clarify: "You're an IT support triage assistant for Slice employees. The user typed a problem into the help page. Generate 2–3 short multiple-choice clarifying questions that pin down the exact issue, in order of importance:\n  1. SUBJECT — which device / app / account / item is affected (skip this if the query already names it specifically)\n  2. SYMPTOM — what's actually happening (won't connect, no audio, error message, slow, crashing, …)\n  3. CONTEXT — when it started, what changed, what they've already tried (only if it would actually steer the fix)\n\nHardware-failure rule: If the user's query mentions or implies physical damage or hardware failure (cracked screen, broken hinge, water spill, dropped laptop, swollen battery, dead device, broken keyboard / port, smoke / burning smell, won't power on, suspected GPU / motherboard / battery failure), return EXACTLY this single question — no other questions, no clarifications:\n  {\"questions\":[{\"id\":\"hardware\",\"label\":\"It looks like this might be a hardware issue. Hardware repairs go through the IT Team — do you want to file a ticket?\",\"type\":\"choice\",\"options\":[{\"id\":\"file-ticket\",\"label\":\"Yes, file a ticket with the IT Team\",\"hint\":\"Recommended for damage / hardware failure\"},{\"id\":\"keep-asking\",\"label\":\"It might just be software — keep asking\"}]}]}\nNever offer self-repair options like 'open the device', 'replace the battery', 'reseat the keyboard', or 'run hardware diagnostics' for damaged devices. The IT Team owns all hardware repair and swaps.\n\nSlice environment — these are the ONLY tools you should reference in options. Never invent vendors that aren't in this list:\n  - SSO / identity: **OneLogin** (NOT Okta, NOT Azure AD, NOT Google SSO directly)\n  - MFA app: **OneLogin Protect** (NOT Duo, NOT Authy, NOT Google Authenticator)\n  - Email + calendar: **Gmail** and **Google Workspace** — Slice does **NOT** use Outlook, Microsoft 365, Hotmail, or Exchange. Never offer those as options.\n  - Devices: MacBooks (provisioned by **Jamf**) and Windows laptops (provisioned by **Microsoft Intune**).\n  - Mac login uses a **local password set at provisioning** (NOT OneLogin). Windows login uses **OneLogin**.\n  - VPN: **GlobalProtect** (NOT Cisco AnyConnect, NOT WARP, NOT NordLayer).\n  - Team chat: **Slack** (NOT Teams).\n  - Shared passwords: **1Password** (NOT LastPass, NOT Bitwarden).\n  - Headsets: **Jabra USB** (wired USB, not Bluetooth).\n  - Customer-support agents use **Amazon Connect inside Salesforce** — the soft-phone is **CCP**.\n  - Internal ticket portal: https://it.slicelife.com (referred to as **Support**).\n\nRules:\n  - Each question is type 'choice' with 3–5 options, plus an 'Other / not sure' option as the LAST option (id 'other').\n  - Each option has: id (short kebab-case), label (short noun phrase or clause), and an OPTIONAL hint (one short clarifying phrase, ≤ 6 words).\n  - Use plain employee-friendly language. No jargon, no 'have you considered'.\n  - Do NOT ask questions whose answer is already obvious from the user's query.\n  - If the query is already extremely specific, return ONLY 1–2 questions (skip context).\n  - Never ask about urgency or severity — that's not useful for routing the fix.\n  - When listing apps/services as options, ONLY use names from the Slice environment list above. If the relevant tool isn't there (e.g. user mentions a third-party SaaS like Figma or Notion), you may use that name verbatim from the user's query.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"questions\":[{\"id\":\"subject\",\"label\":\"...\",\"type\":\"choice\",\"options\":[{\"id\":\"...\",\"label\":\"...\",\"hint\":\"...\"}]}]}",
   // Admin: full guide draft from a structured spec. The user fills out a
   // small form (topic, app/device, audience, type, tone, length, extras);
   // the spec is sent here as JSON and Claude produces a Slice-flavoured
   // markdown draft + suggested metadata.
-  'ai-write-guide': "You're drafting an internal IT-support guide for Slice (the pizzeria platform). The user message is a single JSON object with the spec.\n\nSlice environment — assume these unless the spec says otherwise:\n- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n- MDM: **Jamf** provisions MacBooks; **Microsoft Intune** provisions Windows. The IT Team uses these to push apps, policies, and updates.\n- Login on the laptop:\n  - **Windows (Intune)**: users sign in with their **OneLogin** credentials.\n  - **macOS (Jamf)**: users sign in with a **local password set at provisioning** (NOT OneLogin). Keychain may need refreshing after a OneLogin password change.\n- Email + productivity: **Gmail** and **Google Workspace** (Drive, Docs, Sheets, Calendar). Slice does **NOT** use Outlook or Microsoft 365 — never suggest those.\n- Shared / team passwords: **1Password** vaults. Never recommend pasting credentials in Slack or Google Docs.\n- Team chat: **Slack** is the company-wide chat.\n- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are standard.\n- VPN: GlobalProtect on both macOS and Windows.\n- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n- AI tooling: **Claude** (chat) and **Claude Code** (engineering CLI) are the company AI tools.\n- Internal IT team is just **the IT Team** — no sub-teams. When you mention escalation, always say 'the IT Team'.\n- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\nWriting rules:\n- Match the requested type (howto / troubleshoot / runbook / faq / announcement / incident) and tone (friendly / professional / concise / detailed) and length (short ~150w / medium ~400w / long ~800w).\n- Use ## sub-headings, numbered steps for sequences, and **bold** for UI labels and shortcuts.\n- Each step starts with an imperative verb (Open, Click, Enter, Verify…), one action per step.\n- Include a `> Before you start:` line above the first list when prerequisites apply (signed in, on VPN, etc.).\n- Add `If this fails…` sub-bullets under steps that commonly break.\n- Reference specific Slice tools when relevant (GlobalProtect, Jabra USB, CCP in Salesforce, Slack).\n- End with a short troubleshooting / escalation section that points to **Support** as a markdown link to https://it.slicelife.com — always direct users to the IT Team there, not any other team name.\n- Don't include the leading `# Title` — title is stored separately.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"title\":\"...\",\"category\":\"...\",\"tags\":[\"...\",\"...\"],\"sourceType\":\"guide|runbook|faq|announcement\",\"body\":\"... markdown ...\"}\nThe body uses real newlines (\\n). Keep tags lowercase, 3–6 of them.",
+  'ai-write-guide': "You're drafting an internal IT-support guide for Slice (the pizzeria platform). The user message is a single JSON object with the spec.\n\nSlice environment — assume these unless the spec says otherwise:\n- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n- MDM: **Jamf** provisions MacBooks; **Microsoft Intune** provisions Windows. The IT Team uses these to push apps, policies, and updates.\n- Login on the laptop:\n  - **Windows (Intune)**: users sign in with their **OneLogin** credentials.\n  - **macOS (Jamf)**: users sign in with a **local password set at provisioning** (NOT OneLogin). Keychain may need refreshing after a OneLogin password change.\n- Email + productivity: **Gmail** and **Google Workspace** (Drive, Docs, Sheets, Calendar). Slice does **NOT** use Outlook or Microsoft 365 — never suggest those.\n- Shared / team passwords: **1Password** vaults. Never recommend pasting credentials in Slack or Google Docs.\n- Team chat: **Slack** is the company-wide chat.\n- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are standard.\n- VPN: GlobalProtect on both macOS and Windows.\n- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n- AI tooling: **Claude** (chat) and **Claude Code** (engineering CLI) are the company AI tools.\n- Internal IT team is just **the IT Team** — no sub-teams. When you mention escalation, always say 'the IT Team'.\n- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\nHardware-failure rule: If the spec describes physical damage or hardware failure (cracked screen, water spill, dropped laptop, swollen / dead battery, broken hinge or keys, ports broken, won't power on, suspected motherboard / GPU failure), DO NOT write self-repair steps. The guide should be a short escalation guide that tells the reader to **stop using the device, save anything still accessible, and file a ticket with the IT Team at https://it.slicelife.com** so a technician can inspect or swap it. Never write steps like 'open the back', 'reseat the battery', 'replace the keyboard', 'run Apple Diagnostics to fix it' — the IT Team owns all hardware repairs and swaps.\n\nWriting rules:\n- Match the requested type (howto / troubleshoot / runbook / faq / announcement / incident) and tone (friendly / professional / concise / detailed) and length (short ~150w / medium ~400w / long ~800w).\n- Use ## sub-headings, numbered steps for sequences, and **bold** for UI labels and shortcuts.\n- Each step starts with an imperative verb (Open, Click, Enter, Verify…), one action per step.\n- Include a `> Before you start:` line above the first list when prerequisites apply (signed in, on VPN, etc.).\n- Add `If this fails…` sub-bullets under steps that commonly break.\n- Reference specific Slice tools when relevant (GlobalProtect, Jabra USB, CCP in Salesforce, Slack).\n- End with a short troubleshooting / escalation section that points to **Support** as a markdown link to https://it.slicelife.com — always direct users to the IT Team there, not any other team name.\n- Don't include the leading `# Title` — title is stored separately.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"title\":\"...\",\"category\":\"...\",\"tags\":[\"...\",\"...\"],\"sourceType\":\"guide|runbook|faq|announcement\",\"body\":\"... markdown ...\"}\nThe body uses real newlines (\\n). Keep tags lowercase, 3–6 of them.",
 };
 
 async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
@@ -551,6 +551,129 @@ app.post('/api/help/clarify', requireSliceUser, async (req, res) => {
   }
 });
 
+// Screenshot triage — the user uploads (or pastes) a screenshot and we ask
+// Claude to read it via vision. We pass the current list of guide titles so
+// suggestions are grounded in real KB content, not invented. Hardware damage
+// short-circuits to "file a ticket" with no self-repair steps.
+const SCREENSHOT_PROMPT =
+  "You are an IT-support triage assistant for Slice (the pizzeria platform). The user has shared a screenshot of an issue they're hitting. Read EVERYTHING visible — error banners, dialog text, button labels, app names, browser URLs, status bar / menubar icons, OS chrome — and produce a structured diagnosis.\n\n" +
+  "Slice environment — assume these unless the screenshot proves otherwise:\n" +
+  "- SSO / identity: **OneLogin** (NOT Okta). MFA app is **OneLogin Protect**.\n" +
+  "- Email + calendar: **Gmail** + **Google Workspace** (NOT Outlook / Microsoft 365 / Hotmail).\n" +
+  "- Devices: MacBooks (Jamf-managed) and Windows laptops (Intune-managed).\n" +
+  "  - Windows login uses OneLogin. macOS login uses a local password set at provisioning (NOT OneLogin).\n" +
+  "- VPN: **GlobalProtect**. Team chat: **Slack**. Shared passwords: **1Password**.\n" +
+  "- Headsets: **Jabra USB** (wired). Customer-support agents use **Amazon Connect** (CCP) inside Salesforce.\n" +
+  "- Internal IT team is just **the IT Team**. Ticket portal: https://it.slicelife.com (referred to as **Support**).\n\n" +
+  "**Hardware-failure rule — non-negotiable.** If the screenshot shows physical damage (cracked / shattered screen, visible glass, water damage, swollen battery, broken hinge / keys / ports, missing pixels in a clean rectangle indicating panel failure, smoke / scorch marks, distorted display from GPU failure) OR symptoms that strongly suggest hardware failure (kernel panic with hardware codes, bootloop without reaching login, completely dead display while machine is powered on, persistent thermal shutdowns, fan grinding visible / mentioned), set `is_hardware_issue: true` and leave `next_steps` EMPTY. Do NOT suggest self-repair, hard resets, SMC / NVRAM resets, or hardware diagnostics — the IT Team owns all hardware repairs. Set the diagnosis to one short sentence describing the damage / failure, and put `\"File a ticket with the IT Team\"` as the only entry in `cta`.\n\n" +
+  "For software / configuration issues, give a concrete, screenshot-grounded diagnosis. Quote the actual error text or label from the image — do not generalize.\n\n" +
+  "The user message contains:\n" +
+  "  - the screenshot\n" +
+  "  - an optional one-line note from the user\n" +
+  "  - a JSON list of available knowledge-base guides as `[{id, title, category}, ...]`\n" +
+  "Use the guide list to pick 1–3 suggestions whose `id` and `title` you copy VERBATIM. If nothing in the list is relevant, return `guide_suggestions: []` — do NOT invent guides.\n\n" +
+  "Output ONE JSON object on one line, no markdown fence:\n" +
+  "  {\"diagnosis\":\"...\",\"confidence\":0.0,\"clues\":[\"...\"],\"next_steps\":[\"...\"],\"is_hardware_issue\":false,\"cta\":\"...\",\"guide_suggestions\":[{\"id\":123,\"title\":\"...\",\"reason\":\"...\"}]}\n" +
+  "Field rules:\n" +
+  "- diagnosis: 1 sentence, specific. Reference the exact error / app / element you see.\n" +
+  "- confidence: 0–1 number. Lower it if the image is blurry, cropped, or ambiguous.\n" +
+  "- clues: 1–3 specific observations from the image (each ≤ 120 chars). Quote visible text where useful.\n" +
+  "- next_steps: 2–4 short imperative steps (each ≤ 140 chars). Empty array when is_hardware_issue is true.\n" +
+  "- is_hardware_issue: boolean. True ONLY for physical damage / hardware failure as defined above.\n" +
+  "- cta: short call-to-action label for the primary button. Use \"File a ticket with the IT Team\" for hardware. Otherwise something action-oriented like \"Open the password reset guide\".\n" +
+  "- guide_suggestions: 0–3 items with the EXACT id (number) and title from the provided list, plus a 1-sentence reason it's relevant.";
+
+app.post('/api/help/screenshot', requireSliceUser, async (req, res) => {
+  const { imageDataUrl, note } = req.body ?? {};
+  const m = String(imageDataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!m) return res.status(400).json({ error: 'imageDataUrl must be a base64 image data URL' });
+  // Cap the base64 payload at ~6 MB raw so we don't blow past Anthropic's vision limits.
+  if (m[2].length > 8 * 1024 * 1024) return res.status(413).json({ error: 'image too large (8 MB max)' });
+  const userNote = String(note || '').trim().slice(0, 500);
+
+  // Pull the current guide list so Claude can suggest real KB rows by ID
+  // instead of inventing titles. Keep this query cheap — id, title, category
+  // is all the model needs for grounding.
+  let guides = [];
+  try {
+    const r = await pool.query(
+      `SELECT id, title, COALESCE(category, 'General') AS category
+         FROM guides
+        WHERE deleted_at IS NULL
+        ORDER BY updated_at DESC
+        LIMIT 200`,
+    );
+    guides = r.rows;
+  } catch (e) {
+    console.warn('[screenshot] guide list fetch failed:', e.message);
+  }
+
+  try {
+    const userText =
+      (userNote ? `User note: ${userNote}\n\n` : '') +
+      `Available knowledge-base guides (pick from these by id+title, do not invent):\n` +
+      JSON.stringify(guides);
+    const upstreamMessages = [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } },
+        { type: 'text', text: userText },
+      ],
+    }];
+    const { text } = await callClaudeProxy(req, {
+      system: SCREENSHOT_PROMPT,
+      messages: upstreamMessages,
+      max_tokens: 1100,
+    });
+
+    // Tolerant JSON extract — strip code fences / stray prose if the model added any.
+    let parsed = null;
+    try { parsed = JSON.parse(text); } catch {
+      const found = text.match(/\{[\s\S]*\}/);
+      if (found) { try { parsed = JSON.parse(found[0]); } catch {} }
+    }
+    if (!parsed) {
+      return res.status(502).json({ error: 'AI response was not valid JSON', raw: text.slice(0, 400) });
+    }
+
+    // Coerce + clamp every field defensively so the client can render without surprises.
+    const validIds = new Set(guides.map((g) => g.id));
+    const isHw = parsed.is_hardware_issue === true;
+    const clean = {
+      diagnosis: String(parsed.diagnosis || '').slice(0, 220),
+      confidence: typeof parsed.confidence === 'number'
+        ? Math.max(0, Math.min(1, parsed.confidence))
+        : 0.5,
+      clues: Array.isArray(parsed.clues)
+        ? parsed.clues.slice(0, 3).map((c) => String(c).slice(0, 160)).filter(Boolean)
+        : [],
+      next_steps: isHw
+        ? []
+        : (Array.isArray(parsed.next_steps)
+            ? parsed.next_steps.slice(0, 4).map((s) => String(s).slice(0, 200)).filter(Boolean)
+            : []),
+      is_hardware_issue: isHw,
+      cta: String(parsed.cta || (isHw ? 'File a ticket with the IT Team' : 'Open the suggested guide')).slice(0, 80),
+      guide_suggestions: Array.isArray(parsed.guide_suggestions)
+        ? parsed.guide_suggestions
+            .slice(0, 3)
+            .map((g) => ({
+              id: Number(g.id),
+              title: String(g.title || '').slice(0, 200),
+              category: (guides.find((row) => row.id === Number(g.id))?.category) || 'General',
+              reason: String(g.reason || '').slice(0, 200),
+            }))
+            // Drop any IDs the model invented that aren't in our DB.
+            .filter((g) => validIds.has(g.id) && g.title)
+        : [],
+    };
+    res.json(clean);
+  } catch (err) {
+    console.warn('[screenshot]', err.message);
+    res.status(502).json({ error: 'Vision service unavailable', detail: err.message });
+  }
+});
+
 app.post('/api/chat', requireSliceUser, async (req, res, next) => {
   const { query } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
@@ -623,6 +746,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
               "- AI tooling: **Claude** is the company AI assistant (chat) and **Claude Code** is the CLI used by engineers.\n" +
               "- Internal IT team is just **the IT Team** — no sub-teams (no 'Network Operations', 'Identity & Access', etc.). When you mention escalation or who to contact, always say 'the IT Team'.\n" +
               "- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\n" +
+              "**Hardware-failure rule — non-negotiable.** If the question mentions or implies physical damage or hardware failure (cracked / shattered screen, water / liquid spill, dropped laptop, swollen or leaking battery, broken hinge or keyboard keys, dead pixels, ports physically broken, smoke / burning smell, won't power on, kernel panic with hardware codes, GPU artifacts, repeated thermal shutdowns, fan grinding, anything physically loose), DO NOT give self-repair steps. Never tell the user to open the device, reseat parts, change the battery, swap the keyboard, run a hardware diagnostic, or 'try a hard reset' as a fix for damage. Reply with one short sentence acknowledging it looks like a hardware issue and direct them to **file a ticket with the IT Team** at [Support](https://it.slicelife.com) so a technician can inspect or swap the device. The closing-line requirement still applies, but no numbered steps — those imply self-repair. The IT Team owns all hardware repair and swaps.\n\n" +
               "Tailor language to those tools when it would actually change the steps (e.g. say 'GlobalProtect', 'Jabra USB headset', 'CCP in Salesforce'); skip the qualifier when it doesn't help. Don't invent device-specific steps not in the excerpts.\n\n" +
               "Format:\n" +
               "- Short markdown. Numbered steps for sequences; plain prose for one-liners.\n" +
