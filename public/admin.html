@@ -10065,8 +10065,8 @@ function renderStatus(root) {
           value="${esc(s.source_url || '')}" />
         <button class="btn ghost xs" data-test-url title="Send a one-off probe to this URL right now">Test</button>
         <span class="status-svc-url-hint">${s.source === 'statuspage'
-          ? 'Statuspage.io <code>summary.json</code> endpoint — check the vendor\\'s status site for the API URL.'
-          : 'Anything reachable over HTTPS. We poll every 60s with a 6s timeout.'}</span>
+          ? "Statuspage.io <code>summary.json</code> endpoint — check the vendor's status site for the API URL."
+          : "Anything reachable over HTTPS. We poll every 60s with a 6s timeout."}</span>
       </div>` : '';
     return `
       <div class="status-svc-wrap" data-svc-id="${s.id}">
