@@ -1566,7 +1566,7 @@ function OnCallCard({ onSubmit }) {
   );
 }
 // ---------- QUESTION FLOW ----------
-function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
+function QuestionFlow({ query, onBack, onDone }) {
   const t = useCopy();
   // Hardcoded fallback route — used while the AI questions are loading and
   // if the /api/help/clarify call fails or returns nothing usable.
@@ -1800,17 +1800,6 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
             index={i} />
 
           )}
-              {/* Screenshot escape-hatch as a sibling card under the last
-                  option. Same height/border-radius/shadow as ChoiceCard so
-                  the rhythm doesn't break — the only visual difference is
-                  the camera tile (vs the radio circle) so the user can
-                  spot it as a different kind of action. */}
-              {onOpenScreenshot && (
-                <ScreenshotChoiceCard
-                  onSelect={() => onOpenScreenshot(query)}
-                  index={question.options.length}
-                />
-              )}
             </div>
         }
 
@@ -1849,17 +1838,6 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
               </button>
             </div>
         }
-
-          {/* Same screenshot escape-hatch under multi questions, on its
-              own row so it doesn't get mixed into the chip flow. */}
-          {question.type === "multi" && onOpenScreenshot && (
-            <div style={{ marginTop: 16 }}>
-              <ScreenshotChoiceCard
-                onSelect={() => onOpenScreenshot(query)}
-                index={(question.options?.length || 0)}
-              />
-            </div>
-          )}
 
           {question.type === "text" &&
         <textarea
@@ -1956,74 +1934,6 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
       }
     </div>);
 
-}
-
-// A card that matches ChoiceCard's geometry exactly so it slots into the
-// answer list as the last "option" — but with a camera tile instead of a
-// radio bullet, signalling it's a different kind of action ("show us"
-// instead of "answer"). Stateless: tapping it fires onSelect.
-function ScreenshotChoiceCard({ onSelect, index }) {
-  return (
-    <button
-      onClick={onSelect}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translate(-2px, -2px)";
-        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
-        e.currentTarget.style.background = "#FFF9E6";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
-        e.currentTarget.style.background = "#FFFFFF";
-      }}
-      onMouseDown={(e) => {
-        e.currentTarget.style.transform = "translate(1px, 1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-      }}
-      onMouseUp={(e) => {
-        e.currentTarget.style.transform = "translate(-2px, -2px)";
-        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
-      }}
-      style={{
-        textAlign: "left",
-        display: "flex", alignItems: "flex-start", gap: 14,
-        padding: "16px 18px",
-        width: "100%",
-        background: "#FFFFFF",
-        border: "2px solid #211E1E",
-        borderRadius: 14,
-        cursor: "pointer",
-        transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
-        boxShadow: "3px 3px 0 #211E1E",
-        transform: "translateZ(0)",
-        animation: `fadeUp .45s var(--ease) both`,
-        animationDelay: `${(index || 0) * 50}ms`,
-        fontFamily: "inherit",
-      }}
-    >
-      <div style={{
-        width: 22, height: 22, borderRadius: 6,
-        border: "2px solid #211E1E",
-        background: "#FFFFFF",
-        display: "grid", placeItems: "center",
-        marginTop: 1, flexShrink: 0,
-      }}>
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-          stroke="#211E1E" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 8h3l2-2.5h8L18 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
-          <circle cx="12" cy="13.5" r="3.5"/>
-        </svg>
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14.5, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.012em" }}>
-          Or just show us — drop a screenshot
-        </div>
-        <div style={{ fontSize: 12.5, color: "#4A3F2E", marginTop: 3 }}>
-          Skip the questions. We'll look at what you're seeing and route you to the right fix.
-        </div>
-      </div>
-    </button>
-  );
 }
 
 // ---------- RESULTS ----------
@@ -2841,7 +2751,6 @@ function App() {
       <QuestionFlow
         query={query}
         onBack={() => setStage("landing")}
-        onOpenScreenshot={() => openScreenshot()}
         onDone={onQuestionsDone} />
       }
 

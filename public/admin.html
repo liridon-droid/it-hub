@@ -9677,6 +9677,49 @@ const STATUS_SOURCE_OPTIONS = [
   { id: 'probe',      label: 'HTTP probe',     hint: 'We GET the URL every minute. 5xx = down, 4xx or >2.5s = degraded.' },
   { id: 'statuspage', label: 'Vendor status',  hint: 'Statuspage.io summary.json (Cloudflare, GitHub, Slack, Zoom, Figma, etc.).' },
 ];
+
+// Curated vendor catalog for the "Add app" modal. Picking a preset auto-fills
+// name, vendor, domain, source, and the exact summary.json URL — the URL is
+// the slow / error-prone bit, so getting it from a vetted list saves real
+// minutes per service. Add new entries here as you find them.
+const STATUS_VENDOR_PRESETS = [
+  { name: 'Cloudflare',     vendor: 'CDN / VPN',       domain: 'cloudflare.com',     source: 'statuspage', source_url: 'https://www.cloudflarestatus.com/api/v2/summary.json' },
+  { name: 'GitHub',         vendor: 'Source control',  domain: 'github.com',         source: 'statuspage', source_url: 'https://www.githubstatus.com/api/v2/summary.json' },
+  { name: 'GitLab',         vendor: 'Source control',  domain: 'gitlab.com',         source: 'statuspage', source_url: 'https://status.gitlab.com/api/v2/summary.json' },
+  { name: 'Slack',          vendor: 'Chat',            domain: 'slack.com',          source: 'statuspage', source_url: 'https://slack-status.com/api/v2.0.0/current' },
+  { name: 'Zoom',           vendor: 'Meetings',        domain: 'zoom.us',            source: 'statuspage', source_url: 'https://status.zoom.us/api/v2/summary.json' },
+  { name: 'Figma',          vendor: 'Design',          domain: 'figma.com',          source: 'statuspage', source_url: 'https://www.figmastatus.com/api/v2/summary.json' },
+  { name: 'Notion',         vendor: 'Docs',            domain: 'notion.so',          source: 'statuspage', source_url: 'https://status.notion.so/api/v2/summary.json' },
+  { name: 'Linear',         vendor: 'Project mgmt',    domain: 'linear.app',         source: 'statuspage', source_url: 'https://linearstatus.com/api/v2/summary.json' },
+  { name: 'Jira',           vendor: 'Project mgmt',    domain: 'atlassian.com',      source: 'statuspage', source_url: 'https://jira-software.status.atlassian.com/api/v2/summary.json' },
+  { name: 'Confluence',     vendor: 'Docs',            domain: 'atlassian.com',      source: 'statuspage', source_url: 'https://confluence.status.atlassian.com/api/v2/summary.json' },
+  { name: 'Asana',          vendor: 'Project mgmt',    domain: 'asana.com',          source: 'statuspage', source_url: 'https://status.asana.com/api/v2/summary.json' },
+  { name: 'OneLogin',       vendor: 'SSO',             domain: 'onelogin.com',       source: 'statuspage', source_url: 'https://status.onelogin.com/api/v2/summary.json' },
+  { name: 'Okta',           vendor: 'SSO',             domain: 'okta.com',           source: 'statuspage', source_url: 'https://status.okta.com/api/v2/summary.json' },
+  { name: 'Auth0',          vendor: 'SSO',             domain: 'auth0.com',          source: 'statuspage', source_url: 'https://status.auth0.com/api/v2/summary.json' },
+  { name: '1Password',      vendor: 'Secrets',         domain: '1password.com',      source: 'statuspage', source_url: 'https://status.1password.com/api/v2/summary.json' },
+  { name: 'Stripe',         vendor: 'Payments',        domain: 'stripe.com',         source: 'statuspage', source_url: 'https://status.stripe.com/api/v2/summary.json' },
+  { name: 'Salesforce',     vendor: 'CRM',             domain: 'salesforce.com',     source: 'manual',     source_url: '' },
+  { name: 'AWS',            vendor: 'Cloud',           domain: 'aws.amazon.com',     source: 'manual',     source_url: '' },
+  { name: 'Vercel',         vendor: 'Cloud',           domain: 'vercel.com',         source: 'statuspage', source_url: 'https://www.vercel-status.com/api/v2/summary.json' },
+  { name: 'Netlify',        vendor: 'Cloud',           domain: 'netlify.com',        source: 'statuspage', source_url: 'https://www.netlifystatus.com/api/v2/summary.json' },
+  { name: 'Heroku',         vendor: 'Cloud',           domain: 'heroku.com',         source: 'statuspage', source_url: 'https://status.heroku.com/api/v4/current-status' },
+  { name: 'CircleCI',       vendor: 'CI',              domain: 'circleci.com',       source: 'statuspage', source_url: 'https://status.circleci.com/api/v2/summary.json' },
+  { name: 'Datadog',        vendor: 'Monitoring',      domain: 'datadoghq.com',      source: 'statuspage', source_url: 'https://status.datadoghq.com/api/v2/summary.json' },
+  { name: 'Sentry',         vendor: 'Errors',          domain: 'sentry.io',          source: 'statuspage', source_url: 'https://status.sentry.io/api/v2/summary.json' },
+  { name: 'PagerDuty',      vendor: 'Oncall',          domain: 'pagerduty.com',      source: 'statuspage', source_url: 'https://status.pagerduty.com/api/v2/summary.json' },
+  { name: 'Twilio',         vendor: 'SMS / Voice',     domain: 'twilio.com',         source: 'statuspage', source_url: 'https://status.twilio.com/api/v2/summary.json' },
+  { name: 'SendGrid',       vendor: 'Email',           domain: 'sendgrid.com',       source: 'statuspage', source_url: 'https://status.sendgrid.com/api/v2/summary.json' },
+  { name: 'Zendesk',        vendor: 'Support',         domain: 'zendesk.com',        source: 'statuspage', source_url: 'https://status.zendesk.com/api/v2/summary.json' },
+  { name: 'Intercom',       vendor: 'Support',         domain: 'intercom.com',       source: 'statuspage', source_url: 'https://www.intercomstatus.com/api/v2/summary.json' },
+  { name: 'HubSpot',        vendor: 'Marketing',       domain: 'hubspot.com',        source: 'statuspage', source_url: 'https://status.hubspot.com/api/v2/summary.json' },
+  { name: 'Mailchimp',      vendor: 'Email',           domain: 'mailchimp.com',      source: 'statuspage', source_url: 'https://status.mailchimp.com/api/v2/summary.json' },
+  { name: 'Dropbox',        vendor: 'Storage',         domain: 'dropbox.com',        source: 'statuspage', source_url: 'https://status.dropbox.com/api/v2/summary.json' },
+  { name: 'Box',            vendor: 'Storage',         domain: 'box.com',            source: 'statuspage', source_url: 'https://status.box.com/api/v2/summary.json' },
+  { name: 'Google Workspace', vendor: 'Mail & calendar', domain: 'workspace.google.com', source: 'manual', source_url: '' },
+  { name: 'OpenAI',         vendor: 'AI',              domain: 'openai.com',         source: 'statuspage', source_url: 'https://status.openai.com/api/v2/summary.json' },
+  { name: 'Anthropic',      vendor: 'AI',              domain: 'anthropic.com',      source: 'statuspage', source_url: 'https://status.anthropic.com/api/v2/summary.json' },
+];
 const STATUS_STATE_OPTIONS = [
   { id: 'operational', label: 'Operational' },
   { id: 'degraded',    label: 'Degraded' },
@@ -9806,9 +9849,18 @@ function renderStatus(root) {
     </div>
 
     <style>
-      .status-svc-row { display:grid; grid-template-columns: 44px 1.5fr 1fr 130px 130px 1.4fr 32px; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid var(--border); }
-      .status-svc-row:last-child { border-bottom:none; }
+      .status-svc-wrap { border-bottom:1px solid var(--border); }
+      .status-svc-wrap:last-child { border-bottom:none; }
+      .status-svc-row { display:grid; grid-template-columns: 44px 1.6fr 1.1fr 130px 130px 32px; gap:10px; align-items:center; padding:10px 14px; }
       .status-svc-row input.tx, .status-svc-row select.tx { padding:7px 9px; font-size:12.5px; }
+      /* URL stacked under the main row when the source actually needs one.
+         Full-width input + "Test" button + a faded helper line — gives 50-char
+         vendor URLs the breathing room they need to stay readable. */
+      .status-svc-url-row { display:grid; grid-template-columns: 110px 1fr auto; gap:10px; align-items:center; padding:0 14px 12px 58px; }
+      .status-svc-url-label { font-size:10.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); }
+      .status-svc-url-input { padding:8px 11px !important; font-size:12.5px; font-family:ui-monospace, SF Mono, Menlo, monospace; width:100%; }
+      .status-svc-url-hint { grid-column: 2 / span 2; font-size:11px; color:var(--ink-3); margin-top:2px; line-height:1.5; }
+      .status-svc-url-hint code { font-size:11px; padding:1px 4px; background:var(--sidebar); border:1px solid var(--border); border-radius:3px; }
       .status-icon-cell { width:36px; height:36px; border:1.5px solid var(--border); border-radius:7px; background:#fff; display:grid; place-items:center; overflow:hidden; }
       .status-icon-cell img { width:22px; height:22px; object-fit:contain; display:block; }
       .status-icon-cell .fallback { font-size:11px; font-weight:800; letter-spacing:-0.01em; color:var(--ink); }
@@ -9848,6 +9900,105 @@ function renderStatus(root) {
       .status-update-row .when { font-family:ui-monospace, SF Mono, Menlo, monospace; color:var(--ink-3); }
       .status-update-row .label { font-size:9.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink); margin-bottom:2px; }
       .status-incident-actions { display:flex; flex-direction:column; gap:6px; min-width:140px; }
+
+      /* ── Add-app modal ─────────────────────────────────────────────── */
+      .status-add-modal-overlay {
+        position: fixed; inset: 0; z-index: 110;
+        background: rgba(33,30,30,0.55); backdrop-filter: blur(4px);
+        display: grid; place-items: center;
+        padding: 40px 24px; overflow-y: auto;
+        animation: statusAddIn .2s ease both;
+      }
+      @keyframes statusAddIn { from { opacity: 0; } to { opacity: 1; } }
+      .status-add-modal {
+        width: min(720px, 100%);
+        background: #FFFFFF; border: 2px solid var(--ink); border-radius: 14px;
+        box-shadow: 8px 8px 0 var(--ink);
+        animation: statusAddPanel .25s ease both;
+        display: flex; flex-direction: column; max-height: calc(100vh - 80px);
+      }
+      @keyframes statusAddPanel { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+      .status-add-head {
+        padding: 18px 22px;
+        background: #FDC831; border-bottom: 2px solid var(--ink);
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        border-radius: 12px 12px 0 0;
+      }
+      .status-add-head .eyebrow { font-size: 10.5px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: #4A3F2E; }
+      .status-add-close {
+        width: 30px; height: 30px; padding: 0;
+        background: #FFFFFF; border: 2px solid var(--ink); border-radius: 4px;
+        box-shadow: 2px 2px 0 var(--ink);
+        font-size: 16px; font-weight: 900; cursor: pointer; line-height: 1;
+      }
+      .status-add-tabs { display: flex; gap: 0; border-bottom: 2px solid var(--ink); background: var(--sidebar); }
+      .status-add-tab {
+        flex: 1; padding: 11px 16px;
+        background: transparent; border: none; cursor: pointer;
+        font-family: 'Archivo', sans-serif; font-weight: 700; font-size: 12.5px;
+        color: var(--ink-3); border-bottom: 2px solid transparent; margin-bottom: -2px;
+      }
+      .status-add-tab.is-active { color: var(--ink); border-bottom-color: var(--ink); background: #FFFFFF; }
+      .status-add-body { padding: 18px 22px; overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+      .status-add-search {
+        display: flex; align-items: center; gap: 8px;
+        padding: 10px 12px;
+        background: var(--sidebar); border: 1.5px solid var(--border); border-radius: 8px;
+        margin-bottom: 14px;
+      }
+      .status-add-search svg { color: var(--ink-3); flex-shrink: 0; }
+      .status-add-search input { flex: 1; border: none; background: transparent; outline: none; font-size: 13.5px; color: var(--ink); font-family: inherit; }
+      .status-vendor-grid {
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 8px;
+      }
+      .status-vendor-tile {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 12px; min-width: 0;
+        background: #FFFFFF; border: 1.5px solid var(--border); border-radius: 8px;
+        cursor: pointer; text-align: left; font-family: inherit;
+        transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+      }
+      .status-vendor-tile:hover { transform: translate(-1px,-1px); box-shadow: 2px 2px 0 var(--ink); border-color: var(--ink); }
+      .status-vendor-tile.is-picked { border-color: #FDC831; background: #FFF9E6; box-shadow: 2px 2px 0 #FDC831; }
+      .status-vendor-icon {
+        width: 32px; height: 32px; flex-shrink: 0;
+        border: 1.5px solid var(--border); border-radius: 6px; background: #FFFFFF;
+        display: grid; place-items: center; overflow: hidden;
+      }
+      .status-vendor-icon img { width: 22px; height: 22px; object-fit: contain; }
+      .status-vendor-name { font-size: 13px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .status-vendor-meta { font-size: 11px; color: var(--ink-3); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .status-vendor-empty { padding: 28px 14px; text-align: center; color: var(--ink-3); font-size: 13px; grid-column: 1 / -1; }
+
+      .status-add-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+      .status-add-field label { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+      .status-add-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .status-add-source-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
+      .status-add-radio {
+        display: flex; align-items: flex-start; gap: 8px;
+        padding: 10px 12px;
+        background: #FFFFFF; border: 1.5px solid var(--border); border-radius: 8px;
+        cursor: pointer; transition: border-color .12s, background .12s;
+      }
+      .status-add-radio:has(input:checked) { border-color: var(--ink); background: #FFF9E6; }
+      .status-add-radio input { margin-top: 3px; flex-shrink: 0; }
+      .status-add-radio-name { font-size: 12.5px; font-weight: 700; color: var(--ink); }
+      .status-add-radio-hint { font-size: 11px; color: var(--ink-3); margin-top: 1px; line-height: 1.4; }
+      .status-add-hint { font-size: 11px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+      .status-add-hint code { font-size: 10.5px; padding: 1px 4px; background: var(--sidebar); border: 1px solid var(--border); border-radius: 3px; }
+
+      .status-add-foot {
+        padding: 14px 22px;
+        background: var(--sidebar); border-top: 1.5px solid var(--border);
+        display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+        border-radius: 0 0 12px 12px;
+      }
+      .status-add-group-pick { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+      .status-add-group-pick label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+      .status-add-group-pick select { padding: 8px 10px; font-size: 12.5px; border: 1.5px solid var(--border); border-radius: 6px; background: #FFFFFF; }
+
+      .btn.xs { padding: 4px 10px; font-size: 11px; }
     </style>
   `;
 
@@ -9903,23 +10054,39 @@ function renderStatus(root) {
     const sourceMeta = STATUS_SOURCE_OPTIONS.find((o) => o.id === s.source) || STATUS_SOURCE_OPTIONS[0];
     const showSourceUrl = s.source !== 'manual';
     const lastChecked = s.last_checked_at ? new Date(s.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
+    // URL row only renders for non-manual sources. Full-width input + helper
+    // text + a "Test" button so admins can validate the endpoint without
+    // waiting for the next 60s poll.
+    const urlRowHtml = showSourceUrl ? `
+      <div class="status-svc-url-row">
+        <span class="status-svc-url-label">${s.source === 'statuspage' ? 'Status page API' : 'Probe URL'}</span>
+        <input class="tx status-svc-url-input" data-f="source_url"
+          placeholder="${s.source === 'statuspage' ? 'https://www.cloudflarestatus.com/api/v2/summary.json' : 'https://your-service.example.com/health'}"
+          value="${esc(s.source_url || '')}" />
+        <button class="btn ghost xs" data-test-url title="Send a one-off probe to this URL right now">Test</button>
+        <span class="status-svc-url-hint">${s.source === 'statuspage'
+          ? 'Statuspage.io <code>summary.json</code> endpoint — check the vendor\\'s status site for the API URL.'
+          : 'Anything reachable over HTTPS. We poll every 60s with a 6s timeout.'}</span>
+      </div>` : '';
     return `
-      <div class="status-svc-row" data-svc-id="${s.id}" title="${lastChecked ? 'Last checked ' + esc(lastChecked) : ''}">
-        <div class="status-icon-cell" data-icon-cell>
-          ${iconUrl ? `<img src="${esc(iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className:'fallback', textContent:'${esc(initials)}'}))" />` : `<span class="fallback">${esc(initials)}</span>`}
+      <div class="status-svc-wrap" data-svc-id="${s.id}">
+        <div class="status-svc-row" title="${lastChecked ? 'Last checked ' + esc(lastChecked) : ''}">
+          <div class="status-icon-cell" data-icon-cell>
+            ${iconUrl ? `<img src="${esc(iconUrl)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'), {className:'fallback', textContent:'${esc(initials)}'}))" />` : `<span class="fallback">${esc(initials)}</span>`}
+          </div>
+          <input class="tx" data-f="name"   placeholder="Service name"      value="${esc(s.name || '')}" />
+          <input class="tx" data-f="vendor" placeholder="Vendor / category" value="${esc(s.vendor || '')}" />
+          <select class="tx" data-f="state" ${s.source !== 'manual' ? 'disabled title="State is set by the poller for this source"' : ''}>
+            ${STATUS_STATE_OPTIONS.map((o) => `<option value="${o.id}" ${s.state === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+          <select class="tx" data-f="source" title="${esc(sourceMeta.hint)}">
+            ${STATUS_SOURCE_OPTIONS.map((o) => `<option value="${o.id}" ${s.source === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+          <button class="status-row-del" data-svc-del title="Remove service">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          </button>
         </div>
-        <input class="tx" data-f="name"   placeholder="Service name"      value="${esc(s.name || '')}" />
-        <input class="tx" data-f="vendor" placeholder="Vendor / category" value="${esc(s.vendor || '')}" />
-        <select class="tx" data-f="state" ${s.source !== 'manual' ? 'disabled title="State is set by the poller for this source"' : ''}>
-          ${STATUS_STATE_OPTIONS.map((o) => `<option value="${o.id}" ${s.state === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
-        </select>
-        <select class="tx" data-f="source" title="${esc(sourceMeta.hint)}">
-          ${STATUS_SOURCE_OPTIONS.map((o) => `<option value="${o.id}" ${s.source === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
-        </select>
-        <input class="tx" data-f="source_url" placeholder="${s.source === 'statuspage' ? 'https://www.cloudflarestatus.com/api/v2/summary.json' : s.source === 'probe' ? 'https://your-service/health' : 'No URL needed for manual'}" value="${esc(s.source_url || '')}" ${s.source === 'manual' ? 'disabled' : ''} />
-        <button class="status-row-del" data-svc-del title="Remove service">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-        </button>
+        ${urlRowHtml}
       </div>
     `;
   }
@@ -9982,14 +10149,9 @@ function renderStatus(root) {
         await reload();
       } catch (e) { toast(`Remove failed: ${e.message}`, 'err'); }
     });
-    groupsHost.querySelectorAll('[data-group-add-svc]').forEach((b) => b.onclick = async () => {
+    groupsHost.querySelectorAll('[data-group-add-svc]').forEach((b) => b.onclick = () => {
       const groupId = +b.closest('[data-group-id]').dataset.groupId;
-      try {
-        await statusApi('POST', `/api/admin/status/services`, {
-          group_id: groupId, name: 'New service', source: 'manual', state: 'operational',
-        });
-        await reload();
-      } catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
+      openAddAppModal(groupId);
     });
 
     // Wire service rows.
@@ -10018,6 +10180,26 @@ function renderStatus(root) {
           toast('Service removed.', 'ok');
           await reload();
         } catch (e) { toast(`Remove failed: ${e.message}`, 'err'); }
+      };
+      // "Test" button on the URL row — flushes any pending URL edit, then
+      // kicks an immediate poll cycle so the admin doesn't have to wait 60s
+      // to find out their endpoint typo'd.
+      const testBtn = row.querySelector('[data-test-url]');
+      if (testBtn) testBtn.onclick = async () => {
+        testBtn.disabled = true; testBtn.textContent = 'Testing…';
+        try {
+          // Flush any debounced URL edit before polling.
+          if (debounceTimers.has(id)) {
+            clearTimeout(debounceTimers.get(id));
+            debounceTimers.delete(id);
+            const urlInput = row.querySelector('[data-f="source_url"]');
+            if (urlInput) await statusApi('PATCH', `/api/admin/status/services/${id}`, { source_url: urlInput.value });
+          }
+          await statusApi('POST', '/api/admin/status/poll');
+          toast('Polled — check the result on the right.', 'ok');
+          await reload();
+        } catch (e) { toast(`Test failed: ${e.message}`, 'err'); }
+        finally { testBtn.disabled = false; testBtn.textContent = 'Test'; }
       };
     });
   }
@@ -10190,16 +10372,220 @@ function renderStatus(root) {
     catch (e) { toast(`Poll failed: ${e.message}`, 'err'); }
     finally { btn.disabled = false; btn.textContent = 'Re-poll now'; }
   };
-  $('statusAddBtn').onclick = async () => {
+  $('statusAddBtn').onclick = () => {
     const firstGroup = statusState.payload?.groups.find((g) => g.id !== 0);
     if (!firstGroup) { $('statusAddGroupBtn').click(); return; }
-    try {
-      await statusApi('POST', '/api/admin/status/services', {
-        group_id: firstGroup.id, name: 'New service', source: 'manual', state: 'operational',
-      });
-      await reload();
-    } catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
+    openAddAppModal(firstGroup.id);
   };
+
+  // ── Add-app modal ────────────────────────────────────────────────────────
+  // Curated vendor grid + a "Custom" tab for anything not in the catalog.
+  // Lifts the 3-step manual edit (name → source → URL → vendor) into a single
+  // click for known SaaS, and gives the URL the breathing room it needs for
+  // the custom case.
+  function openAddAppModal(defaultGroupId) {
+    const groups = (statusState.payload?.groups || []).filter((g) => g.id !== 0);
+    if (groups.length === 0) { toast('Add a group first.', 'err'); return; }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'status-add-modal-overlay';
+    overlay.innerHTML = `
+      <div class="status-add-modal" role="dialog" aria-label="Add a service">
+        <div class="status-add-head">
+          <div>
+            <div class="eyebrow">Add a service</div>
+            <h2 style="margin:2px 0 0; font-size:18px;">Pick a vendor or wire up your own</h2>
+          </div>
+          <button class="status-add-close" aria-label="Close">×</button>
+        </div>
+        <div class="status-add-tabs">
+          <button class="status-add-tab is-active" data-tab="catalog">From catalog</button>
+          <button class="status-add-tab" data-tab="custom">Custom service</button>
+        </div>
+
+        <div class="status-add-body" data-pane="catalog">
+          <div class="status-add-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <input id="statusVendorSearch" placeholder="Search vendors — e.g. github, slack, openai…" autocomplete="off" />
+          </div>
+          <div class="status-vendor-grid" id="statusVendorGrid"></div>
+        </div>
+
+        <div class="status-add-body" data-pane="custom" hidden>
+          <div class="status-add-field">
+            <label>Service name <span style="color:var(--neg);">*</span></label>
+            <input class="tx" id="statusAddName" placeholder="e.g. Internal Dashboard" />
+          </div>
+          <div class="status-add-grid-2">
+            <div class="status-add-field">
+              <label>Vendor / category</label>
+              <input class="tx" id="statusAddVendor" placeholder="e.g. Internal" />
+            </div>
+            <div class="status-add-field">
+              <label>Domain (for favicon)</label>
+              <input class="tx" id="statusAddDomain" placeholder="example.com" />
+            </div>
+          </div>
+          <div class="status-add-field">
+            <label>Source</label>
+            <div class="status-add-source-row">
+              ${STATUS_SOURCE_OPTIONS.map((o, i) => `
+                <label class="status-add-radio">
+                  <input type="radio" name="statusAddSource" value="${o.id}" ${i === 0 ? 'checked' : ''} />
+                  <div>
+                    <div class="status-add-radio-name">${o.label}</div>
+                    <div class="status-add-radio-hint">${esc(o.hint)}</div>
+                  </div>
+                </label>
+              `).join('')}
+            </div>
+          </div>
+          <div class="status-add-field" id="statusAddUrlField">
+            <label>URL</label>
+            <input class="tx" id="statusAddUrl" placeholder="https://your-service.example.com/health" />
+            <div class="status-add-hint" id="statusAddUrlHint">Anything reachable over HTTPS — we GET this every 60s.</div>
+          </div>
+        </div>
+
+        <div class="status-add-foot">
+          <div class="status-add-group-pick">
+            <label>Add to group</label>
+            <select id="statusAddGroup">
+              ${groups.map((g) => `<option value="${g.id}" ${g.id === defaultGroupId ? 'selected' : ''}>${esc(g.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn ghost" data-cancel>Cancel</button>
+            <button class="btn primary" id="statusAddSubmit" disabled>Add to /status</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    let activeTab = 'catalog';
+    let pickedPreset = null;
+    let customValid = false;
+
+    const $$ = (sel) => overlay.querySelector(sel);
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('.status-add-close').onclick = close;
+    overlay.querySelector('[data-cancel]').onclick = close;
+
+    // Vendor grid render + filter
+    const grid = $$('#statusVendorGrid');
+    const renderVendors = (filter = '') => {
+      const f = filter.trim().toLowerCase();
+      const filtered = STATUS_VENDOR_PRESETS.filter((p) =>
+        !f || p.name.toLowerCase().includes(f) || p.vendor.toLowerCase().includes(f) || (p.domain || '').includes(f)
+      );
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="status-vendor-empty">No matches. Use <b>Custom service</b> to add it manually.</div>`;
+        return;
+      }
+      grid.innerHTML = filtered.map((p) => `
+        <button class="status-vendor-tile ${pickedPreset?.name === p.name ? 'is-picked' : ''}" data-vendor="${esc(p.name)}">
+          <div class="status-vendor-icon">
+            <img src="${esc(statusFaviconUrl(p.domain))}" alt="" onerror="this.style.display='none'" />
+          </div>
+          <div style="min-width:0; flex:1;">
+            <div class="status-vendor-name">${esc(p.name)}</div>
+            <div class="status-vendor-meta">${esc(p.vendor)} · ${p.source === 'statuspage' ? 'Auto-poll' : p.source === 'probe' ? 'HTTP probe' : 'Manual'}</div>
+          </div>
+        </button>
+      `).join('');
+      grid.querySelectorAll('.status-vendor-tile').forEach((tile) => {
+        tile.onclick = () => {
+          const name = tile.dataset.vendor;
+          pickedPreset = STATUS_VENDOR_PRESETS.find((p) => p.name === name) || null;
+          grid.querySelectorAll('.status-vendor-tile').forEach((t) => t.classList.toggle('is-picked', t === tile));
+          $$('#statusAddSubmit').disabled = !pickedPreset;
+        };
+      });
+    };
+    renderVendors();
+    $$('#statusVendorSearch').oninput = (e) => renderVendors(e.target.value);
+    $$('#statusVendorSearch').focus();
+
+    // Tab switching
+    overlay.querySelectorAll('.status-add-tab').forEach((tab) => tab.onclick = () => {
+      activeTab = tab.dataset.tab;
+      overlay.querySelectorAll('.status-add-tab').forEach((t) => t.classList.toggle('is-active', t === tab));
+      overlay.querySelectorAll('.status-add-body').forEach((b) => { b.hidden = (b.dataset.pane !== activeTab); });
+      // Sync submit-button enabled state to the active pane.
+      $$('#statusAddSubmit').disabled = activeTab === 'catalog' ? !pickedPreset : !customValid;
+    });
+
+    // Custom-pane wiring: name + source dropdown drives URL placeholder + hint.
+    const refreshCustomState = () => {
+      const name = $$('#statusAddName').value.trim();
+      const source = overlay.querySelector('input[name="statusAddSource"]:checked').value;
+      const urlField = $$('#statusAddUrlField');
+      const urlInput = $$('#statusAddUrl');
+      const urlHint = $$('#statusAddUrlHint');
+      urlField.style.display = source === 'manual' ? 'none' : '';
+      if (source === 'statuspage') {
+        urlInput.placeholder = 'https://www.cloudflarestatus.com/api/v2/summary.json';
+        urlHint.innerHTML = 'Statuspage.io <code>summary.json</code> endpoint — most vendors expose one (Cloudflare, GitHub, Slack, OpenAI…).';
+      } else if (source === 'probe') {
+        urlInput.placeholder = 'https://your-service.example.com/health';
+        urlHint.innerHTML = 'Anything HTTPS — we GET every 60s with a 6s timeout. 5xx = down, 4xx or &gt;2.5s = degraded.';
+      }
+      const urlOk = source === 'manual' || urlInput.value.trim().length > 0;
+      customValid = !!name && urlOk;
+      if (activeTab === 'custom') $$('#statusAddSubmit').disabled = !customValid;
+    };
+    ['statusAddName', 'statusAddVendor', 'statusAddDomain', 'statusAddUrl'].forEach((id) => {
+      const el = $$('#' + id); if (el) el.oninput = refreshCustomState;
+    });
+    overlay.querySelectorAll('input[name="statusAddSource"]').forEach((r) => r.onchange = refreshCustomState);
+    refreshCustomState();
+
+    // Submit
+    $$('#statusAddSubmit').onclick = async () => {
+      const groupId = +$$('#statusAddGroup').value;
+      let payload;
+      if (activeTab === 'catalog' && pickedPreset) {
+        payload = {
+          group_id: groupId,
+          name: pickedPreset.name,
+          vendor: pickedPreset.vendor,
+          domain: pickedPreset.domain,
+          source: pickedPreset.source,
+          source_url: pickedPreset.source_url || null,
+          state: 'operational',
+        };
+      } else {
+        payload = {
+          group_id: groupId,
+          name: $$('#statusAddName').value.trim(),
+          vendor: $$('#statusAddVendor').value.trim() || null,
+          domain: $$('#statusAddDomain').value.trim() || null,
+          source: overlay.querySelector('input[name="statusAddSource"]:checked').value,
+          source_url: $$('#statusAddUrl').value.trim() || null,
+          state: 'operational',
+        };
+      }
+      $$('#statusAddSubmit').disabled = true; $$('#statusAddSubmit').textContent = 'Adding…';
+      try {
+        await statusApi('POST', '/api/admin/status/services', payload);
+        toast(`${payload.name} added.`, 'ok');
+        close();
+        await reload();
+        // For non-manual additions, kick a poll so the new row shows live state
+        // within seconds rather than waiting for the next 60s tick.
+        if (payload.source !== 'manual') {
+          statusApi('POST', '/api/admin/status/poll').then(reload).catch(() => {});
+        }
+      } catch (e) {
+        toast(`Add failed: ${e.message}`, 'err');
+        $$('#statusAddSubmit').disabled = false; $$('#statusAddSubmit').textContent = 'Add to /status';
+      }
+    };
+  }
   $('statusAddGroupBtn').onclick = async () => {
     const label = prompt('Name this group (e.g. "Identity & secrets"):', '');
     if (!label || !label.trim()) return;
