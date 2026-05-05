@@ -1025,7 +1025,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             return (
               <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{
+                  <div className="qa-icon" style={{
                     width: 36, height: 36, borderRadius: 8,
                     background: "#FFFFFF", border: "1.5px solid #000000",
                     display: "grid", placeItems: "center", flexShrink: 0,
@@ -4574,47 +4574,91 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
 // ------ Shared building blocks ------
 
 // --- Shared notifications store -----------------------------------------------
-// Seed list shared between the bell-dropdown and the full Notifications page.
-// Dismissed / read state is persisted to localStorage so the user's "I cleaned
-// these" action survives a refresh — and so the dropdown and page always agree
-// on what's been cleared.
-const NOTIF_SEED = [
-  { id: "n1", kind: "ticket",   unread: true,  when: "12m",       group: "Today",
-    title: "Your ticket #4821 was updated",
-    body: "Liridon left a note: \"Replacement charger on the way — tracking sent.\"",
-    color: "#FDC831" },
-  { id: "n2", kind: "status",   unread: true,  when: "1h",        group: "Today",
-    title: "Jira is back to operational",
-    body: "Atlassian resolved the API slowdown. 28 min incident closed.",
-    color: "#D4F4D4" },
-  { id: "n3", kind: "access",   unread: true,  when: "3h",        group: "Today",
-    title: "Figma access approved",
-    body: "You're added to the Slice-Design team. Check your inbox.",
-    color: "#E4DBFF" },
-  { id: "n4", kind: "security", unread: false, when: "Yesterday", group: "Yesterday",
-    title: "New sign-in from Prishtina",
-    body: "MacBook Pro · Chrome. This was you — no action needed.",
-    color: "#FFD4D0" },
-  { id: "n5", kind: "digest",   unread: false, when: "Mon",       group: "Earlier",
-    title: "Weekly digest — 4 things shipped",
-    body: "Faster VPN, new laptop catalog, Slack huddle policy update.",
-    color: "#C4E3FF" },
-  { id: "n6", kind: "ticket",   unread: false, when: "Apr 28",    group: "Earlier",
-    title: "Your ticket #4732 was resolved",
-    body: "Maeve marked it closed: \"VPN access restored, root cause logged.\"",
-    color: "#FDC831" },
-  { id: "n7", kind: "access",   unread: false, when: "Apr 25",    group: "Earlier",
-    title: "Notion access changed",
-    body: "Your role on the Slice workspace was updated by HR.",
-    color: "#E4DBFF" },
-  { id: "n8", kind: "status",   unread: false, when: "Apr 22",    group: "Earlier",
-    title: "OneLogin maintenance window completed",
-    body: "Saturday's planned reboot finished without incident.",
-    color: "#D4F4D4" },
-];
+// Notifications are derived from real data sources. Right now the only live
+// source we wire up is the status pipeline — incidents from /api/status get
+// projected into the notification feed. Other kinds (ticket / access /
+// security / digest) are kept in the type registry for when those sources
+// land, but no fake rows are emitted in the meantime.
 
 const NOTIF_KEY = "portal2.notifications.v1";
 const NOTIF_EVT = "portal2:notifications:change";
+
+// Bucket a Date into the same coarse "Today / Yesterday / Earlier" groups the
+// notification page already shows.
+function notifGroup(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "Earlier";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yest  = new Date(today.getTime() - 86400000);
+  if (d >= today) return "Today";
+  if (d >= yest)  return "Yesterday";
+  return "Earlier";
+}
+
+// Render a Date as a compact label that matches the existing "12m / 1h / Mon"
+// style used by the notification list.
+function notifWhen(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const sec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h`;
+  // Yesterday → "Yesterday"; same week → weekday; older → "Mon DD"
+  const day = Math.floor(hr / 24);
+  if (day === 1) return "Yesterday";
+  if (day < 7) return d.toLocaleDateString(undefined, { weekday: "short" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+// Map a status-incident payload into a notification row matching the shape
+// the rest of the UI consumes. We pick the most recent timestamp on the
+// incident as the "when" so resolved incidents float by their resolution.
+function incidentToNotif(inc) {
+  const last = new Date(
+    inc.resolved_at ||
+    (inc.updates && inc.updates.length ? inc.updates[inc.updates.length - 1].created_at : null) ||
+    inc.started_at ||
+    Date.now()
+  );
+  const isResolved = inc.state === "resolved";
+  const lastUpdate = inc.updates && inc.updates.length ? inc.updates[inc.updates.length - 1] : null;
+  const body = (() => {
+    if (isResolved) {
+      const dur = (() => {
+        if (!inc.resolved_at || !inc.started_at) return null;
+        const ms = new Date(inc.resolved_at).getTime() - new Date(inc.started_at).getTime();
+        if (!Number.isFinite(ms) || ms <= 0) return null;
+        const min = Math.round(ms / 60000);
+        return min < 60 ? `${min} min incident closed.` : `${Math.round(min / 60)}h incident closed.`;
+      })();
+      return dur || "Incident resolved.";
+    }
+    if (lastUpdate && lastUpdate.message) return lastUpdate.message;
+    const sevLabel = (SEVERITY_TONE[inc.severity] || SEVERITY_TONE.minor).label.toLowerCase();
+    return `${sevLabel} incident — ${inc.state || "investigating"}.`;
+  })();
+  const title = (() => {
+    if (isResolved) {
+      return inc.service_name
+        ? `${inc.service_name} is back to operational`
+        : `${inc.title} — resolved`;
+    }
+    return inc.service_name ? `${inc.service_name} — ${inc.title}` : inc.title;
+  })();
+  return {
+    id: `inc-${inc.id}`,
+    kind: "status",
+    unread: !isResolved, // open incidents are unread by default; user can mark
+    when: notifWhen(last),
+    group: notifGroup(last),
+    title,
+    body,
+    color: "#D4F4D4",
+    _ts: last.getTime(), // private — used for sort stability
+  };
+}
 
 function loadNotifPersist() {
   try {
@@ -4634,6 +4678,33 @@ function saveNotifPersist(s) {
 
 function useNotifications() {
   const [persist, setPersist] = React.useState(loadNotifPersist);
+  // Live source: status incidents from /api/status. Polled every 60s — same
+  // cadence as the rest of the status pipeline — so resolutions and new
+  // incidents drop into the bell without a refresh.
+  const [rawNotifs, setRawNotifs] = React.useState([]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/status', { credentials: 'include', cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        if (cancelled) return;
+        const projected = (j.incidents || [])
+          .map(incidentToNotif)
+          .sort((a, b) => b._ts - a._ts);
+        setRawNotifs(projected);
+      } catch {
+        // On error, leave the previous list in place so a transient blip
+        // doesn't blank the bell. Empty initial state is fine.
+      }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
   // Same-tab broadcast (custom event) + cross-tab broadcast (storage event) so
   // dismissing in the dropdown updates the page (and vice versa) without a
   // refresh.
@@ -4658,10 +4729,10 @@ function useNotifications() {
   const read = React.useMemo(() => new Set(persist.read), [persist.read]);
 
   const items = React.useMemo(
-    () => NOTIF_SEED
+    () => rawNotifs
       .filter((i) => !dismissed.has(i.id))
       .map((i) => ({ ...i, unread: i.unread && !read.has(i.id) })),
-    [dismissed, read],
+    [rawNotifs, dismissed, read],
   );
   const unreadCount = items.filter((i) => i.unread).length;
 
@@ -4671,9 +4742,11 @@ function useNotifications() {
 
   const markAllRead = React.useCallback(() => {
     const cur = loadNotifPersist();
-    const allIds = NOTIF_SEED.filter((i) => !new Set(cur.dismissed).has(i.id)).map((i) => i.id);
+    const allIds = rawNotifs
+      .filter((i) => !new Set(cur.dismissed).has(i.id))
+      .map((i) => i.id);
     update({ ...cur, read: Array.from(new Set([...cur.read, ...allIds])) });
-  }, [update]);
+  }, [update, rawNotifs]);
 
   const dismiss = React.useCallback((id) => {
     const cur = loadNotifPersist();

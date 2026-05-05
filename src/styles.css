@@ -306,11 +306,23 @@
     transform: scale(1.20);
     stroke-width: 2.4 !important;
   }
+  /* Status strip + anywhere else qa-icon wraps a raster favicon. Same scale
+     as the SVG variant so the two icon kinds behave consistently on hover. */
+  .qa-icon img {
+    transition: transform .22s cubic-bezier(.34, 1.56, .64, 1);
+    transform-origin: center center;
+  }
+  .surface-interactive:hover .qa-icon img {
+    transform: scale(1.20);
+  }
   .surface-interactive:active .qa-icon {
     transform: scale(0.96) rotate(0deg);
     box-shadow: 1px 1px 0 #211E1E;
   }
   .surface-interactive:active .qa-icon svg {
+    transform: scale(1.05);
+  }
+  .surface-interactive:active .qa-icon img {
     transform: scale(1.05);
   }
 
