@@ -10148,6 +10148,17 @@ function renderStatus(root) {
           ? "Statuspage.io <code>summary.json</code> endpoint — check the vendor's status site for the API URL."
           : "Anything reachable over HTTPS. We poll every 60s with a 6s timeout."}</span>
       </div>` : '';
+    // Icon-URL row — always visible, lets admins point at a custom logo
+    // (PNG/SVG) when the auto-favicon is too low-res or off-brand. Empty
+    // string falls back to favicon-from-domain.
+    const iconRowHtml = `
+      <div class="status-svc-url-row">
+        <span class="status-svc-url-label">Icon URL</span>
+        <input class="tx status-svc-url-input" data-f="icon_url"
+          placeholder="https://cdn.example.com/logos/service.png"
+          value="${esc(s.icon_url || '')}" />
+        <span class="status-svc-url-hint">Optional — overrides the auto-favicon. Square PNG/SVG works best.</span>
+      </div>`;
     return `
       <div class="status-svc-wrap" data-svc-id="${s.id}">
         <div class="status-svc-row" title="${lastChecked ? 'Last checked ' + esc(lastChecked) : ''}">
@@ -10166,6 +10177,7 @@ function renderStatus(root) {
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
           </button>
         </div>
+        ${iconRowHtml}
         ${urlRowHtml}
       </div>
     `;
@@ -10244,6 +10256,18 @@ function renderStatus(root) {
           const v = el.value;
           if (isText) {
             debouncePatch(id, { [f]: v });
+            // Optimistic icon preview — swap the row's <img> src as the
+            // admin types so they don't wait for the next reload to see if
+            // the URL actually resolves to a real image.
+            if (f === 'icon_url') {
+              const cell = row.querySelector('[data-icon-cell]');
+              if (cell) {
+                const next = v.trim();
+                cell.innerHTML = next
+                  ? `<img src="${esc(next)}" alt="" onerror="this.style.opacity=0.3" />`
+                  : `<span class="fallback">${esc((row.querySelector('[data-f="name"]')?.value || '?').split(/\s+/).filter(Boolean).slice(0,2).map((w)=>w[0]).join('').toUpperCase())}</span>`;
+              }
+            }
           } else {
             try {
               await statusApi('PATCH', `/api/admin/status/services/${id}`, { [f]: v });
@@ -10507,6 +10531,11 @@ function renderStatus(root) {
             </div>
           </div>
           <div class="status-add-field">
+            <label>Icon URL <span style="color:var(--ink-3); font-weight:400;">(optional)</span></label>
+            <input class="tx" id="statusAddIconUrl" placeholder="https://cdn.example.com/logos/service.png" />
+            <div class="status-add-hint">Direct link to a square logo (PNG/SVG). Overrides the auto-favicon. Leave blank to keep using the favicon from the domain above.</div>
+          </div>
+          <div class="status-add-field">
             <label>Source</label>
             <div class="status-add-source-row">
               ${STATUS_SOURCE_OPTIONS.map((o, i) => `
@@ -10644,6 +10673,7 @@ function renderStatus(root) {
           name: $$('#statusAddName').value.trim(),
           vendor: $$('#statusAddVendor').value.trim() || null,
           domain: $$('#statusAddDomain').value.trim() || null,
+          icon_url: $$('#statusAddIconUrl').value.trim() || null,
           source: overlay.querySelector('input[name="statusAddSource"]:checked').value,
           source_url: $$('#statusAddUrl').value.trim() || null,
           state: 'operational',

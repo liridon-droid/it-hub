@@ -1025,7 +1025,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             return (
               <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div className="qa-icon" style={{
+                  <div className="svc-icon" style={{
                     width: 36, height: 36, borderRadius: 8,
                     background: "#FFFFFF", border: "1.5px solid #000000",
                     display: "grid", placeItems: "center", flexShrink: 0,
