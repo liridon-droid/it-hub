@@ -4646,12 +4646,15 @@ function ItServicesButton() {
         e.currentTarget.style.background = "#FFFFFF";
       }}
     >
-      {/* Headset / support glyph — matches the IT-Team mental model better
-          than a generic external-link arrow. */}
+      {/* Pizza-slice glyph — Slice's actual brand mark. Triangle wedge with
+          a curved crust along the bottom and three pepperoni dots. */}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M4 14a8 8 0 0 1 16 0v3a2 2 0 0 1-2 2h-1v-6h3"/>
-        <path d="M4 17v-3h3v6H6a2 2 0 0 1-2-2z"/>
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 3 4 19h16z"/>
+        <path d="M5.5 16.5 Q12 19.5 18.5 16.5"/>
+        <circle cx="12" cy="11" r="1.1" fill="currentColor"/>
+        <circle cx="9.5" cy="14.5" r="1.1" fill="currentColor"/>
+        <circle cx="14.5" cy="14.5" r="1.1" fill="currentColor"/>
       </svg>
     </a>
   );
