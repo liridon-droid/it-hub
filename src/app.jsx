@@ -21918,7 +21918,8 @@ window.ScreenshotEntry = ScreenshotEntry;
 //  full-width card below. No step-by-step nav.
 // ====================================================================
 
-function renderMarkdown(md) {
+function renderMarkdown(md, opts = {}) {
+  const stepStyle = opts.stepStyle === 'cards' ? 'cards' : 'plain';
   const lines = String(md ?? '').replace(/\r\n/g, '\n').split('\n');
   const out = [];
   let i = 0;
@@ -22095,40 +22096,45 @@ function renderMarkdown(md) {
     if (line.match(/^\d+\.\s+/)) {
       const items = [];
       while (i < lines.length && lines[i].match(/^\d+\.\s+/)) { items.push(lines[i].replace(/^\d+\.\s+/, '')); i++; }
-      // Numbered steps render as uniform-width cards with a numbered
-      // chip on the left — every step occupies the full content width
-      // so the rhythm is consistent regardless of step body length.
-      out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'block' }}>
-        {items.map((it, k) => (
-          <li key={k} style={{
-            display: 'grid',
-            gridTemplateColumns: '36px 1fr',
-            gap: 14,
-            alignItems: 'start',
-            padding: '14px 18px',
-            marginBottom: 10,
-            background: '#FFFFFF',
-            border: '1.5px solid #211E1E',
-            borderRadius: 8,
-            boxShadow: '3px 3px 0 #211E1E',
-            width: '100%',
-            boxSizing: 'border-box',
-          }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: '#FDC831', border: '1.5px solid #211E1E',
-              color: '#211E1E',
-              display: 'grid', placeItems: 'center',
-              fontFamily: "'Archivo', sans-serif",
-              fontSize: 12, fontWeight: 800,
-              flexShrink: 0,
-            }}>{k + 1}</div>
-            <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E', paddingTop: 4, minWidth: 0, wordBreak: 'break-word' }}>
-              {inline(it)}
-            </div>
-          </li>
-        ))}
-      </ol>);
+      if (stepStyle === 'cards') {
+        // Card-style steps for chat answers — the help page surfaces these
+        // and the rhythm-of-cards reads better there than a plain ordered list.
+        out.push(<ol key={key++} style={{ listStyle: 'none', padding: 0, margin: '0 0 18px', display: 'block' }}>
+          {items.map((it, k) => (
+            <li key={k} style={{
+              display: 'grid',
+              gridTemplateColumns: '36px 1fr',
+              gap: 14,
+              alignItems: 'start',
+              padding: '14px 18px',
+              marginBottom: 10,
+              background: '#FFFFFF',
+              border: '1.5px solid #211E1E',
+              borderRadius: 8,
+              boxShadow: '3px 3px 0 #211E1E',
+              width: '100%',
+              boxSizing: 'border-box',
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: '#FDC831', border: '1.5px solid #211E1E',
+                color: '#211E1E',
+                display: 'grid', placeItems: 'center',
+                fontFamily: "'Archivo', sans-serif",
+                fontSize: 12, fontWeight: 800,
+                flexShrink: 0,
+              }}>{k + 1}</div>
+              <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E', paddingTop: 4, minWidth: 0, wordBreak: 'break-word' }}>
+                {inline(it)}
+              </div>
+            </li>
+          ))}
+        </ol>);
+      } else {
+        out.push(<ol key={key++} style={{ margin: '0 0 18px', paddingLeft: 24 }}>
+          {items.map((it, k) => <li key={k} style={{ marginBottom: 6 }}>{inline(it)}</li>)}
+        </ol>);
+      }
       continue;
     }
 
@@ -22737,9 +22743,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           }}>
             <div style={{
               fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
-              textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 8,
+              textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 12,
             }}>Answer · {mode}</div>
-            <div style={{ fontSize: 15, lineHeight: 1.65, whiteSpace: 'pre-wrap', color: '#211E1E' }}>{answer}</div>
+            <div style={{ fontSize: 15, lineHeight: 1.65, color: '#211E1E' }}>
+              {renderMarkdown(answer, { stepStyle: 'cards' })}
+            </div>
           </div>
         )}
 
