@@ -491,13 +491,61 @@ function routeFor(query) {
 // ---------- LANDING ----------
 function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot }) {
   const [q, setQ] = useState("");
+  // Staged screenshot for the in-input upload flow. When set, hitting Enter
+  // (or Send) jumps straight to the screenshot analyzer with `q` as the note,
+  // skipping the clarifying-questions stage entirely — the image gives the AI
+  // way more signal than two multiple-choice questions ever would.
+  const [attached, setAttached] = useState(null); // { name, dataUrl } | null
+  const [dragOver, setDragOver] = useState(false);
+  const [attachError, setAttachError] = useState(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const t = useCopy();
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 400);
     return () => clearTimeout(t);
   }, []);
+
+  // ── Screenshot attach plumbing ────────────────────────────────────────────
+  // Accept an image blob from any source (file picker, drag-drop, clipboard
+  // paste) and stage it. We read to a data URL once here so the modal can
+  // render it immediately without re-reading the File handle.
+  const stageFile = useCallback((blob, fallbackName) => {
+    if (!blob) return;
+    if (!blob.type || !blob.type.startsWith("image/")) {
+      setAttachError("Only images are supported.");
+      return;
+    }
+    if (blob.size > 8 * 1024 * 1024) {
+      setAttachError("Image is over 8 MB.");
+      return;
+    }
+    setAttachError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setAttached({ name: blob.name || fallbackName || "screenshot.png", dataUrl: e.target.result });
+    };
+    reader.readAsDataURL(blob);
+  }, []);
+
+  // Paste an image from anywhere on the landing page (Cmd/Ctrl+V) — matches
+  // the modal's behaviour so power-users can screenshot, switch tabs, paste.
+  useEffect(() => {
+    const onPaste = (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type && item.type.startsWith("image/")) {
+          e.preventDefault();
+          stageFile(item.getAsFile(), "pasted-screenshot.png");
+          break;
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [stageFile]);
 
   // Collapse search into a floating bar once user scrolls past the hero input.
   // Listen on .page-scroll because html/body have overflow:hidden — window.scrollY
@@ -532,6 +580,17 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
   const submit = (val) => {
     const text = (val ?? q).trim();
+    // Screenshot path takes precedence when a file is staged. We pass the
+    // typed text as the `note` so the vision call has the user's words AND
+    // the image — strictly more context than either alone, and the analyzer
+    // skips the clarifying-questions detour.
+    if (attached) {
+      onOpenScreenshot && onOpenScreenshot({ file: attached, note: text });
+      // Reset local state so reopening the landing later starts fresh.
+      setAttached(null);
+      setQ("");
+      return;
+    }
     if (!text) return;
     onSubmit(text);
   };
@@ -615,17 +674,51 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         position: "relative", zIndex: 1,
         animation: "fadeUp .7s .15s var(--ease) both"
       }}>
-        <div className="hero-input-shell">
+        <div
+          className="hero-input-shell"
+          onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+          onDragLeave={(e) => {
+            // Only clear when the drag actually leaves the shell — children
+            // generate dragleave too, which would otherwise flash the overlay.
+            if (e.currentTarget.contains(e.relatedTarget)) return;
+            setDragOver(false);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            const f = e.dataTransfer?.files?.[0];
+            if (f) stageFile(f);
+          }}
+          style={{ position: "relative" }}
+        >
+          {/* Drag-over overlay — shows just the cue, doesn't block the underlying
+              input until the user releases. */}
+          {dragOver && (
+            <div style={{
+              position: "absolute", inset: 6,
+              background: "rgba(253,200,49,0.92)",
+              border: "2.5px dashed #211E1E",
+              borderRadius: 10,
+              display: "grid", placeItems: "center",
+              zIndex: 5, pointerEvents: "none",
+              fontFamily: "Archivo, sans-serif", fontWeight: 800, fontSize: 18,
+              color: "#211E1E", letterSpacing: "-0.01em",
+            }}>
+              Drop the screenshot — we'll analyze it
+            </div>
+          )}
 
           <textarea
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {e.preventDefault();submit();}
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); }
             }}
             rows={3}
-            placeholder="Search guides, ask a question, or describe what's broken…"
+            placeholder={attached
+              ? "Add a note (optional) — what's happening in this screenshot?"
+              : "Ask a question, paste a screenshot, or drop one here…"}
             style={{
               width: "100%",
               border: "none", outline: "none", resize: "none",
@@ -639,24 +732,118 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             }} />
 
           <div style={{
-            display: "flex", alignItems: "center", justifyContent: "flex-end",
-            padding: "12px 18px 14px 22px"
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "12px 18px 14px 22px", gap: 12, flexWrap: "wrap",
           }}>
+            {/* Left side — attach affordance / staged-file chip */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto" }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) stageFile(f);
+                  e.target.value = ""; // allow picking the same file twice
+                }}
+              />
+              {attached ? (
+                <div style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  padding: "6px 10px 6px 8px",
+                  background: "#FDC831",
+                  border: "1.5px solid #211E1E",
+                  borderRadius: 999,
+                  boxShadow: "1.5px 1.5px 0 #211E1E",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                }}>
+                  <img src={attached.dataUrl} alt=""
+                    style={{ width: 24, height: 24, borderRadius: 4, border: "1px solid #211E1E", objectFit: "cover", flexShrink: 0 }} />
+                  <span style={{
+                    fontFamily: "ui-monospace, SF Mono, Menlo, monospace",
+                    fontSize: 11.5, color: "#211E1E",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                    maxWidth: 260,
+                  }}>{attached.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setAttached(null); setAttachError(null); }}
+                    aria-label="Remove screenshot"
+                    title="Remove"
+                    style={{
+                      width: 18, height: 18, padding: 0,
+                      background: "#211E1E", color: "#FDC831",
+                      border: "none", borderRadius: "50%",
+                      display: "grid", placeItems: "center", cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="hero-attach-btn"
+                  title="Attach a screenshot — we'll diagnose what's on screen"
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                    padding: "8px 12px",
+                    background: "#FFFFFF",
+                    border: "1.5px dashed #211E1E",
+                    borderRadius: 999,
+                    color: "#211E1E",
+                    fontFamily: "inherit", fontSize: 12.5, fontWeight: 600,
+                    letterSpacing: "-0.005em",
+                    cursor: "pointer",
+                    transition: "background .15s ease, transform .15s ease, box-shadow .15s ease, border-style .15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#FDC831";
+                    e.currentTarget.style.borderStyle = "solid";
+                    e.currentTarget.style.transform = "translate(-1px,-1px)";
+                    e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "#FFFFFF";
+                    e.currentTarget.style.borderStyle = "dashed";
+                    e.currentTarget.style.transform = "none";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                >
+                  {/* Camera with a tiny upload arrow — clearer than a paperclip
+                      for "share what's on your screen". */}
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 8h3l2-3h8l2 3h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
+                    <circle cx="12" cy="13" r="3.2"/>
+                  </svg>
+                  Add a screenshot
+                </button>
+              )}
+              {attachError && (
+                <span style={{ fontSize: 11.5, color: "#DA3327", fontWeight: 600 }}>{attachError}</span>
+              )}
+            </div>
+            {/* Right side — hint + submit */}
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontSize: 12, color: "var(--ink-4)", display: "flex", alignItems: "center", gap: 6 }}>
-                <span className="kbd">⏎</span> to continue
+                <span className="kbd">⏎</span> {attached ? "to analyze" : "to continue"}
               </span>
               <button
                 onClick={() => submit()}
-                disabled={!q.trim()}
+                disabled={!attached && !q.trim()}
                 className="btn btn-primary focus-ring"
                 style={{
-                  opacity: q.trim() ? 1 : 0.4,
-                  pointerEvents: q.trim() ? "auto" : "none",
+                  opacity: (attached || q.trim()) ? 1 : 0.4,
+                  pointerEvents: (attached || q.trim()) ? "auto" : "none",
                   padding: "12px 22px",
                   fontSize: 14.5
                 }}>
-                {t("continue")}
+                {attached ? "Analyze" : t("continue")}
                 <IconArrow size={16} stroke={2} />
               </button>
             </div>
@@ -2548,7 +2735,13 @@ function App() {
   }, []);
   const [filedTicket, setFiledTicket] = useState(null);
   const [onbForm, setOnbForm] = useState(null);
-  const [screenshotOpen, setScreenshotOpen] = useState(false);
+  // null = modal closed. {} = open with empty drop-zone. { file, note } = open
+  // pre-loaded so analysis kicks off automatically (the new "paperclip in the
+  // hero input" flow uses this — user attaches + types, hits enter, lands
+  // straight on the analyzing phase with their note as context).
+  const [screenshotInit, setScreenshotInit] = useState(null);
+  const openScreenshot = (init) => setScreenshotInit(init || {});
+  const closeScreenshot = () => setScreenshotInit(null);
   const [searchResult, setSearchResult] = useState({ query: '', citations: [], loading: false });
 
   const runSearch = async (searchQuery, options = {}) => {
@@ -2641,14 +2834,14 @@ function App() {
         onOpenStatus={() => setStage("status")}
         onOpenKnowledge={() => setStage("knowledge")}
         onOpenGuide={(g) => setGuide(g)}
-        onOpenScreenshot={() => setScreenshotOpen(true)} />
+        onOpenScreenshot={(init) => openScreenshot(init)} />
       }
 
       {stage === "questions" &&
       <QuestionFlow
         query={query}
         onBack={() => setStage("landing")}
-        onOpenScreenshot={() => setScreenshotOpen(true)}
+        onOpenScreenshot={() => openScreenshot()}
         onDone={onQuestionsDone} />
       }
 
@@ -2737,11 +2930,13 @@ function App() {
         </div>
       </TweaksPanel>
 
-      {screenshotOpen && (
+      {screenshotInit && (
         <ScreenshotHelper
-          onClose={() => setScreenshotOpen(false)}
+          initialFile={screenshotInit.file}
+          initialNote={screenshotInit.note || ''}
+          onClose={closeScreenshot}
           onOpenGuide={(g) => { setGuide(g); }}
-          onFileTicket={(ctx) => { setScreenshotOpen(false); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
+          onFileTicket={(ctx) => { closeScreenshot(); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
         />
       )}
 
@@ -2753,7 +2948,7 @@ function App() {
             onClose={() => setGuide(null)}
             onFileTicket={(ctx) => { setGuide(null); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
             onOpenGuide={(g) => setGuide(g)}
-            onOpenScreenshot={() => setScreenshotOpen(true)}
+            onOpenScreenshot={() => openScreenshot()}
           />)}
       {filedTicket && <FiledToast ticket={filedTicket} onClose={() => setFiledTicket(null)} onView={() => setFiledTicket(null)} />}
     </TweakCtx.Provider>);
@@ -4646,15 +4841,19 @@ function ItServicesButton() {
         e.currentTarget.style.background = "#FFFFFF";
       }}
     >
-      {/* Pizza-slice glyph — Slice's actual brand mark. Triangle wedge with
-          a curved crust along the bottom and three pepperoni dots. */}
+      {/* Pizza-slice glyph — Slice's actual brand mark. Rotated -135° so the
+          tip points to the bottom-left corner of the button (crust arcs over
+          the top-right). Shapes wrapped in one <g> so the rotation lands
+          consistently around the icon's center. */}
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
         strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M12 3 4 19h16z"/>
-        <path d="M5.5 16.5 Q12 19.5 18.5 16.5"/>
-        <circle cx="12" cy="11" r="1.1" fill="currentColor"/>
-        <circle cx="9.5" cy="14.5" r="1.1" fill="currentColor"/>
-        <circle cx="14.5" cy="14.5" r="1.1" fill="currentColor"/>
+        <g transform="rotate(-135 12 12)">
+          <path d="M12 3 4 19h16z"/>
+          <path d="M5.5 16.5 Q12 19.5 18.5 16.5"/>
+          <circle cx="12" cy="11" r="1.1" fill="currentColor"/>
+          <circle cx="9.5" cy="14.5" r="1.1" fill="currentColor"/>
+          <circle cx="14.5" cy="14.5" r="1.1" fill="currentColor"/>
+        </g>
       </svg>
     </a>
   );
@@ -21363,15 +21562,21 @@ async function analyzeScreenshot({ dataUrl, note = "" }) {
 // --------------------------------------------------------------------
 //  ScreenshotHelper — modal with three states: empty → analyzing → result
 // --------------------------------------------------------------------
-function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = "" }) {
+function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = "", initialFile = null }) {
   const [phase, setPhase] = useState("empty"); // 'empty' | 'analyzing' | 'result'
-  const [file, setFile] = useState(null);       // { name, dataUrl }
+  const [file, setFile] = useState(initialFile); // { name, dataUrl }
   const [note, setNote] = useState(initialNote);
   const [dragOver, setDragOver] = useState(false);
   const [pasted, setPasted] = useState(false);
   const [result, setResult] = useState(null);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef(null);
+  // When the parent opened the modal with a file already attached (the
+  // hero-input flow), kick analysis off immediately instead of forcing the
+  // user through the empty drop zone first. The flag stays low so subsequent
+  // file replacements via the in-modal picker still go through the manual
+  // "Analyze" button.
+  const autoStartedRef = useRef(false);
 
   // Esc to close
   useEffect(() => {
@@ -21460,6 +21665,17 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
     const first = result?.guide_suggestions?.[0];
     if (first) openGuide(first);
   };
+
+  // Auto-start analysis when the modal mounts with a pre-attached file (the
+  // hero-input "paperclip in chat" flow). Guarded so we run it exactly once.
+  useEffect(() => {
+    if (autoStartedRef.current) return;
+    if (initialFile && file && phase === "empty") {
+      autoStartedRef.current = true;
+      runAnalysis();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div
