@@ -19131,7 +19131,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
   }, []);
 
   return (
-    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ minHeight: "100vh", background: "#FDC831" }}>
+    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ background: "#FDC831" }}>
 
       {/* Mini search — portaled to body so position:fixed isn't trapped by an
           ancestor transform (animations on .page create one). */}
@@ -19912,7 +19912,7 @@ function StatusPage({ onBack }) {
   return (
     <div className="page" style={{
       background: "#FDC831",
-      display: "flex", flexDirection: "column", minHeight: "100vh",
+      display: "flex", flexDirection: "column",
     }}>
       {/* Overall banner — cream bg always; tone expressed through icon + accent only */}
       <div style={{
@@ -23282,7 +23282,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
   return (
     <div className="page" style={{
-      minHeight: '100vh', background: '#FDC831',
+      background: '#FDC831',
       display: 'flex', flexDirection: 'column',
     }}>
       <style>{`
