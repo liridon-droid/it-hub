@@ -21964,6 +21964,8 @@ function renderMarkdown(md, opts = {}) {
     while (j < text.length) {
       // Image: ![alt](url) — Notion-style chrome (no border, soft shadow, max
       // height capped so tall screenshots don't dominate, centered by default).
+      // The class="guide-img" + cursor opt-in lets the parent reader catch
+      // clicks and open a fullscreen lightbox.
       if (text.slice(j, j + 2) === '![') {
         const close = text.indexOf(']', j + 2);
         if (close !== -1 && text[close + 1] === '(') {
@@ -21972,7 +21974,7 @@ function renderMarkdown(md, opts = {}) {
             flush();
             const alt = text.slice(j + 2, close);
             const src = text.slice(close + 2, urlEnd);
-            nodes.push(<img key={key++} src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '14px auto', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)' }} />);
+            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '14px auto', paddingRight: 20, boxSizing: 'border-box', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
             j = urlEnd + 1; continue;
           }
         }
@@ -21991,7 +21993,7 @@ function renderMarkdown(md, opts = {}) {
           const widthAttr = (attrs.match(/\bwidth\s*=\s*"([^"]*)"/i) || attrs.match(/\bwidth\s*=\s*'([^']*)'/i) || [])[1];
           const w = widthCss || widthAttr;
           const margin = align === 'left' ? '14px auto 14px 0' : align === 'right' ? '14px 0 14px auto' : '14px auto';
-          nodes.push(<img key={key++} src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 10, margin, boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)' }} />);
+          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 10, margin, paddingRight: 20, boxSizing: 'border-box', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
           j += imgHtml[0].length; continue;
         }
       }
@@ -22190,12 +22192,15 @@ function stripLeadingTitleFromBody(body, title) {
   return body.replace(new RegExp(`^\\s*#\\s+${escaped}\\s*\\n+`, 'i'), '');
 }
 
-function GuideExperience({ guide, onClose, onFileTicket }) {
+function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const [body, setBody] = React.useState(null);
   const [title, setTitle] = React.useState(guide?.title || '');
+  const [category, setCategory] = React.useState(guide?.category || '');
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState(null);
   const [feedback, setFeedback] = React.useState(null);
+  const [related, setRelated] = React.useState([]);
+  const [shareCopied, setShareCopied] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -22218,6 +22223,7 @@ function GuideExperience({ guide, onClose, onFileTicket }) {
           // strips the leading "# Title" before saving so it's a single source
           // of truth. Pull it from the API response and render it explicitly.
           setTitle(g.title || guide?.title || '');
+          setCategory(g.category || guide?.category || '');
           setLoading(false);
         })
         .catch((e) => { if (!cancelled) { setError(e.message); setLoading(false); } });
@@ -22228,11 +22234,68 @@ function GuideExperience({ guide, onClose, onFileTicket }) {
     return () => { cancelled = true; };
   }, [guide.id]);
 
+  // Pull other guides in the same category for the "try one of these" chips
+  // shown when the user marks the guide as not helpful.
   React.useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    let cancelled = false;
+    if (!category) { setRelated([]); return; }
+    fetch('/api/guides')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((all) => {
+        if (cancelled) return;
+        const cat = String(category).toLowerCase();
+        const same = (all || [])
+          .filter((g) => g.id !== guide.id && String(g.category || '').toLowerCase() === cat)
+          .slice(0, 5);
+        setRelated(same);
+      })
+      .catch(() => { if (!cancelled) setRelated([]); });
+    return () => { cancelled = true; };
+  }, [category, guide.id]);
+
+  const shareLink = React.useCallback(async () => {
+    const url = `${window.location.origin}/portal/?guide=${guide.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url, text: title });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 1600);
+      }
+    } catch {
+      try {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 1600);
+      } catch {}
+    }
+  }, [guide.id, title]);
+
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape' && !lightbox) onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Image lightbox — click any guide image to open it fullscreen.
+  // Uses event delegation on the article so newly-rendered images Just Work
+  // without rewiring listeners every time the markdown re-renders.
+  const articleRef = React.useRef(null);
+  const [lightbox, setLightbox] = React.useState(null);
+  React.useEffect(() => {
+    const el = articleRef.current;
+    if (!el) return;
+    const onClick = (e) => {
+      const img = e.target.closest && e.target.closest('img.guide-img');
+      if (img) {
+        e.preventDefault();
+        setLightbox({ src: img.currentSrc || img.src, alt: img.alt || '' });
+      }
+    };
+    el.addEventListener('click', onClick);
+    return () => el.removeEventListener('click', onClick);
+  }, [body]);
 
   const sendFeedback = (rating) => {
     if (feedback === rating) return; // already this answer
@@ -22266,17 +22329,20 @@ function GuideExperience({ guide, onClose, onFileTicket }) {
     }}>
       <style>{`
         .back-to-hub-btn,
+        .share-guide-btn,
         .feedback-btn,
         .file-ticket-btn {
           transition: transform .15s var(--ease, cubic-bezier(.22,.61,.36,1)),
                       box-shadow .15s var(--ease, cubic-bezier(.22,.61,.36,1));
         }
         .back-to-hub-btn:hover,
+        .share-guide-btn:hover,
         .feedback-btn:not(:disabled):hover {
           transform: translate(-2px, -2px);
           box-shadow: 4px 4px 0 #211E1E;
         }
         .back-to-hub-btn:active,
+        .share-guide-btn:active,
         .feedback-btn:not(:disabled):active {
           transform: translate(1px, 1px);
           box-shadow: 1px 1px 0 #211E1E;
@@ -22321,8 +22387,50 @@ function GuideExperience({ guide, onClose, onFileTicket }) {
         Back to hub
       </button>
 
+      {/* Share — mirrors the Back-to-Hub button on the opposite side. Uses
+          Web Share API when available (mobile, modern browsers); otherwise
+          copies the deep link to clipboard and flashes confirmation. */}
+      <button
+        className="share-guide-btn"
+        onClick={shareLink}
+        title={shareCopied ? 'Link copied!' : 'Copy link to this guide'}
+        style={{
+          position: 'fixed', top: 20, right: 20, zIndex: 110,
+          background: shareCopied ? '#211E1E' : '#FFFFFF',
+          color: shareCopied ? '#FDC831' : '#211E1E',
+          border: '2px solid #211E1E',
+          borderRadius: 8,
+          padding: '8px 14px',
+          fontFamily: "'Archivo', sans-serif",
+          fontSize: 13, fontWeight: 700,
+          cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          boxShadow: shareCopied ? '2px 2px 0 #FDC831' : '2px 2px 0 #211E1E',
+          transition: 'transform .15s, box-shadow .15s, background .15s, color .15s',
+        }}
+      >
+        {shareCopied ? (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            Link copied
+          </>
+        ) : (
+          <>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"/>
+              <circle cx="6" cy="12" r="3"/>
+              <circle cx="18" cy="19" r="3"/>
+              <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>
+            </svg>
+            Share
+          </>
+        )}
+      </button>
+
       <div style={{ maxWidth: 830, margin: '0 auto', padding: '40px 24px 80px' }}>
-        <article style={{
+        <article ref={articleRef} style={{
           background: '#FFFFFF',
           border: '2px solid #211E1E',
           borderRadius: 14,
@@ -22373,6 +22481,8 @@ function GuideExperience({ guide, onClose, onFileTicket }) {
               }
             }}
             onFileTicket={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Service Desk' })}
+            relatedGuides={related}
+            onOpenGuide={onOpenGuide}
           />
         )}
 
@@ -22383,6 +22493,89 @@ function GuideExperience({ guide, onClose, onFileTicket }) {
           fontFamily: "'Archivo', sans-serif",
         }}>Built by the Slice IT Team</div>
       </div>
+      {lightbox && (
+        <ImageLightbox
+          src={lightbox.src}
+          alt={lightbox.alt}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Notion-style image lightbox: dim overlay, image centered, click anywhere
+// (or ✕ / ESC) to close. Toggle 1× ↔ 2× zoom with another click on the image.
+function ImageLightbox({ src, alt, onClose }) {
+  const [zoomed, setZoomed] = React.useState(false);
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(15, 13, 13, 0.86)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
+        display: 'grid', placeItems: 'center',
+        cursor: 'zoom-out',
+        animation: 'fadeIn .18s var(--ease, cubic-bezier(.22,.61,.36,1)) both',
+        padding: 40,
+      }}
+    >
+      <img
+        src={src}
+        alt={alt}
+        onClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
+        style={{
+          maxWidth: zoomed ? '180vw' : '92vw',
+          maxHeight: zoomed ? '180vh' : '90vh',
+          borderRadius: 8,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06)',
+          cursor: zoomed ? 'zoom-out' : 'zoom-in',
+          transition: 'max-width .25s var(--ease, cubic-bezier(.22,.61,.36,1)), max-height .25s var(--ease, cubic-bezier(.22,.61,.36,1))',
+          userSelect: 'none',
+        }}
+      />
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        style={{
+          position: 'fixed', top: 22, right: 22,
+          width: 40, height: 40, borderRadius: '50%',
+          background: '#FFFFFF', color: '#211E1E',
+          border: '2px solid #211E1E',
+          boxShadow: '3px 3px 0 rgba(0,0,0,0.4)',
+          cursor: 'pointer',
+          display: 'grid', placeItems: 'center',
+          fontSize: 16, fontWeight: 800,
+          fontFamily: "'Archivo', sans-serif",
+        }}
+      >✕</button>
+      {alt && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          maxWidth: 'calc(100vw - 40px)',
+          padding: '8px 14px',
+          background: 'rgba(0,0,0,0.55)',
+          color: '#FFFFFF',
+          fontFamily: "'Archivo', sans-serif",
+          fontSize: 13, fontWeight: 500,
+          borderRadius: 8,
+          textAlign: 'center',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+        }}>{alt}</div>
+      )}
     </div>
   );
 }
@@ -22402,6 +22595,11 @@ function FeedbackPanel({
   thanksPositive = "Thanks — we'll keep this one current.",
   onVote,
   onFileTicket,
+  // Related guides surfaced when the user says "no, not yet" — gives them a
+  // fast escape hatch to a similar guide before they have to open a ticket.
+  // Shape: [{ id, title, category }]
+  relatedGuides = [],
+  onOpenGuide,
 }) {
   const [state, setState] = React.useState("idle");
   const [picked, setPicked] = React.useState(new Set());
@@ -22559,6 +22757,31 @@ function FeedbackPanel({
         /* No max-height / overflow:hidden — those clipped the bottom buttons.
            Pure opacity + translate animation slides the panel in cleanly. */
         .fb-expand { animation: fbSlide .25s cubic-bezier(.22,.61,.36,1) both; }
+        .fb-related {
+          display: inline-flex; align-items: center;
+          padding: 8px 14px;
+          background: #FFF9E6; color: #211E1E;
+          border: 1.5px solid #211E1E; border-radius: 999px;
+          box-shadow: 2px 2px 0 #211E1E;
+          font-family: 'Archivo', sans-serif;
+          font-size: 12.5px; font-weight: 700;
+          cursor: pointer;
+          max-width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .18s ease;
+        }
+        .fb-related:hover {
+          transform: translate(-2px,-2px);
+          background: #FDC831;
+          box-shadow: 4px 4px 0 #211E1E;
+        }
+        .fb-related:active {
+          transform: translate(1px,1px);
+          box-shadow: 1px 1px 0 #211E1E;
+          transition-duration: .08s;
+        }
       `}</style>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -22593,6 +22816,28 @@ function FeedbackPanel({
 
       {state === "negative" && (
         <div className="fb-expand" style={{ marginTop: 18, paddingTop: 18, borderTop: "1.5px dashed rgba(33,30,30,0.18)" }}>
+          {relatedGuides && relatedGuides.length > 0 && onOpenGuide && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{
+                fontFamily: "'Archivo', sans-serif",
+                fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em",
+                textTransform: "uppercase", color: "#78684C", marginBottom: 8,
+              }}>Try one of these instead</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {relatedGuides.slice(0, 5).map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    className="fb-related"
+                    onClick={() => onOpenGuide(g)}
+                  >
+                    <span style={{ fontWeight: 800 }}>{g.title}</span>
+                    <span aria-hidden style={{ marginLeft: 6, opacity: 0.7 }}>→</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ marginBottom: 14 }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
@@ -22678,6 +22923,26 @@ function FeedbackPanel({
 //  (plus the LLM answer when Claude is configured).
 // ====================================================================
 
+// Pick an icon for a guide based on its category. Falls back to IconBook
+// when the category doesn't match any of the buckets we know about.
+function categoryIconFor(category) {
+  const c = String(category || '').toLowerCase();
+  if (/(password|account|access|identity|sso|login|mfa|onelogin|2fa|auth)/.test(c)) return IconLock;
+  if (/(network|wi-?fi|wifi|vpn|internet|globalprotect)/.test(c)) return IconWifi;
+  if (/(headphone|jabra|audio|sound|peripheral|monitor|display|keyboard|mouse|charger|cable|hardware|laptop|mac|windows|device)/.test(c)) return IconLaptop;
+  if (/(meeting|zoom|meet|video|call|webex|teams|conferenc)/.test(c)) return IconStatus;
+  if (/(email|mail|gmail|inbox|calendar|outlook)/.test(c)) return IconMail;
+  if (/(slack|chat|message|comm)/.test(c)) return IconSlack;
+  if (/(print|printer)/.test(c)) return IconPrinter;
+  if (/(onboard|offboard|new hire|hire)/.test(c)) return IconPerson;
+  if (/(security|shield|policy|compliance|phish|virus)/.test(c)) return IconShield;
+  if (/(database|salesforce|amazon connect|ccp|crm)/.test(c)) return IconDatabase;
+  if (/(plug|power)/.test(c)) return IconPlug;
+  if (/(performance|slow|maintenance|storage|disk|memory)/.test(c)) return IconBolt;
+  if (/(ticket|support|request)/.test(c)) return IconTicket;
+  return IconBook;
+}
+
 function HubSearchResults({ query, citations, suggestions = [], answer, mode, chatLogId, loading, onBack, onOpenGuide, onFileTicket }) {
   const [feedback, setFeedback] = React.useState(null);
   const sendFeedback = (rating) => {
@@ -22716,6 +22981,20 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         .search-card:active {
           transform: translate(1px, 1px);
           box-shadow: 3px 3px 0 #211E1E;
+        }
+        .search-card .card-arrow {
+          transition: transform .2s var(--ease, cubic-bezier(.22,.61,.36,1)), opacity .2s;
+          opacity: 0.55;
+        }
+        .search-card:hover .card-arrow {
+          transform: translateX(5px);
+          opacity: 1;
+        }
+        .search-card .card-icon {
+          transition: transform .2s var(--ease, cubic-bezier(.22,.61,.36,1));
+        }
+        .search-card:hover .card-icon {
+          transform: rotate(-3deg) scale(1.05);
         }
         .search-fb-btn:not(:disabled):hover {
           transform: translate(-2px, -2px);
@@ -22773,9 +23052,22 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
             padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
           }}>
             <div style={{
-              fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
-              textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 12,
-            }}>Answer · {mode}</div>
+              display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14,
+            }}>
+              <div style={{
+                width: 26, height: 26, borderRadius: '50%',
+                background: '#FDC831', border: '2px solid #211E1E',
+                display: 'grid', placeItems: 'center',
+                fontFamily: "'Archivo', sans-serif",
+                fontSize: 11, fontWeight: 900, color: '#211E1E',
+                flexShrink: 0,
+              }}>S</div>
+              <div style={{
+                fontFamily: "'Archivo', sans-serif",
+                fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: '#4A3F2E',
+              }}>Slice IT · here's what to try</div>
+            </div>
             <div style={{ fontSize: 15, lineHeight: 1.65, color: '#211E1E' }}>
               {renderMarkdown(answer, { stepStyle: 'cards' })}
             </div>
@@ -22790,39 +23082,70 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               textTransform: 'uppercase', color: '#4A3F2E', marginBottom: 12,
             }}>Top matching guides</div>
             <div style={{ display: 'grid', gap: 14, marginBottom: 28 }}>
-              {citations.map((c, i) => (
-                <button
-                  key={c.chunk_id ?? c.guide_id ?? i}
-                  className="search-card"
-                  onClick={() => onOpenGuide && onOpenGuide({ id: c.guide_id, title: c.title, category: c.category })}
-                  style={{
-                    textAlign: 'left',
-                    background: '#FFFFFF',
-                    border: '2px solid #211E1E',
-                    borderRadius: 14,
-                    padding: '18px 22px',
-                    boxShadow: '6px 6px 0 #211E1E',
-                    cursor: 'pointer',
-                    fontFamily: "'Archivo', sans-serif",
-                    color: '#211E1E',
-                    display: 'flex', flexDirection: 'column', gap: 8,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <span style={{
-                      fontSize: 10.5, fontWeight: 800, letterSpacing: '0.06em',
-                      textTransform: 'uppercase', color: '#211E1E',
+              {citations.map((c, i) => {
+                const Icon = categoryIconFor(c.category);
+                return (
+                  <button
+                    key={c.chunk_id ?? c.guide_id ?? i}
+                    className="search-card"
+                    onClick={() => onOpenGuide && onOpenGuide({ id: c.guide_id, title: c.title, category: c.category })}
+                    style={{
+                      textAlign: 'left',
+                      background: '#FFFFFF',
+                      border: '2px solid #211E1E',
+                      borderRadius: 14,
+                      padding: '20px 22px',
+                      boxShadow: '6px 6px 0 #211E1E',
+                      cursor: 'pointer',
+                      fontFamily: "'Archivo', sans-serif",
+                      color: '#211E1E',
+                      display: 'grid',
+                      gridTemplateColumns: '44px 1fr 24px',
+                      gap: 16,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <div className="card-icon" style={{
+                      width: 40, height: 40, borderRadius: 10,
                       background: '#FDC831', border: '1.5px solid #211E1E',
-                      padding: '2px 8px', borderRadius: 4,
-                    }}>{c.source_type || 'guide'}</span>
-                    {c.category && <span style={{ fontSize: 12, color: '#4A3F2E' }}>{c.category}</span>}
-                  </div>
-                  <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.01em' }}>{c.title}</div>
-                  {c.content_preview && (
-                    <div style={{ fontSize: 13, color: '#4A3F2E', lineHeight: 1.55 }}>{c.content_preview}</div>
-                  )}
-                </button>
-              ))}
+                      display: 'grid', placeItems: 'center', flexShrink: 0,
+                      marginTop: 2,
+                    }}>
+                      <Icon size={20} stroke={2} />
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      {c.category && (
+                        <div style={{
+                          fontSize: 10.5, fontWeight: 800, letterSpacing: '0.08em',
+                          textTransform: 'uppercase', color: '#78684C', marginBottom: 4,
+                        }}>{c.category}</div>
+                      )}
+                      <div style={{
+                        fontSize: 18, fontWeight: 800, letterSpacing: '-0.012em',
+                        marginBottom: c.content_preview ? 6 : 0, lineHeight: 1.25,
+                      }}>{c.title}</div>
+                      {c.content_preview && (
+                        <div style={{
+                          fontSize: 13.5, color: '#4A3F2E', lineHeight: 1.55,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>{c.content_preview}</div>
+                      )}
+                    </div>
+                    <div className="card-arrow" style={{
+                      alignSelf: 'center',
+                      display: 'grid', placeItems: 'center',
+                      width: 24, height: 24,
+                      flexShrink: 0,
+                      color: '#211E1E',
+                    }}>
+                      <IconArrow size={18} stroke={2.4} />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </>
         )}
@@ -22912,6 +23235,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               }
             }}
             onFileTicket={() => onFileTicket && onFileTicket({ source: 'search' })}
+            relatedGuides={[
+              ...citations.map((c) => ({ id: c.guide_id, title: c.title, category: c.category })),
+              ...((suggestions || []).map((s) => ({ id: s.guide_id, title: s.title, category: s.category })))
+            ].filter((g, i, arr) => g.id && arr.findIndex((x) => x.id === g.id) === i)}
+            onOpenGuide={onOpenGuide}
           />
         )}
 

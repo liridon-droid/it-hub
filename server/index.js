@@ -543,6 +543,18 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
   try {
     const matches = await ftsSearch(query);
 
+    // Build a clean preview: strip leading markdown header marks so cards
+    // don't show literal `## Step 4`, and collapse runs of whitespace.
+    const previewFromContent = (raw) => {
+      const cleaned = String(raw || '')
+        .replace(/^#{1,6}\s*/gm, '')      // ## Heading → Heading
+        .replace(/^>\s*/gm, '')            // > quote → quote
+        .replace(/^[-*]\s+/gm, '• ')       // - bullet → • bullet
+        .replace(/\*\*(.+?)\*\*/g, '$1')   // **bold** → bold
+        .replace(/\s+/g, ' ')              // collapse newlines
+        .trim();
+      return cleaned.length > 220 ? cleaned.slice(0, 220) + '…' : cleaned;
+    };
     const citations = matches.map((r, i) => ({
       index: i + 1,
       chunk_id: r.chunk_id,
@@ -551,7 +563,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
       category: r.category,
       source_type: r.source_type,
       helpful_count: r.helpful_count,
-      content_preview: r.content.length > 280 ? r.content.slice(0, 280) + '…' : r.content,
+      content_preview: previewFromContent(r.content),
     }));
 
     let answer = null;
@@ -581,11 +593,22 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
             model: CHAT_MODEL,
             max_tokens: 1024,
             system:
-              "You are a helpful IT support assistant for an internal company knowledge base. " +
-              "When the user asks a question, the user message will include <knowledge_base> excerpts. " +
-              "Answer using ONLY those excerpts. Cite sources with [N] notation matching the excerpt headers. " +
-              "If the excerpts don't contain the answer, say so plainly and suggest filing a ticket. " +
-              "Keep responses short and actionable — IT users want steps, not essays.",
+              "You are the IT-support assistant for Slice (the pizzeria platform). Answer using ONLY the <knowledge_base> excerpts in the user message. Cite sources with [N] notation matching excerpt headers.\n\n" +
+              "Slice environment — assume these unless the user says otherwise:\n" +
+              "- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n" +
+              "- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are the standard.\n" +
+              "- VPN: GlobalProtect on both macOS and Windows.\n" +
+              "- Team chat: Slack.\n" +
+              "- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n" +
+              "- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\n" +
+              "Tailor language to those tools when it would actually change the steps (e.g. say 'GlobalProtect', 'Jabra USB headset', 'CCP in Salesforce'); skip the qualifier when it doesn't help. Don't invent device-specific steps not in the excerpts.\n\n" +
+              "Format:\n" +
+              "- Short markdown. Numbered steps for sequences; plain prose for one-liners.\n" +
+              "- **Bold** UI labels, button names, menu items, and shortcuts.\n" +
+              "- Use [N] citations.\n" +
+              "- Keep it tight — no preamble, no recap of the question.\n\n" +
+              "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
+              "Still stuck? Open a ticket at [Support](https://it.slicelife.com).",
             messages: [
               {
                 role: 'user',
@@ -602,6 +625,12 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
             .filter((b) => b.type === 'text')
             .map((b) => b.text)
             .join('\n');
+          // Safety net: every chat answer must end with the Support link.
+          // If the model forgot or rephrased, append the canonical line.
+          const SUPPORT_LINE = 'Still stuck? Open a ticket at [Support](https://it.slicelife.com).';
+          if (answer && !/it\.slicelife\.com/i.test(answer)) {
+            answer = answer.trimEnd() + '\n\n' + SUPPORT_LINE;
+          }
           usage = msg.usage || null;
           mode = 'llm';
         } else {
