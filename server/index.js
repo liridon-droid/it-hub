@@ -72,7 +72,12 @@ await bootstrapStatusServices(pool);
 runStatusPollers(pool);
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+// 20 MB ceiling on JSON bodies. Image uploads are sent as base64 data URLs
+// and base64 inflates the payload by ~33%, so an 8 MB image becomes a ~10.7
+// MB JSON envelope. The previous 10 MB limit was clipping legit uploads
+// (especially animated GIFs near the cap), with Express returning a
+// PayloadTooLargeError that surfaced as a stuck "Uploading…" spinner.
+app.use(express.json({ limit: '20mb' }));
 
 // ── Auth (slicedesk session bridge) ─────────────────────────────────────
 // Every /api/* request gets req.user attached if the caller carries a

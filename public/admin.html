@@ -1422,8 +1422,11 @@
     .img-url-row input:focus { outline: none; border-color: var(--ink-3); box-shadow: 0 0 0 3px rgba(17,24,39,0.05); }
     .img-url-row .hint { font-size: 11.5px; color: var(--ink-3); }
     .img-uploading { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
-    .img-uploading::before { content: ''; width: 11px; height: 11px; border: 2px solid var(--border-2); border-top-color: var(--ink); border-radius: 50%; animation: img-spin 0.7s linear infinite; }
     @keyframes img-spin { to { transform: rotate(360deg); } }
+    /* Real progress bar — replaces the indeterminate spinner so users can see
+       the upload is actually moving. Width set inline by the upload handler. */
+    .img-progress { flex:1; min-width:0; height: 6px; background: var(--border); border-radius: 999px; overflow: hidden; }
+    .img-progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #FDC831, #f5a623); border-radius: 999px; transition: width .18s ease-out; }
 
     /* ============== LINK PICKER MODAL ============== */
     dialog.link-modal { max-width: 460px; }
@@ -3259,7 +3262,12 @@
     </div>
 
     <div class="actions" style="margin-top: 16px;">
-      <span id="imgStatus" class="img-uploading" hidden>Uploading…</span>
+      <div id="imgStatus" class="img-uploading" hidden style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+        <div class="img-progress" aria-hidden="true">
+          <div class="img-progress-fill" id="imgProgressFill"></div>
+        </div>
+        <span id="imgStatusText" style="font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums;flex-shrink:0;">Uploading…</span>
+      </div>
       <span style="flex:1;"></span>
       <button class="btn ghost" id="imgCancel" type="button">Cancel</button>
       <button class="btn primary" id="imgInsert" type="button" disabled>Insert image</button>
@@ -4464,6 +4472,12 @@ function openImagePicker() {
       previewUrlImg.onload = null;
       previewUrlImg.onerror = null;
       status.hidden = true;
+      // Reset progress UI so the next time this modal opens we don't flash
+      // the previous upload's "100%" before the new transfer starts.
+      const progressFill = $('imgProgressFill');
+      const statusText = $('imgStatusText');
+      if (progressFill) progressFill.style.width = '0%';
+      if (statusText) statusText.textContent = 'Uploading…';
       setMode('upload');
       dropzone.removeEventListener('dragover', onDragOver);
       dropzone.removeEventListener('dragleave', onDragLeave);
@@ -4483,18 +4497,45 @@ function openImagePicker() {
     const onCloseEvt = () => finish(null);
     const onBackdrop = (e) => { if (e.target === d) finish(null); };
 
+    let abortCtrl = null;
     insertBtn.onclick = async () => {
       if (mode === 'upload') {
         if (!pickedFile) return;
+        const cancelBtn = $('imgCancel');
+        const progressFill = $('imgProgressFill');
+        const statusText = $('imgStatusText');
         insertBtn.disabled = true;
         status.hidden = false;
+        statusText.textContent = 'Reading file…';
+        progressFill.style.width = '0%';
+        // Repurpose Cancel into an abort while the upload is in flight.
+        const originalCancel = cancelBtn.textContent;
+        cancelBtn.textContent = 'Stop upload';
+        abortCtrl = new AbortController();
+        const onCancel = () => abortCtrl?.abort();
+        cancelBtn.onclick = onCancel;
         try {
-          const { url } = await uploadImageFile(pickedFile);
+          const { url } = await uploadImageFile(pickedFile, {
+            signal: abortCtrl.signal,
+            onProgress: (frac) => {
+              const pct = Math.round(frac * 100);
+              progressFill.style.width = pct + '%';
+              statusText.textContent = pct < 100 ? `Uploading… ${pct}%` : 'Almost there…';
+            },
+          });
           finish(url);
         } catch (err) {
-          toast(`Upload failed: ${err.message}`, 'err');
+          if (err?.name === 'AbortError') {
+            toast('Upload cancelled.', 'ok');
+          } else {
+            toast(`Upload failed: ${err.message}`, 'err');
+          }
           status.hidden = true;
           insertBtn.disabled = false;
+          cancelBtn.textContent = originalCancel;
+          cancelBtn.onclick = () => finish(null);
+        } finally {
+          abortCtrl = null;
         }
       } else {
         const v = urlInput.value.trim();
@@ -4890,24 +4931,56 @@ function setupTags(shellEl, inputEl, onChange) {
 }
 
 // =========== IMAGE UPLOAD HELPERS ===========
-async function uploadImageFile(file) {
-  const dataUrl = await new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
+// fetch() doesn't expose upload progress, and a hung connection just spins
+// forever — bad UX for the modal, where the user just sees "Uploading…" and
+// has no idea if anything's happening. XHR gives us real progress events,
+// a hard timeout, and an abort handle if the user wants to bail.
+//
+// `opts.onProgress(fraction0to1)` fires during base64 transfer.
+// `opts.signal` (AbortSignal) cancels the upload.
+function uploadImageFile(file, opts = {}) {
+  return new Promise(async (resolve, reject) => {
+    let dataUrl;
+    try {
+      dataUrl = await new Promise((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result);
+        r.onerror = () => rej(new Error('Could not read file'));
+        r.readAsDataURL(file);
+      });
+    } catch (e) { return reject(e); }
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads', true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.timeout = 120000; // 2 min — generous for slow uplinks but bounded.
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable || !opts.onProgress) return;
+      try { opts.onProgress(e.loaded / e.total); } catch {}
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const j = JSON.parse(xhr.responseText);
+          resolve({ url: j.url, dataUrl });
+        } catch { reject(new Error('Server returned invalid JSON')); }
+      } else {
+        let msg = `Upload failed (HTTP ${xhr.status})`;
+        try { const j = JSON.parse(xhr.responseText); if (j.error) msg = j.error; } catch {}
+        if (xhr.status === 413) msg = 'Image is too large for the server (max 8 MB).';
+        if (xhr.status === 401 || xhr.status === 403) msg = 'Session expired — refresh the page and try again.';
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = () => reject(new Error('Network error — is the server reachable?'));
+    xhr.ontimeout = () => reject(new Error('Upload timed out after 2 minutes.'));
+    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    if (opts.signal) {
+      if (opts.signal.aborted) { xhr.abort(); return; }
+      opts.signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    xhr.send(JSON.stringify({ dataUrl, filename: file.name || 'image' }));
   });
-  const r = await fetch('/api/uploads', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ dataUrl, filename: file.name || 'image' }),
-  });
-  if (!r.ok) {
-    const j = await r.json().catch(() => ({}));
-    throw new Error(j.error || `Upload failed (${r.status})`);
-  }
-  const j = await r.json();
-  return { url: j.url, dataUrl };
 }
 
 // Best-effort: ask Claude (via /api/ai-edit) to generate alt-text for an
