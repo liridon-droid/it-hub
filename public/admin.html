@@ -3476,7 +3476,7 @@
     <p style="margin: 0 0 16px; color: var(--ink-3); font-size: 13px;">Tell AI what this guide should cover. The more specific you are, the better the draft.</p>
     <div class="field">
       <label class="field-label" for="aiwTopic">What is this guide about? <span style="color:var(--neg);">*</span></label>
-      <input class="tx" id="aiwTopic" placeholder="e.g. Resetting OneLogin password, Connecting to office Wi-Fi, Setting up Outlook…" autocomplete="off" />
+      <input class="tx" id="aiwTopic" placeholder="e.g. Resetting OneLogin password, Connecting to office Wi-Fi, Setting up Gmail filters…" autocomplete="off" />
     </div>
     <div class="field">
       <label class="field-label" for="aiwAppDevice">App or device (optional)</label>
@@ -4228,6 +4228,9 @@ const state = {
   trashFilter: '',
   stats: null,
   health: null,
+  // Hydrated from /api/me at boot — used wherever we previously hardcoded
+  // "Slice IT Team" as the author label (guide list, editor sticky bar).
+  me: null,
   filter: '',
   guideSort: { key: 'updated_at', dir: 'desc' },
   guideTypeFilter: '',
@@ -4237,6 +4240,18 @@ const state = {
   editor: null,
   editing: { mode: 'idle', id: null, snapshot: null },
 };
+
+// --- Author-label helpers --------------------------------------------------
+// Falls back to "Slice IT Team" when /api/me hasn't resolved yet (or in local
+// dev where the auth middleware is bypassed). Once state.me is populated, all
+// author surfaces re-render to show the real signed-in user.
+function authorName() {
+  return (state.me && state.me.name) ? state.me.name : 'Slice IT Team';
+}
+function authorInitials() {
+  const n = authorName().trim();
+  return n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || 'SI';
+}
 
 // =========== TOAST ===========
 function toast(msg, kind='') {
@@ -8807,9 +8822,9 @@ function renderGuidesBody() {
         </div>
       </td>
       <td>
-        <div class="gx-author" title="Slice IT Team">
-          <div class="av">SI</div>
-          <div class="nm">Slice IT Team</div>
+        <div class="gx-author" title="${esc(authorName())}">
+          <div class="av">${esc(authorInitials())}</div>
+          <div class="nm">${esc(authorName())}</div>
         </div>
       </td>
       <td>
@@ -10155,10 +10170,10 @@ function renderEditor(root) {
           <div class="crumb-text"><strong>${e.mode === 'edit' ? `Editing guide #${e.id}` : 'New guide'}</strong></div>
           <span class="small-meta" id="ed-stickyMeta"></span>
         </div>
-        <div class="bar-author ${e.mode === 'edit' ? '' : 'is-draft'}" title="${e.mode === 'edit'
-          ? `Slice IT Team · ${g.updated_at ? new Date(g.updated_at).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
-          : 'Slice IT Team · drafting'}">
-          <div class="avatar">SI</div>
+        <div class="bar-author ${e.mode === 'edit' ? '' : 'is-draft'}" title="${esc(e.mode === 'edit'
+          ? `${authorName()} · ${g.updated_at ? new Date(g.updated_at).toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}`
+          : `${authorName()} · drafting`)}">
+          <div class="avatar">${esc(authorInitials())}</div>
           <div class="meta">${e.mode === 'edit' ? esc(fmtRel(g.updated_at || g.created_at)) : 'Draft'}</div>
         </div>
         <div class="page-actions">
@@ -10880,12 +10895,16 @@ $('avatarHub').onclick = () => { window.location.href = '/portal/'; };
     if (!r.ok) return; // 401: middleware will already have bounced; 5xx: ignore
     const me = await r.json();
     if (me?.name) {
-      avatarBtn.textContent = me.name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('');
+      state.me = me;
+      avatarBtn.textContent = authorInitials();
       avatarBtn.title = me.email ? `${me.name} (${me.email})` : me.name;
       const nameEl = avatarMenu.querySelector('.head .name');
       const roleEl = avatarMenu.querySelector('.head .role');
       if (nameEl) nameEl.textContent = me.name;
       if (roleEl) roleEl.textContent = `${me.roleLabel || me.role || 'Employee'} · signed in`;
+      // Re-render the active section so the guide list / editor pick up the
+      // real author name instead of the "Slice IT Team" placeholder.
+      if (state.section && state.section !== 'editor') render();
     }
   } catch { /* offline / network blip — keep placeholder */ }
 })();

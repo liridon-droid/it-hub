@@ -4407,6 +4407,116 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
 // ─── components (dfe64fda) ──────────────────────────────────
 // ------ Shared building blocks ------
 
+// --- Shared notifications store -----------------------------------------------
+// Seed list shared between the bell-dropdown and the full Notifications page.
+// Dismissed / read state is persisted to localStorage so the user's "I cleaned
+// these" action survives a refresh — and so the dropdown and page always agree
+// on what's been cleared.
+const NOTIF_SEED = [
+  { id: "n1", kind: "ticket",   unread: true,  when: "12m",       group: "Today",
+    title: "Your ticket #4821 was updated",
+    body: "Liridon left a note: \"Replacement charger on the way — tracking sent.\"",
+    color: "#FDC831" },
+  { id: "n2", kind: "status",   unread: true,  when: "1h",        group: "Today",
+    title: "Jira is back to operational",
+    body: "Atlassian resolved the API slowdown. 28 min incident closed.",
+    color: "#D4F4D4" },
+  { id: "n3", kind: "access",   unread: true,  when: "3h",        group: "Today",
+    title: "Figma access approved",
+    body: "You're added to the Slice-Design team. Check your inbox.",
+    color: "#E4DBFF" },
+  { id: "n4", kind: "security", unread: false, when: "Yesterday", group: "Yesterday",
+    title: "New sign-in from Prishtina",
+    body: "MacBook Pro · Chrome. This was you — no action needed.",
+    color: "#FFD4D0" },
+  { id: "n5", kind: "digest",   unread: false, when: "Mon",       group: "Earlier",
+    title: "Weekly digest — 4 things shipped",
+    body: "Faster VPN, new laptop catalog, Slack huddle policy update.",
+    color: "#C4E3FF" },
+  { id: "n6", kind: "ticket",   unread: false, when: "Apr 28",    group: "Earlier",
+    title: "Your ticket #4732 was resolved",
+    body: "Maeve marked it closed: \"VPN access restored, root cause logged.\"",
+    color: "#FDC831" },
+  { id: "n7", kind: "access",   unread: false, when: "Apr 25",    group: "Earlier",
+    title: "Notion access changed",
+    body: "Your role on the Slice workspace was updated by HR.",
+    color: "#E4DBFF" },
+  { id: "n8", kind: "status",   unread: false, when: "Apr 22",    group: "Earlier",
+    title: "OneLogin maintenance window completed",
+    body: "Saturday's planned reboot finished without incident.",
+    color: "#D4F4D4" },
+];
+
+const NOTIF_KEY = "portal2.notifications.v1";
+const NOTIF_EVT = "portal2:notifications:change";
+
+function loadNotifPersist() {
+  try {
+    const raw = typeof localStorage !== "undefined" && localStorage.getItem(NOTIF_KEY);
+    if (!raw) return { dismissed: [], read: [] };
+    const j = JSON.parse(raw);
+    return {
+      dismissed: Array.isArray(j.dismissed) ? j.dismissed : [],
+      read: Array.isArray(j.read) ? j.read : [],
+    };
+  } catch { return { dismissed: [], read: [] }; }
+}
+
+function saveNotifPersist(s) {
+  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(s)); } catch {}
+}
+
+function useNotifications() {
+  const [persist, setPersist] = React.useState(loadNotifPersist);
+  // Same-tab broadcast (custom event) + cross-tab broadcast (storage event) so
+  // dismissing in the dropdown updates the page (and vice versa) without a
+  // refresh.
+  React.useEffect(() => {
+    const refresh = () => setPersist(loadNotifPersist());
+    const onStorage = (e) => { if (e.key === NOTIF_KEY) refresh(); };
+    window.addEventListener(NOTIF_EVT, refresh);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(NOTIF_EVT, refresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  const update = React.useCallback((next) => {
+    setPersist(next);
+    saveNotifPersist(next);
+    try { window.dispatchEvent(new Event(NOTIF_EVT)); } catch {}
+  }, []);
+
+  const dismissed = React.useMemo(() => new Set(persist.dismissed), [persist.dismissed]);
+  const read = React.useMemo(() => new Set(persist.read), [persist.read]);
+
+  const items = React.useMemo(
+    () => NOTIF_SEED
+      .filter((i) => !dismissed.has(i.id))
+      .map((i) => ({ ...i, unread: i.unread && !read.has(i.id) })),
+    [dismissed, read],
+  );
+  const unreadCount = items.filter((i) => i.unread).length;
+
+  const markRead = React.useCallback((id) => {
+    update({ ...loadNotifPersist(), read: Array.from(new Set([...loadNotifPersist().read, id])) });
+  }, [update]);
+
+  const markAllRead = React.useCallback(() => {
+    const cur = loadNotifPersist();
+    const allIds = NOTIF_SEED.filter((i) => !new Set(cur.dismissed).has(i.id)).map((i) => i.id);
+    update({ ...cur, read: Array.from(new Set([...cur.read, ...allIds])) });
+  }, [update]);
+
+  const dismiss = React.useCallback((id) => {
+    const cur = loadNotifPersist();
+    update({ ...cur, dismissed: Array.from(new Set([...cur.dismissed, id])) });
+  }, [update]);
+
+  return { items, unreadCount, markRead, markAllRead, dismiss };
+}
+
 function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
@@ -4508,8 +4618,11 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
 // header, charcoal outlines.
 function NotificationsMenu({ onViewAll }) {
   const [open, setOpen] = React.useState(false);
-  const [read, setRead] = React.useState(false);
   const ref = React.useRef(null);
+  // Shared store — dropdown shows the first 5 items; dismiss/read state is
+  // persisted and sync'd with the full Notifications page in the same tab.
+  const { items: allItems, unreadCount, markRead, markAllRead } = useNotifications();
+  const items = allItems.slice(0, 5);
 
   React.useEffect(() => {
     if (!open) return;
@@ -4522,40 +4635,6 @@ function NotificationsMenu({ onViewAll }) {
       document.removeEventListener("keydown", onKey);
     };
   }, [open]);
-
-  const items = [
-    {
-      id: "n1", kind: "ticket", unread: true, when: "12m",
-      title: "Your ticket #4821 was updated",
-      body: "Liridon left a note: \"Replacement charger on the way — tracking sent.\"",
-      color: "#FDC831",
-    },
-    {
-      id: "n2", kind: "status", unread: true, when: "1h",
-      title: "Jira is back to operational",
-      body: "Atlassian resolved the API slowdown. 28 min incident closed.",
-      color: "#D4F4D4",
-    },
-    {
-      id: "n3", kind: "access", unread: true, when: "3h",
-      title: "Figma access approved",
-      body: "You're added to the Slice-Design team. Check your inbox.",
-      color: "#E4DBFF",
-    },
-    {
-      id: "n4", kind: "security", unread: false, when: "yesterday",
-      title: "New sign-in from Prishtina",
-      body: "MacBook Pro · Chrome. This was you — no action needed.",
-      color: "#FFD4D0",
-    },
-    {
-      id: "n5", kind: "digest", unread: false, when: "Mon",
-      title: "Weekly digest — 4 things shipped",
-      body: "Faster VPN, new laptop catalog, Slack huddle policy update.",
-      color: "#C4E3FF",
-    },
-  ];
-  const unreadCount = read ? 0 : items.filter(i => i.unread).length;
 
   const Dot = ({ bg }) => (
     <span style={{
@@ -4650,7 +4729,7 @@ function NotificationsMenu({ onViewAll }) {
             </div>
             <button
               type="button"
-              onClick={() => setRead(true)}
+              onClick={markAllRead}
               disabled={unreadCount === 0}
               style={{
                 padding: "4px 9px",
@@ -4669,14 +4748,20 @@ function NotificationsMenu({ onViewAll }) {
 
           {/* List */}
           <div style={{ maxHeight: 380, overflowY: "auto" }}>
-            {items.map((it) => {
-              const isUnread = it.unread && !read;
+            {items.length === 0 ? (
+              <div style={{
+                padding: "28px 18px",
+                textAlign: "center",
+                fontSize: 12, color: "#78684C", fontWeight: 500,
+              }}>You're all caught up.</div>
+            ) : items.map((it) => {
+              const isUnread = it.unread;
               return (
                 <button
                   key={it.id}
                   role="menuitem"
                   type="button"
-                  onClick={() => setRead(true)}
+                  onClick={() => markRead(it.id)}
                   style={{
                     width: "100%",
                     display: "flex", alignItems: "flex-start", gap: 10,
@@ -5755,34 +5840,9 @@ function ProfilePage({ onBack }) {
 // Full notifications view linked from the bell-dropdown's "View all" footer.
 // Same yellow + cream module pattern as Profile / Knowledge / Status.
 function NotificationsPage({ onBack }) {
-  // Same seed list as the dropdown — extended a bit so the page has more
-  // depth than the popover. In a real system this would come from an API.
-  const [items, setItems] = React.useState(() => [
-    { id: "n1",  kind: "ticket",   unread: true,  when: "12m ago",  group: "Today",
-      title: "Your ticket #4821 was updated",
-      body: "Liridon left a note: \"Replacement charger on the way — tracking sent.\"" },
-    { id: "n2",  kind: "status",   unread: true,  when: "1h ago",   group: "Today",
-      title: "Jira is back to operational",
-      body: "Atlassian resolved the API slowdown. 28 min incident closed." },
-    { id: "n3",  kind: "access",   unread: true,  when: "3h ago",   group: "Today",
-      title: "Figma access approved",
-      body: "You're added to the Slice-Design team. Check your inbox." },
-    { id: "n4",  kind: "security", unread: false, when: "Yesterday", group: "Yesterday",
-      title: "New sign-in from Prishtina",
-      body: "MacBook Pro · Chrome. This was you — no action needed." },
-    { id: "n5",  kind: "digest",   unread: false, when: "Mon",      group: "Earlier",
-      title: "Weekly digest — 4 things shipped",
-      body: "Faster VPN, new laptop catalog, Slack huddle policy update." },
-    { id: "n6",  kind: "ticket",   unread: false, when: "Apr 28",   group: "Earlier",
-      title: "Your ticket #4732 was resolved",
-      body: "Maeve marked it closed: \"VPN access restored, root cause logged.\"" },
-    { id: "n7",  kind: "access",   unread: false, when: "Apr 25",   group: "Earlier",
-      title: "Notion access changed",
-      body: "Your role on the Slice workspace was updated by HR." },
-    { id: "n8",  kind: "status",   unread: false, when: "Apr 22",   group: "Earlier",
-      title: "OneLogin maintenance window completed",
-      body: "Saturday's planned reboot finished without incident." },
-  ]);
+  // Pulled from the shared store so dismissals + reads survive a refresh and
+  // stay in sync with the bell-dropdown.
+  const { items, unreadCount, markRead, markAllRead, dismiss } = useNotifications();
   const [filter, setFilter] = React.useState("all"); // all | unread | ticket | status | access | security
   const KIND_META = {
     ticket:   { label: "Ticket",    color: "#FDC831" },
@@ -5796,7 +5856,6 @@ function NotificationsPage({ onBack }) {
     if (filter === "unread") return items.filter(i => i.unread);
     return items.filter(i => i.kind === filter);
   }, [items, filter]);
-  const unreadCount = items.filter(i => i.unread).length;
   const grouped = React.useMemo(() => {
     const out = new Map();
     for (const it of filtered) {
@@ -5805,10 +5864,6 @@ function NotificationsPage({ onBack }) {
     }
     return out;
   }, [filtered]);
-
-  const markRead = (id) => setItems((arr) => arr.map(i => i.id === id ? { ...i, unread: false } : i));
-  const markAllRead = () => setItems((arr) => arr.map(i => ({ ...i, unread: false })));
-  const dismiss = (id) => setItems((arr) => arr.filter(i => i.id !== id));
 
   const filterTabs = [
     { id: "all",      label: "All",      count: items.length },
@@ -19855,7 +19910,10 @@ function StatusPage({ onBack }) {
   const noMatches = filteredGroups.length === 0;
 
   return (
-    <div className="page" style={{ background: "#FDC831" }}>
+    <div className="page" style={{
+      background: "#FDC831",
+      display: "flex", flexDirection: "column", minHeight: "100vh",
+    }}>
       {/* Overall banner — cream bg always; tone expressed through icon + accent only */}
       <div style={{
         background: "#F7F4EF",
@@ -19932,7 +19990,11 @@ function StatusPage({ onBack }) {
       </div>
 
       {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 64px" }}>
+      <div style={{
+        maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 64px",
+        width: "100%",
+        flex: "1 0 auto", display: "flex", flexDirection: "column",
+      }}>
         {/* Active incidents */}
         {INCIDENTS.some((i) => i.state !== "Resolved") && (
           <React.Fragment>
@@ -20089,15 +20151,20 @@ function StatusPage({ onBack }) {
         </div>
 
         {/* In-page footer line — pinned to the bottom of the status content
-            so it never floats in the middle when content is short. */}
+            via marginTop:auto on the surrounding flex column so it never
+            floats in the middle when content is short. */}
         <div style={{
-          marginTop: 64, paddingTop: 24,
-          borderTop: "1.5px solid rgba(33,30,30,0.15)",
+          marginTop: "auto", paddingTop: 64,
           textAlign: "center",
           fontFamily: "'Archivo', sans-serif",
           fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
           color: "#4A3F2E",
-        }}>Built by the Slice IT Team</div>
+        }}>
+          <div style={{
+            borderTop: "1.5px solid rgba(33,30,30,0.15)",
+            paddingTop: 24,
+          }}>Built by the Slice IT Team</div>
+        </div>
       </div>
 
       {subOpen && <SubscribeModal onClose={() => setSubOpen(false)}/>}
@@ -22517,6 +22584,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       background: '#FDC831',
       overflowY: 'auto',
       animation: 'fadeIn .25s var(--ease) both',
+      display: 'flex', flexDirection: 'column',
     }}>
       <style>{`
         .back-to-hub-btn,
@@ -22620,7 +22688,11 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         )}
       </button>
 
-      <div style={{ maxWidth: 830, margin: '0 auto', padding: '40px 24px 80px' }}>
+      <div style={{
+        maxWidth: 830, margin: '0 auto', padding: '40px 24px 80px',
+        width: '100%', boxSizing: 'border-box',
+        flex: '1 0 auto', display: 'flex', flexDirection: 'column',
+      }}>
         <article ref={articleRef} style={{
           background: '#FFFFFF',
           border: '2px solid #211E1E',
@@ -22678,7 +22750,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         )}
 
         <div style={{
-          marginTop: 56, textAlign: 'center',
+          marginTop: 'auto', paddingTop: 56, textAlign: 'center',
           fontSize: 10.5, color: '#4A3F2E',
           fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
           fontFamily: "'Archivo', sans-serif",
@@ -23209,7 +23281,10 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
   };
 
   return (
-    <div className="page" style={{ minHeight: '100vh', background: '#FDC831' }}>
+    <div className="page" style={{
+      minHeight: '100vh', background: '#FDC831',
+      display: 'flex', flexDirection: 'column',
+    }}>
       <style>{`
         .search-back-btn,
         .search-card,
@@ -23275,7 +23350,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         Back to hub
       </button>
 
-      <div style={{ maxWidth: 920, boxSizing: 'content-box', margin: '0 auto', padding: '32px 32px 80px' }}>
+      <div style={{
+        maxWidth: 920, boxSizing: 'content-box', margin: '0 auto', padding: '32px 32px 80px',
+        width: '100%',
+        flex: '1 0 auto', display: 'flex', flexDirection: 'column',
+      }}>
         <div style={{
           fontFamily: "'Archivo', sans-serif",
           fontSize: 11, fontWeight: 900, letterSpacing: '0.08em',
@@ -23549,7 +23628,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         )}
 
         <div style={{
-          marginTop: 56, textAlign: 'center',
+          marginTop: 'auto', paddingTop: 56, textAlign: 'center',
           fontSize: 10.5, color: '#4A3F2E',
           fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
           fontFamily: "'Archivo', sans-serif",
