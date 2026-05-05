@@ -4716,54 +4716,44 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
   );
 }
 
-// --- IT Services hop-out button -----------------------------------------------
-// Sits between the Notifications bell and the user avatar. Sends the user out
-// to the real IT portal at it.slice.services — separate from /portal/, which is
-// just this self-service hub. Same circular vocabulary as the bell so the nav
-// reads as one cohesive cluster.
+// --- Back-to-SliceDesk button -------------------------------------------------
+// Sits between the Notifications bell and the user avatar. Same-tab nav (no
+// target=_blank) so it works inside the Slice Mac App wrapper, which doesn't
+// honor new-tab requests. Brand red + black border to match other Slice CTAs.
 function ItServicesButton() {
   return (
     <a
       href="https://it.slice.services"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="Open IT Services (it.slice.services)"
-      aria-label="Open IT Services in a new tab"
+      title="Back to SliceDesk"
+      aria-label="Back to SliceDesk"
       style={{
-        width: 34, height: 34,
-        background: "#FFFFFF",
-        color: "#211E1E",
-        display: "grid", placeItems: "center",
-        borderRadius: "50%", border: "2px solid #211E1E",
+        height: 34,
+        padding: "0 12px",
+        display: "inline-flex", alignItems: "center", gap: 8,
+        background: "#B92323",
+        color: "#FFFFFF",
+        borderRadius: 4, border: "2px solid #211E1E",
+        boxShadow: "2px 2px 0 #211E1E",
         cursor: "pointer", textDecoration: "none",
-        transition: "transform .15s ease, box-shadow .15s ease, background .15s ease",
-        boxShadow: "none",
+        fontFamily: "'Archivo', sans-serif",
+        fontWeight: 600, fontSize: 13, letterSpacing: "0.01em",
+        transition: "transform .15s ease, box-shadow .15s ease",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
-        e.currentTarget.style.background = "#FDC831";
+        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "none";
-        e.currentTarget.style.background = "#FFFFFF";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
     >
-      {/* Pizza-slice glyph — Slice's actual brand mark. Rotated -135° so the
-          tip points to the bottom-left corner of the button (crust arcs over
-          the top-right). Shapes wrapped in one <g> so the rotation lands
-          consistently around the icon's center. */}
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <g transform="rotate(-135 12 12)">
-          <path d="M12 3 4 19h16z"/>
-          <path d="M5.5 16.5 Q12 19.5 18.5 16.5"/>
-          <circle cx="12" cy="11" r="1.1" fill="currentColor"/>
-          <circle cx="9.5" cy="14.5" r="1.1" fill="currentColor"/>
-          <circle cx="14.5" cy="14.5" r="1.1" fill="currentColor"/>
-        </g>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M19 12H5"/>
+        <path d="M12 19l-7-7 7-7"/>
       </svg>
+      Back to SliceDesk
     </a>
   );
 }
