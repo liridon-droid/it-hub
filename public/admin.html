@@ -6,30 +6,37 @@
   <title>Slice IT Hub — Admin</title>
   <link rel="icon" href="/portal/assets/slice-logo.png" />
   <script>
-    // Path-prefix fetch wrapper — see src/main.jsx for the rationale.
+    // Path-prefix wrappers — see src/main.jsx for the rationale.
     // Hardcoded /portal here because admin.html is a static file and Vite
     // doesn't process it; runtime override via window.IT_HUB_BASE works.
+    // Both fetch AND XHR are patched: image uploads use XHR (for upload
+    // progress + abort), and everything else uses fetch — without both,
+    // XHR calls bypass the prefix and 404 in production.
     (function () {
       var base = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined)
         ? String(window.IT_HUB_BASE)
         : '/portal';
       if (!base) return;
-      var orig = window.fetch.bind(window);
+      function shouldPrefix(p) { return typeof p === 'string' && (p.indexOf('/api/') === 0 || p.indexOf('/uploads/') === 0); }
+      var origFetch = window.fetch.bind(window);
       window.fetch = function (input, init) {
         if (typeof input === 'string') {
-          if (input.indexOf('/api/') === 0 || input.indexOf('/uploads/') === 0) {
-            input = base + input;
-          }
+          if (shouldPrefix(input)) input = base + input;
         } else if (input instanceof Request) {
           var u = input.url;
           if (u.indexOf(window.location.origin) === 0) {
             var p = u.slice(window.location.origin.length);
-            if (p.indexOf('/api/') === 0 || p.indexOf('/uploads/') === 0) {
-              input = new Request(window.location.origin + base + p, input);
-            }
+            if (shouldPrefix(p)) input = new Request(window.location.origin + base + p, input);
           }
         }
-        return orig(input, init);
+        return origFetch(input, init);
+      };
+      var origOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        if (shouldPrefix(url)) {
+          arguments[1] = base + url;
+        }
+        return origOpen.apply(this, arguments);
       };
     })();
   </script>

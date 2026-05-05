@@ -8,27 +8,35 @@ import './styles.css';
 // Doing that at the network layer here keeps every component oblivious
 // to the deploy path, so dev (no prefix) and prod (/portal2 prefix)
 // share one source. Set window.IT_HUB_BASE='' to disable.
-(function patchFetchForBasePath() {
+//
+// Both fetch AND XHR get the patch: the screenshot/image upload uses
+// XHR (for progress + abort), and without this XHR open() would skip
+// the prefix and 404 in production.
+(function patchNetworkForBasePath() {
   const base = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined)
     ? String(window.IT_HUB_BASE)
     : (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
   if (!base) return;
-  const orig = window.fetch.bind(window);
+  const shouldPrefix = (p) => typeof p === 'string' && (p.startsWith('/api/') || p.startsWith('/uploads/'));
+  const origFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
     if (typeof input === 'string') {
-      if (input.startsWith('/api/') || input.startsWith('/uploads/')) {
-        input = base + input;
-      }
+      if (shouldPrefix(input)) input = base + input;
     } else if (input instanceof Request) {
       const u = input.url;
       if (u.startsWith(window.location.origin)) {
         const p = u.slice(window.location.origin.length);
-        if (p.startsWith('/api/') || p.startsWith('/uploads/')) {
-          input = new Request(window.location.origin + base + p, input);
-        }
+        if (shouldPrefix(p)) input = new Request(window.location.origin + base + p, input);
       }
     }
-    return orig(input, init);
+    return origFetch(input, init);
+  };
+  const origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function (method, url) {
+    if (shouldPrefix(url)) {
+      arguments[1] = base + url;
+    }
+    return origOpen.apply(this, arguments);
   };
 })();
 
