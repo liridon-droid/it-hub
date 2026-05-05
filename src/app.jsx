@@ -489,6 +489,48 @@ function routeFor(query) {
 }
 
 // ---------- LANDING ----------
+// Polls /api/status every 30s and exposes a flat service list + a wall-clock
+// of the last successful sync. Used by the Landing strip and (eventually) any
+// other surface that wants live status without duplicating the StatusPage's
+// fetch/cache logic. Falls back to `null` while loading and on error so the
+// caller can decide whether to show a skeleton or seed data.
+function useLiveStatus(intervalMs = 30000) {
+  const [services, setServices] = useState(null);
+  const [lastCheck, setLastCheck] = useState(null);
+  const [error, setError] = useState(null);
+  const [, tick] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch('/api/status', { credentials: 'include', cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        if (cancelled) return;
+        const flat = (j.groups || []).flatMap((g) => g.services || []);
+        setServices(flat);
+        setLastCheck(new Date());
+        setError(null);
+      } catch (e) {
+        if (!cancelled) setError(e.message || 'failed');
+      }
+    };
+    load();
+    const t = setInterval(load, intervalMs);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [intervalMs]);
+
+  // Re-render once a second so the relative timestamp ticks even when the
+  // payload itself hasn't changed.
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  return { services, lastCheck, error };
+}
+
 function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot }) {
   const [q, setQ] = useState("");
   // Staged screenshot for the in-input upload flow. When set, hitting Enter
@@ -501,6 +543,17 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const t = useCopy();
+  // Live status drives the System status strip below. While the first poll
+  // is in flight, we render the hardcoded STATUS list as a skeleton so the
+  // section never collapses to empty. Once we have real data, that's what
+  // the strip shows — including a real "updated Xs ago" timestamp.
+  const liveStatus = useLiveStatus();
+  const statusServices = liveStatus.services && liveStatus.services.length
+    ? liveStatus.services
+    : STATUS;
+  const statusUpdatedLabel = liveStatus.lastCheck
+    ? `Live · updated ${relativeTime(liveStatus.lastCheck)}`
+    : (liveStatus.error ? 'Live · sync failed' : 'Live · syncing…');
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 400);
@@ -947,7 +1000,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12.5, color: "#2E2410", fontWeight: 500 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-              <span className="pulse-dot" /> Live · updated 2 min ago
+              <span className="pulse-dot" /> {statusUpdatedLabel}
             </span>
             <a href="#" className="pill-link"
               onClick={(e) => { e.preventDefault(); onOpenStatus && onOpenStatus(); }}>
@@ -961,11 +1014,14 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 10,
         }}>
-          {STATUS.map((s) => {
+          {statusServices.map((s) => {
             const tone =
               s.state === "operational" ? { bg: "#D4F4D4", dot: "#0A8A3E", label: "Up" } :
               s.state === "degraded" ? { bg: "#FFE8A3", dot: "#B8860B", label: "Slow" } :
               { bg: "#FFD4D0", dot: "#B92323", label: "Down" };
+            // API shape uses uptime_90d (number 0–100); static fallback uses
+            // `uptime`. Either is fine for the percentage chip.
+            const uptimePct = (typeof s.uptime_90d === 'number' ? s.uptime_90d : s.uptime);
             return (
               <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -976,7 +1032,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                     overflow: "hidden",
                   }}>
                     <img
-                      src={`https://www.google.com/s2/favicons?domain=${s.domain}&sz=64`}
+                      src={serviceIconUrl(s, 64)}
                       alt=""
                       width="24" height="24"
                       style={{ display: "block" }}
@@ -999,7 +1055,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                           return <span key={i} style={{ flex: 1, height: 8, background: c, borderRadius: 1.5 }} />;
                         })}
                       </div>
-                      <span style={{ fontSize: 10.5, color: "#2E2410", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{s.uptime}%</span>
+                      <span style={{ fontSize: 10.5, color: "#2E2410", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{uptimePct != null ? `${Number(uptimePct).toFixed(2)}%` : '—'}</span>
                     </div>
                   </div>
                   <span className="pill-flat" style={{ background: tone.bg, fontSize: 10, padding: "2px 8px", fontWeight: 700, flexShrink: 0 }}>
@@ -1007,12 +1063,12 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                     {tone.label}
                   </span>
                 </div>
-                {s.note && (
+                {(s.state_note || s.note) && (
                   <div style={{
                     marginTop: 10, padding: "5px 9px",
                     background: "#FFF3C4", border: "1.5px solid #000000", borderRadius: 6,
                     fontSize: 11, color: "#000000", fontWeight: 500,
-                  }}>⚠ {s.note}</div>
+                  }}>⚠ {s.state_note || s.note}</div>
                 )}
               </div>
             );
