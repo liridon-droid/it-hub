@@ -4726,17 +4726,18 @@ function ItServicesButton() {
       href="https://it.slice.services"
       title="Back to SliceDesk"
       aria-label="Back to SliceDesk"
+      className="back-to-slicedesk"
       style={{
-        height: 34,
-        padding: "0 12px",
-        display: "inline-flex", alignItems: "center", gap: 8,
+        height: 28,
+        padding: "0 9px",
+        display: "inline-flex", alignItems: "center", gap: 6,
         background: "#B92323",
         color: "#FFFFFF",
         borderRadius: 4, border: "2px solid #211E1E",
         boxShadow: "2px 2px 0 #211E1E",
         cursor: "pointer", textDecoration: "none",
         fontFamily: "'Archivo', sans-serif",
-        fontWeight: 600, fontSize: 13, letterSpacing: "0.01em",
+        fontWeight: 600, fontSize: 12, letterSpacing: "0.01em",
         transition: "transform .15s ease, box-shadow .15s ease",
       }}
       onMouseEnter={(e) => {
@@ -4748,14 +4749,27 @@ function ItServicesButton() {
         e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
     >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {/* Arrow slides left on hover via the .back-to-slicedesk:hover svg rule
+          injected once below — keeps the React handlers free of arrow state. */}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+        style={{ transition: "transform .18s ease" }}>
         <path d="M19 12H5"/>
         <path d="M12 19l-7-7 7-7"/>
       </svg>
       Back to SliceDesk
     </a>
   );
+}
+
+// One-time stylesheet for the arrow nudge on hover. Inlined as a <style>
+// because the rest of this file styles inline and we don't want to wire a
+// CSS-in-JS dep just for one rule.
+if (typeof document !== "undefined" && !document.getElementById("back-to-slicedesk-css")) {
+  const s = document.createElement("style");
+  s.id = "back-to-slicedesk-css";
+  s.textContent = `.back-to-slicedesk:hover svg { transform: translateX(-2px); }`;
+  document.head.appendChild(s);
 }
 
 // --- Notifications dropdown ---------------------------------------------------
