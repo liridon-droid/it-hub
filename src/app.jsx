@@ -1533,11 +1533,10 @@ function QuestionFlow({ query, onBack, onDone, onOpenScreenshot }) {
               fontSize: 11, fontWeight: 900,
               fontFamily: "'Archivo', sans-serif",
               border: "2px solid #211E1E",
+              animation: "pizzaPulse 1.4s ease-in-out infinite",
             }}>S</div>
             <TypingDots />
-            <span style={{ fontSize: 12.5, color: "#78684C", fontWeight: 500 }}>
-              Kneading the dough — picking the right slice for you…
-            </span>
+            <LoadingPatter />
           </div>
         ) : (
           <div style={{
@@ -5346,6 +5345,38 @@ function TypingDots() {
   );
 }
 
+// Pizzeria-flavoured loading patter — cycles through a sequence of messages
+// while we wait for an LLM/network call so the wait doesn't feel like dead
+// time. Each message fades up; the last one sticks once we run out.
+const PATIENCE_MESSAGES = [
+  "Kneading the dough — picking the right slice for you…",
+  "Reading the menu of guides…",
+  "Pulling the freshest answers from the oven…",
+  "Sprinkling the right toppings…",
+  "Boxing it up — almost there…",
+];
+function LoadingPatter({ messages = PATIENCE_MESSAGES, intervalMs = 1500, style }) {
+  const [i, setI] = React.useState(0);
+  React.useEffect(() => {
+    if (i >= messages.length - 1) return;
+    const t = setTimeout(() => setI((x) => Math.min(messages.length - 1, x + 1)), intervalMs);
+    return () => clearTimeout(t);
+  }, [i, messages.length, intervalMs]);
+  return (
+    <span
+      key={i}
+      style={{
+        fontSize: 12.5, color: "#78684C", fontWeight: 500,
+        display: "inline-block",
+        animation: "fadeUp .35s var(--ease) both",
+        ...style,
+      }}
+    >
+      {messages[i]}
+    </span>
+  );
+}
+
 // Injected once; keyframes for these components
 function GlobalKeyframes() {
   return (
@@ -5361,6 +5392,10 @@ function GlobalKeyframes() {
         25% { transform: scaleX(1) translateY(-1px) rotate(-0.8deg); }
         50% { transform: scaleX(1) translateY(0) rotate(0deg); }
         75% { transform: scaleX(1) translateY(1px) rotate(0.8deg); }
+      }
+      @keyframes pizzaPulse {
+        0%, 100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 0 rgba(253,200,49,0); }
+        50%      { transform: scale(1.06) rotate(-3deg); box-shadow: 0 0 0 4px rgba(253,200,49,0.35); }
       }
     `}</style>
   );
@@ -23169,8 +23204,28 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {loading && (
           <div style={{
             background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
-            padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E', color: '#888',
-          }}>Searching the knowledge base…</div>
+            padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%',
+              background: '#FDC831', color: '#211E1E',
+              display: 'grid', placeItems: 'center', flexShrink: 0,
+              fontSize: 11, fontWeight: 900,
+              fontFamily: "'Archivo', sans-serif",
+              border: '2px solid #211E1E',
+              animation: 'pizzaPulse 1.4s ease-in-out infinite',
+            }}>S</div>
+            <TypingDots />
+            <LoadingPatter
+              messages={[
+                'Slicing through the knowledge base…',
+                'Pulling matching guides from the oven…',
+                'Picking the freshest answers…',
+                'Plating it up — almost there…',
+              ]}
+            />
+          </div>
         )}
 
         {!loading && answer && (() => {
