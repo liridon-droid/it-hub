@@ -2515,6 +2515,22 @@ function App() {
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState(null);
   const [guide, setGuide] = useState(null);
+
+  // Deep-link: open `/portal/?guide=N` directly into the guide view.
+  // Done as a one-shot effect on mount; the URL query param doesn't drive
+  // ongoing state because the user can always close to /portal/.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("guide");
+    if (!id) return;
+    fetch(`/api/guides/${encodeURIComponent(id)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((g) => {
+        if (g && g.id) setGuide({ id: g.id, title: g.title, category: g.category });
+      })
+      .catch(() => {});
+  }, []);
   const [filedTicket, setFiledTicket] = useState(null);
   const [onbForm, setOnbForm] = useState(null);
   const [screenshotOpen, setScreenshotOpen] = useState(false);
@@ -21974,7 +21990,7 @@ function renderMarkdown(md, opts = {}) {
             flush();
             const alt = text.slice(j + 2, close);
             const src = text.slice(close + 2, urlEnd);
-            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '14px auto', paddingRight: 20, boxSizing: 'border-box', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+            nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: 'calc(100% - 20px)', maxHeight: '70vh', width: 'auto', height: 'auto', borderRadius: 10, margin: '14px 0 14px 20px', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
             j = urlEnd + 1; continue;
           }
         }
@@ -21992,8 +22008,12 @@ function renderMarkdown(md, opts = {}) {
           const widthCss = (attrs.match(/width\s*:\s*([^;"']+)/i) || [])[1];
           const widthAttr = (attrs.match(/\bwidth\s*=\s*"([^"]*)"/i) || attrs.match(/\bwidth\s*=\s*'([^']*)'/i) || [])[1];
           const w = widthCss || widthAttr;
-          const margin = align === 'left' ? '14px auto 14px 0' : align === 'right' ? '14px 0 14px auto' : '14px auto';
-          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: '100%', maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 10, margin, paddingRight: 20, boxSizing: 'border-box', boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
+          // Default left-align with a 20px gutter from the text edge — most
+          // screenshots are wider than they are tall and benefit from the
+          // breathing room. Explicit `data-align="right"` still right-aligns.
+          const margin = align === 'right' ? '14px 0 14px auto' : '14px 0 14px 20px';
+          const cappedMaxWidth = align === 'right' ? '100%' : 'calc(100% - 20px)';
+          nodes.push(<img key={key++} className="guide-img" src={src} alt={alt} loading="lazy" style={{ display: 'block', maxWidth: cappedMaxWidth, maxHeight: '70vh', width: w || 'auto', height: 'auto', borderRadius: 10, margin, boxShadow: '0 1px 2px rgba(17,24,39,0.04), 0 1px 3px rgba(17,24,39,0.06)', cursor: 'zoom-in' }} />);
           j += imgHtml[0].length; continue;
         }
       }
@@ -22256,21 +22276,19 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const shareLink = React.useCallback(async () => {
     const url = `${window.location.origin}/portal/?guide=${guide.id}`;
     try {
-      if (navigator.share) {
-        await navigator.share({ title, url, text: title });
-      } else {
-        await navigator.clipboard.writeText(url);
-        setShareCopied(true);
-        setTimeout(() => setShareCopied(false), 1600);
-      }
+      await navigator.clipboard.writeText(url);
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 1800);
     } catch {
-      try {
-        await navigator.clipboard.writeText(url);
-        setShareCopied(true);
-        setTimeout(() => setShareCopied(false), 1600);
-      } catch {}
+      // Older browsers / secure-context fallback: dump into a temp textarea
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); setShareCopied(true); setTimeout(() => setShareCopied(false), 1800); } catch {}
+      document.body.removeChild(ta);
     }
-  }, [guide.id, title]);
+  }, [guide.id]);
 
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && !lightbox) onClose(); };
@@ -22280,7 +22298,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
 
   // Image lightbox — click any guide image to open it fullscreen.
   // Uses event delegation on the article so newly-rendered images Just Work
-  // without rewiring listeners every time the markdown re-renders.
+  // without rewiring listeners every time the markdown re-renders. We also
+  // collect every image in the article on click so the lightbox can offer
+  // prev/next navigation through them.
   const articleRef = React.useRef(null);
   const [lightbox, setLightbox] = React.useState(null);
   React.useEffect(() => {
@@ -22288,10 +22308,14 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     if (!el) return;
     const onClick = (e) => {
       const img = e.target.closest && e.target.closest('img.guide-img');
-      if (img) {
-        e.preventDefault();
-        setLightbox({ src: img.currentSrc || img.src, alt: img.alt || '' });
-      }
+      if (!img) return;
+      e.preventDefault();
+      const all = Array.from(el.querySelectorAll('img.guide-img')).map((n) => ({
+        src: n.currentSrc || n.src,
+        alt: n.alt || '',
+      }));
+      const idx = Math.max(0, all.findIndex((x) => x.src === (img.currentSrc || img.src)));
+      setLightbox({ images: all.length > 0 ? all : [{ src: img.currentSrc || img.src, alt: img.alt || '' }], index: idx });
     };
     el.addEventListener('click', onClick);
     return () => el.removeEventListener('click', onClick);
@@ -22387,9 +22411,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         Back to hub
       </button>
 
-      {/* Share — mirrors the Back-to-Hub button on the opposite side. Uses
-          Web Share API when available (mobile, modern browsers); otherwise
-          copies the deep link to clipboard and flashes confirmation. */}
+      {/* Copy-link — mirrors Back-to-Hub on the opposite side. Always copies
+          the deep link to clipboard and flashes confirmation; no native
+          share-sheet detour. */}
       <button
         className="share-guide-btn"
         onClick={shareLink}
@@ -22419,12 +22443,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         ) : (
           <>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="18" cy="5" r="3"/>
-              <circle cx="6" cy="12" r="3"/>
-              <circle cx="18" cy="19" r="3"/>
-              <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>
+              <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/>
+              <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>
             </svg>
-            Share
+            Copy link
           </>
         )}
       </button>
@@ -22495,8 +22517,8 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       </div>
       {lightbox && (
         <ImageLightbox
-          src={lightbox.src}
-          alt={lightbox.alt}
+          images={lightbox.images}
+          index={lightbox.index}
           onClose={() => setLightbox(null)}
         />
       )}
@@ -22504,20 +22526,54 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   );
 }
 
-// Notion-style image lightbox: dim overlay, image centered, click anywhere
-// (or ✕ / ESC) to close. Toggle 1× ↔ 2× zoom with another click on the image.
-function ImageLightbox({ src, alt, onClose }) {
+// Notion-style image lightbox: dim overlay, image centered, click backdrop /
+// ✕ / ESC to close. Click image to toggle 1× ↔ 2× zoom. When the article has
+// multiple images, ‹ › buttons (and ←/→ keys) cycle through them.
+function ImageLightbox({ images, index, onClose }) {
+  const [i, setI] = React.useState(index || 0);
   const [zoomed, setZoomed] = React.useState(false);
+  const total = images.length;
+  const current = images[i] || images[0];
+
+  const prev = React.useCallback(() => {
+    setZoomed(false);
+    setI((cur) => (cur - 1 + total) % total);
+  }, [total]);
+  const next = React.useCallback(() => {
+    setZoomed(false);
+    setI((cur) => (cur + 1) % total);
+  }, [total]);
+
   React.useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+      else if (e.key === 'ArrowLeft' && total > 1) prev();
+      else if (e.key === 'ArrowRight' && total > 1) next();
+    };
     document.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
+    const savedOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      document.body.style.overflow = savedOverflow;
     };
-  }, [onClose]);
+  }, [onClose, prev, next, total]);
+
+  const navBtn = (side) => ({
+    position: 'fixed',
+    top: '50%', transform: 'translateY(-50%)',
+    [side]: 18,
+    width: 48, height: 48, borderRadius: '50%',
+    background: '#FFFFFF', color: '#211E1E',
+    border: '2px solid #211E1E',
+    boxShadow: '3px 3px 0 rgba(0,0,0,0.45)',
+    cursor: 'pointer',
+    display: 'grid', placeItems: 'center',
+    fontSize: 22, fontWeight: 800,
+    fontFamily: "'Archivo', sans-serif",
+    zIndex: 1010,
+  });
+
   return (
     <div
       onClick={onClose}
@@ -22533,8 +22589,9 @@ function ImageLightbox({ src, alt, onClose }) {
       }}
     >
       <img
-        src={src}
-        alt={alt}
+        key={current.src}
+        src={current.src}
+        alt={current.alt || ''}
         onClick={(e) => { e.stopPropagation(); setZoomed((z) => !z); }}
         style={{
           maxWidth: zoomed ? '180vw' : '92vw',
@@ -22544,8 +22601,17 @@ function ImageLightbox({ src, alt, onClose }) {
           cursor: zoomed ? 'zoom-out' : 'zoom-in',
           transition: 'max-width .25s var(--ease, cubic-bezier(.22,.61,.36,1)), max-height .25s var(--ease, cubic-bezier(.22,.61,.36,1))',
           userSelect: 'none',
+          animation: 'fadeIn .18s var(--ease, cubic-bezier(.22,.61,.36,1)) both',
         }}
       />
+
+      {total > 1 && (
+        <>
+          <button onClick={(e) => { e.stopPropagation(); prev(); }} aria-label="Previous image" style={navBtn('left')}>‹</button>
+          <button onClick={(e) => { e.stopPropagation(); next(); }} aria-label="Next image" style={navBtn('right')}>›</button>
+        </>
+      )}
+
       <button
         onClick={onClose}
         aria-label="Close"
@@ -22561,7 +22627,8 @@ function ImageLightbox({ src, alt, onClose }) {
           fontFamily: "'Archivo', sans-serif",
         }}
       >✕</button>
-      {alt && (
+
+      {(current.alt || total > 1) && (
         <div style={{
           position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
           maxWidth: 'calc(100vw - 40px)',
@@ -22574,7 +22641,16 @@ function ImageLightbox({ src, alt, onClose }) {
           textAlign: 'center',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
-        }}>{alt}</div>
+          display: 'flex', alignItems: 'center', gap: 12,
+        }}>
+          {current.alt && <span>{current.alt}</span>}
+          {total > 1 && (
+            <span style={{
+              fontWeight: 700, fontSize: 12, letterSpacing: '0.04em',
+              color: '#FDC831',
+            }}>{i + 1} / {total}</span>
+          )}
+        </div>
       )}
     </div>
   );

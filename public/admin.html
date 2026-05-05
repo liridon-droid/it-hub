@@ -4636,7 +4636,9 @@ function openAIWriteModal(editor, tags) {
   topic.onkeydown = (e) => { if (e.key === 'Enter' && !gen.disabled) { e.preventDefault(); gen.click(); } };
 
   const close = () => { try { d.close(); } catch {} };
-  $('aiwClose').onclick = close;
+  // Header X (rendered as id="aiWriteClose") + the in-modal Cancel button.
+  const closeBtn = $('aiWriteClose');
+  if (closeBtn) closeBtn.onclick = close;
   $('aiwCancel').onclick = close;
   gen.onclick = async () => {
     const ctx = {
@@ -4679,9 +4681,57 @@ function openAIWriteModal(editor, tags) {
   setTimeout(() => topic.focus(), 30);
 }
 
-// Mock LLM draft generator — produces a realistic-looking structured guide based
-// on the captured context. Real Anthropic call would replace this body.
+// Real LLM draft generator — POSTs the spec to /api/ai-edit (action
+// 'ai-write-guide'), parses the JSON the model returns, and returns
+// { title, category, tags, sourceType, body }. Falls back to the
+// deterministic template below if the network or model errors out so the
+// composer never silently fails.
 async function generateAIDraft(ctx) {
+  try {
+    const r = await fetch('/api/ai-edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({
+        action: 'ai-write-guide',
+        text: JSON.stringify(ctx),
+      }),
+    });
+    if (!r.ok) throw new Error(`ai-write-guide ${r.status}`);
+    const j = await r.json();
+    const raw = String(j.text || '').trim();
+    // Tolerant parse: strip ``` fences or any prose around the JSON object.
+    let parsed = null;
+    try { parsed = JSON.parse(raw); } catch {
+      const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+      try { parsed = JSON.parse(stripped); } catch {
+        const m = stripped.match(/\{[\s\S]*\}/);
+        if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
+      }
+    }
+    if (parsed && typeof parsed.body === 'string' && parsed.body.trim()) {
+      return {
+        title: String(parsed.title || ctx.topic).slice(0, 200),
+        category: String(parsed.category || '').slice(0, 80),
+        tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 8).map((t) => String(t).slice(0, 32)) : [],
+        sourceType: ['guide','runbook','faq','announcement'].includes(parsed.sourceType) ? parsed.sourceType : 'guide',
+        body: parsed.body,
+      };
+    }
+    // If the model returned non-JSON markdown, treat the whole thing as body.
+    if (raw.length > 60) {
+      return { title: ctx.topic, category: '', tags: [], sourceType: 'guide', body: raw };
+    }
+    throw new Error('empty response');
+  } catch (err) {
+    console.warn('[ai-write-guide] falling back to template:', err.message);
+    return generateAIDraftFallback(ctx);
+  }
+}
+
+// Deterministic template draft — used if the AI endpoint is unreachable or
+// returns nothing usable. Same shape generateAIDraft returns on success.
+async function generateAIDraftFallback(ctx) {
   // Simulate a network round-trip (so the spinner is visible)
   await new Promise((r) => setTimeout(r, 600));
 

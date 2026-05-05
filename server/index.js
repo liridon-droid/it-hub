@@ -431,6 +431,11 @@ const AI_PROMPTS = {
   // multiple-choice clarifying questions so the chatbot's downstream
   // answer can target the actual problem instead of a generic bucket.
   clarify: "You're an IT support triage assistant for Slice employees. The user typed a problem into the help page. Generate 2–3 short multiple-choice clarifying questions that pin down the exact issue, in order of importance:\n  1. SUBJECT — which device / app / account / item is affected (skip this if the query already names it specifically)\n  2. SYMPTOM — what's actually happening (won't connect, no audio, error message, slow, crashing, …)\n  3. CONTEXT — when it started, what changed, what they've already tried (only if it would actually steer the fix)\n\nRules:\n  - Each question is type 'choice' with 3–5 options, plus an 'Other / not sure' option as the LAST option (id 'other').\n  - Each option has: id (short kebab-case), label (short noun phrase or clause), and an OPTIONAL hint (one short clarifying phrase, ≤ 6 words).\n  - Use plain employee-friendly language. No jargon, no 'have you considered'.\n  - Do NOT ask questions whose answer is already obvious from the user's query.\n  - If the query is already extremely specific, return ONLY 1–2 questions (skip context).\n  - Never ask about urgency or severity — that's not useful for routing the fix.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"questions\":[{\"id\":\"subject\",\"label\":\"...\",\"type\":\"choice\",\"options\":[{\"id\":\"...\",\"label\":\"...\",\"hint\":\"...\"}]}]}",
+  // Admin: full guide draft from a structured spec. The user fills out a
+  // small form (topic, app/device, audience, type, tone, length, extras);
+  // the spec is sent here as JSON and Claude produces a Slice-flavoured
+  // markdown draft + suggested metadata.
+  'ai-write-guide': "You're drafting an internal IT-support guide for Slice (the pizzeria platform). The user message is a single JSON object with the spec.\n\nSlice environment — assume these unless the spec says otherwise:\n- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are standard.\n- VPN: GlobalProtect on both macOS and Windows.\n- Team chat: Slack.\n- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n- Internal IT ticket portal: https://it.slicelife.com — refer to it as **Support**.\n\nWriting rules:\n- Match the requested type (howto / troubleshoot / runbook / faq / announcement / incident) and tone (friendly / professional / concise / detailed) and length (short ~150w / medium ~400w / long ~800w).\n- Use ## sub-headings, numbered steps for sequences, and **bold** for UI labels and shortcuts.\n- Each step starts with an imperative verb (Open, Click, Enter, Verify…), one action per step.\n- Include a `> Before you start:` line above the first list when prerequisites apply (signed in, on VPN, etc.).\n- Add `If this fails…` sub-bullets under steps that commonly break.\n- Reference specific Slice tools when relevant (GlobalProtect, Jabra USB, CCP in Salesforce, Slack).\n- End with a short troubleshooting / escalation section that points to **Support** as a markdown link to https://it.slicelife.com.\n- Don't include the leading `# Title` — title is stored separately.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"title\":\"...\",\"category\":\"...\",\"tags\":[\"...\",\"...\"],\"sourceType\":\"guide|runbook|faq|announcement\",\"body\":\"... markdown ...\"}\nThe body uses real newlines (\\n). Keep tags lowercase, 3–6 of them.",
 };
 
 async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
@@ -479,16 +484,25 @@ app.post('/api/ai-edit', requireSliceAdmin, async (req, res, next) => {
       const t = String(title || text || '').slice(0, 400);
       if (!t.trim()) return res.status(400).json({ error: 'title required for brainstorm' });
       messages = [{ role: 'user', content: `Guide title: ${t}` }];
+    } else if (action === 'ai-write-guide') {
+      // Spec-driven full draft. Body should be a JSON spec from the modal.
+      const t = String(text || '').slice(0, 4000);
+      if (!t.trim()) return res.status(400).json({ error: 'spec required' });
+      messages = [{ role: 'user', content: t }];
     } else {
       const t = String(text || '').slice(0, 8000);
       if (!t.trim()) return res.status(400).json({ error: 'text required' });
       messages = [{ role: 'user', content: t }];
     }
 
+    const tokenBudget =
+      action === 'ai-write-guide' ? 2400 :
+      (action === 'longer' || action === 'continue' || action === 'brainstorm') ? 1500 :
+      800;
     const { text: outText, usage } = await callClaudeProxy(req, {
       system,
       messages,
-      max_tokens: action === 'longer' || action === 'continue' || action === 'brainstorm' ? 1500 : 800,
+      max_tokens: tokenBudget,
     });
     res.json({ text: outText, usage });
   } catch (err) {
