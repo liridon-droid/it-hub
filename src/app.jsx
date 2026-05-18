@@ -750,7 +750,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             <div style={{
               position: "absolute", inset: 6,
               background: "rgba(253,200,49,0.92)",
-              border: "2.5px dashed #211E1E",
+              border: "1px dashed #211E1E",
               borderRadius: 10,
               display: "grid", placeItems: "center",
               zIndex: 5, pointerEvents: "none",
@@ -806,7 +806,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                   display: "inline-flex", alignItems: "center", gap: 8,
                   padding: "6px 10px 6px 8px",
                   background: "#FDC831",
-                  border: "1.5px solid #211E1E",
+                  border: "1px solid #211E1E",
                   borderRadius: 999,
                   boxShadow: "1.5px 1.5px 0 #211E1E",
                   maxWidth: "100%",
@@ -846,7 +846,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                     display: "inline-flex", alignItems: "center", gap: 8,
                     padding: "8px 12px",
                     background: "#FFFFFF",
-                    border: "1.5px dashed #211E1E",
+                    border: "1px dashed #211E1E",
                     borderRadius: 999,
                     color: "#211E1E",
                     fontFamily: "inherit", fontSize: 12.5, fontWeight: 600,
@@ -858,7 +858,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                     e.currentTarget.style.background = "#FDC831";
                     e.currentTarget.style.borderStyle = "solid";
                     e.currentTarget.style.transform = "translate(-1px,-1px)";
-                    e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+                    e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = "#FFFFFF";
@@ -1027,7 +1027,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div className="svc-icon" style={{
                     width: 36, height: 36, borderRadius: 8,
-                    background: "#FFFFFF", border: "1.5px solid #000000",
+                    background: "#FFFFFF", border: "1px solid #000000",
                     display: "grid", placeItems: "center", flexShrink: 0,
                     overflow: "hidden",
                   }}>
@@ -1066,7 +1066,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                 {(s.state_note || s.note) && (
                   <div style={{
                     marginTop: 10, padding: "5px 9px",
-                    background: "#FFF3C4", border: "1.5px solid #000000", borderRadius: 6,
+                    background: "#FFF3C4", border: "1px solid #000000", borderRadius: 6,
                     fontSize: 11, color: "#000000", fontWeight: 500,
                   }}>⚠ {s.state_note || s.note}</div>
                 )}
@@ -1119,9 +1119,9 @@ function PhishingCard({ onSubmit }) {
       <div style={{
         padding: "24px 26px",
         background: "#0A8A3E",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 14,
-        boxShadow: "5px 5px 0 #211E1E",
+        boxShadow: "3px 3px 0 #211E1E",
         color: "#FFFFFF",
         minHeight: 240,
         display: "flex", flexDirection: "column", justifyContent: "center",
@@ -1129,7 +1129,7 @@ function PhishingCard({ onSubmit }) {
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
           background: "#FFFFFF", color: "#0A8A3E",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           marginBottom: 16,
         }}>
@@ -1151,16 +1151,16 @@ function PhishingCard({ onSubmit }) {
       <div style={{
         padding: "24px 26px",
         background: "#FFF0EE",
-        border: "2px solid #B92323",
+        border: "1px solid #B92323",
         borderRadius: 14,
-        boxShadow: "5px 5px 0 #211E1E",
+        boxShadow: "3px 3px 0 #211E1E",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "4px 10px",
             background: "#B92323", color: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 900, fontSize: 10.5,
@@ -1189,7 +1189,7 @@ function PhishingCard({ onSubmit }) {
               width: "100%", boxSizing: "border-box",
               padding: "10px 12px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1201,7 +1201,7 @@ function PhishingCard({ onSubmit }) {
               width: "100%", boxSizing: "border-box",
               padding: "10px 12px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1218,7 +1218,7 @@ function PhishingCard({ onSubmit }) {
               padding: "5px 10px",
               background: reason === r.id ? "#211E1E" : "#FFFFFF",
               color: reason === r.id ? "#FDC831" : "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
@@ -1235,8 +1235,8 @@ function PhishingCard({ onSubmit }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: (sender || subject) ? "#B92323" : "#E8DFDD",
             color: (sender || subject) ? "#FFFFFF" : "#78684C",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: (sender || subject) ? "2px 2px 0 #211E1E" : "none",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: (sender || subject) ? "1px 1px 0 #211E1E" : "none",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -1253,9 +1253,9 @@ function PhishingCard({ onSubmit }) {
     <div className="phish-card" style={{
       padding: "24px 26px",
       background: "#FFFFFF",
-      border: "2px solid #B92323",
+      border: "1px solid #B92323",
       borderRadius: 14,
-      boxShadow: "5px 5px 0 #B92323",
+      boxShadow: "3px 3px 0 #B92323",
       position: "relative",
       minHeight: 240,
       display: "flex", flexDirection: "column",
@@ -1275,7 +1275,7 @@ function PhishingCard({ onSubmit }) {
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "4px 10px",
           background: "#B92323", color: "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 900, fontSize: 10.5,
@@ -1310,7 +1310,7 @@ function PhishingCard({ onSubmit }) {
 
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        marginTop: 14, paddingTop: 12, borderTop: "1.5px dashed rgba(33,30,30,0.2)",
+        marginTop: 14, paddingTop: 12, borderTop: "1px dashed rgba(33,30,30,0.2)",
         fontSize: 11.5, color: "#78684C", fontWeight: 500,
       }}>
         <IconBolt size={11} stroke={2.2} />
@@ -1350,9 +1350,9 @@ function OnCallCard({ onSubmit }) {
       <div style={{
         padding: "24px 26px",
         background: "#0A8A3E",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 14,
-        boxShadow: "5px 5px 0 #211E1E",
+        boxShadow: "3px 3px 0 #211E1E",
         color: "#FFFFFF",
         minHeight: 240,
         display: "flex", flexDirection: "column", justifyContent: "center",
@@ -1360,7 +1360,7 @@ function OnCallCard({ onSubmit }) {
         <div style={{
           width: 52, height: 52, borderRadius: "50%",
           background: "#FFFFFF", color: "#0A8A3E",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           marginBottom: 16,
         }}>
@@ -1384,16 +1384,16 @@ function OnCallCard({ onSubmit }) {
       <div style={{
         padding: "24px 26px",
         background: "#FFFDF4",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 14,
-        boxShadow: "5px 5px 0 #FDC831",
+        boxShadow: "3px 3px 0 #FDC831",
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "4px 10px",
             background: "#211E1E", color: "#FDC831",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 900, fontSize: 10.5,
@@ -1422,7 +1422,7 @@ function OnCallCard({ onSubmit }) {
               width: "100%", boxSizing: "border-box",
               padding: "10px 12px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 13, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
             }}/>
@@ -1435,7 +1435,7 @@ function OnCallCard({ onSubmit }) {
               width: "100%", boxSizing: "border-box",
               padding: "10px 12px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontSize: 12.5, color: "#211E1E",
               fontFamily: "inherit", outline: "none",
               resize: "vertical",
@@ -1453,7 +1453,7 @@ function OnCallCard({ onSubmit }) {
               padding: "6px 10px",
               background: urgency === u.id ? "#211E1E" : "#FFFFFF",
               color: urgency === u.id ? "#FDC831" : "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 11,
               letterSpacing: "0.02em",
@@ -1473,8 +1473,8 @@ function OnCallCard({ onSubmit }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
             background: canSend ? "#FDC831" : "#E8DFDD",
             color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: canSend ? "2px 2px 0 #211E1E" : "none",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: canSend ? "1px 1px 0 #211E1E" : "none",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -1491,9 +1491,9 @@ function OnCallCard({ onSubmit }) {
     <div className="oncall-card" style={{
       padding: "24px 26px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 14,
-      boxShadow: "5px 5px 0 #FDC831",
+      boxShadow: "3px 3px 0 #FDC831",
       position: "relative",
       minHeight: 240,
       display: "flex", flexDirection: "column",
@@ -1504,7 +1504,7 @@ function OnCallCard({ onSubmit }) {
           display: "inline-flex", alignItems: "center", gap: 8,
           padding: "4px 10px",
           background: "#211E1E", color: "#FDC831",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 900, fontSize: 10.5,
@@ -1537,7 +1537,7 @@ function OnCallCard({ onSubmit }) {
         <div className="oncall-slack-icon" style={{
           width: 36, height: 36, borderRadius: 8,
           background: "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real Slack mark — official 4-color rounded hashmark */}
@@ -1593,7 +1593,7 @@ function OnCallCard({ onSubmit }) {
         <div className="oncall-ticket-icon" style={{
           width: 32, height: 32, borderRadius: 8,
           background: "#FFF9E6",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
           {/* Real ticket icon — admit-ticket / coupon style with serrated edge */}
@@ -1705,8 +1705,8 @@ function QuestionFlow({ query, onBack, onDone }) {
         <button onClick={back} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -1715,14 +1715,14 @@ function QuestionFlow({ query, onBack, onDone }) {
         }}
         onMouseEnter={(e)=>{
           e.currentTarget.style.transform="translate(-2px,-2px)";
-          e.currentTarget.style.boxShadow="4px 4px 0 #211E1E";
+          e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
           e.currentTarget.style.background="#FFF9E6";
           const arr = e.currentTarget.querySelector("[data-arrow]");
           if (arr) arr.style.transform = "translateX(-3px)";
         }}
         onMouseLeave={(e)=>{
           e.currentTarget.style.transform="none";
-          e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
+          e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";
           e.currentTarget.style.background="#FFFFFF";
           const arr = e.currentTarget.querySelector("[data-arrow]");
           if (arr) arr.style.transform = "translateX(0)";
@@ -1733,7 +1733,7 @@ function QuestionFlow({ query, onBack, onDone }) {
         }}
         onMouseUp={(e)=>{
           e.currentTarget.style.transform="translate(-2px,-2px)";
-          e.currentTarget.style.boxShadow="4px 4px 0 #211E1E";
+          e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
         }}>
           <span data-arrow style={{ display: "inline-flex", transition: "transform .2s var(--ease)" }}>
             <IconArrowLeft size={13} stroke={2.5} />
@@ -1750,7 +1750,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               display: "flex", gap: 0,
               width: 140, height: 10,
               background: "#FFFFFF",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 4,
               overflow: "hidden",
             }}>
@@ -1782,7 +1782,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 display: "grid", placeItems: "center", flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
-                border: "2px solid #211E1E",
+                border: "1px solid #211E1E",
                 animation: "pizzaPulse 1.4s ease-in-out infinite",
               }}>S</div>
               <TypingDots />
@@ -1801,7 +1801,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               display: "grid", placeItems: "center", flexShrink: 0,
               fontSize: 11, fontWeight: 900,
               fontFamily: "'Archivo', sans-serif",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               marginTop: 2,
             }}>S</div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -1812,7 +1812,7 @@ function QuestionFlow({ query, onBack, onDone }) {
                 Looks like a{" "}
                 <span style={{
                   fontWeight: 800, color: "#211E1E",
-                  borderBottom: "2px solid #FDC831",
+                  borderBottom: "1px solid #FDC831",
                   paddingBottom: 1,
                 }}>
                   {route.category.toLowerCase()}
@@ -1887,7 +1887,7 @@ function QuestionFlow({ query, onBack, onDone }) {
             onClick={() => setAnswers({ ...answers, [question.id]: ["__none__"] })}
             style={{
               padding: "10px 16px",
-              border: "2px dashed #211E1E",
+              border: "1px dashed #211E1E",
               borderRadius: 4,
               background: "transparent",
               fontSize: 13, fontWeight: 700,
@@ -1910,10 +1910,10 @@ function QuestionFlow({ query, onBack, onDone }) {
           rows={4}
           style={{
             width: "100%",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 14,
             background: "#FFFFFF",
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
             padding: "14px 16px",
             fontSize: 15, lineHeight: 1.5, color: "#211E1E",
             resize: "vertical",
@@ -1949,9 +1949,9 @@ function QuestionFlow({ query, onBack, onDone }) {
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "12px 22px",
                 background: canContinue() ? "#FDC831" : "#E8E1D0",
-                border: "2px solid #211E1E",
+                border: "1px solid #211E1E",
                 borderRadius: 4,
-                boxShadow: canContinue() ? "3px 3px 0 #211E1E" : "2px 2px 0 rgba(33,30,30,0.25)",
+                boxShadow: canContinue() ? "2px 2px 0 #211E1E" : "1px 1px 0 rgba(33,30,30,0.25)",
                 fontFamily: "'Archivo', sans-serif",
                 fontWeight: 800, fontSize: 13,
                 letterSpacing: "0.04em", textTransform: "uppercase",
@@ -1963,7 +1963,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               onMouseEnter={(e)=>{
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="translate(-2px,-2px)";
-                e.currentTarget.style.boxShadow="5px 5px 0 #211E1E";
+                e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";
                 e.currentTarget.style.background="#FFD757";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(3px)";
@@ -1971,7 +1971,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               onMouseLeave={(e)=>{
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="none";
-                e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";
+                e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";
                 e.currentTarget.style.background="#FDC831";
                 const arr = e.currentTarget.querySelector("[data-arrow]");
                 if (arr) arr.style.transform = "translateX(0)";
@@ -1984,7 +1984,7 @@ function QuestionFlow({ query, onBack, onDone }) {
               onMouseUp={(e)=>{
                 if(!canContinue()) return;
                 e.currentTarget.style.transform="translate(-2px,-2px)";
-                e.currentTarget.style.boxShadow="5px 5px 0 #211E1E";
+                e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";
               }}>
               {step === total - 1 ? t("see") : t("continue")}
               <span data-arrow style={{ display: "inline-flex", transition: "transform .2s var(--ease)" }}>
@@ -2014,16 +2014,16 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
       <button onClick={onBack} style={{
         display: "inline-flex", alignItems: "center", gap: 6,
         padding: "7px 12px 7px 10px", marginBottom: 24,
-        background: "#FFFFFF", border: "2px solid #211E1E",
-        borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+        background: "#FFFFFF", border: "1px solid #211E1E",
+        borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 800, fontSize: 11.5,
         letterSpacing: "0.04em", textTransform: "uppercase",
         color: "#211E1E", cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
       }}
-      onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1px,-1px)"; e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";}}
-      onMouseLeave={(e)=>{e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";}}>
+      onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1px,-1px)"; e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";}}
+      onMouseLeave={(e)=>{e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";}}>
         <IconArrowLeft size={13} stroke={2.5} />
         Back to questions
       </button>
@@ -2070,16 +2070,16 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             marginTop: 24, padding: "18px 20px",
             background: "#211E1E",
             color: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 14,
-            boxShadow: "4px 4px 0 #FDC831",
+            boxShadow: "2px 2px 0 #FDC831",
             display: "flex", gap: 14, alignItems: "center"
           }}>
             <div style={{
               width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
               background: "#FDC831", color: "#211E1E",
               display: "grid", placeItems: "center",
-              border: "2px solid #FDC831",
+              border: "1px solid #FDC831",
             }}>
               <IconSlack size={18} stroke={2} />
             </div>
@@ -2097,9 +2097,9 @@ function Results({ query, route, answers, onBack, onFile, onOpenGuide }) {
             <button style={{
               padding: "9px 16px",
               background: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 4,
-              boxShadow: "2px 2px 0 #FDC831",
+              boxShadow: "1px 1px 0 #FDC831",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 12,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2127,7 +2127,7 @@ function SectionHead({ kicker, title, subtitle, style }) {
         color: "#211E1E", fontWeight: 800, marginBottom: 8,
         padding: "3px 8px",
         background: "#FDC831",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 4,
       }}>{kicker}</div>
       <h2 style={{
@@ -2153,9 +2153,9 @@ function GuideCard({ guide, index, onOpen }) {
       style={{
         padding: "16px 18px",
         background: "#FFFFFF",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 10,
-        boxShadow: hover ? "4px 4px 0 #211E1E" : "3px 3px 0 #211E1E",
+        boxShadow: hover ? "2px 2px 0 #211E1E" : "2px 2px 0 #211E1E",
         transform: hover ? "translate(-1px,-1px)" : "none",
         cursor: "pointer",
         transition: "transform .15s ease, box-shadow .15s ease",
@@ -2165,7 +2165,7 @@ function GuideCard({ guide, index, onOpen }) {
         <div style={{
           width: 40, height: 40, borderRadius: 6, flexShrink: 0,
           background: guide.hot ? "#FDC831" : "#FFF9E6",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           color: "#211E1E",
           display: "grid", placeItems: "center"
         }}>
@@ -2176,7 +2176,7 @@ function GuideCard({ guide, index, onOpen }) {
             <span style={{
               padding: "2px 7px",
               background: "#FFFFFF",
-              border: "1.5px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 10, fontWeight: 800,
@@ -2187,7 +2187,7 @@ function GuideCard({ guide, index, onOpen }) {
               padding: "2px 7px",
               background: "#211E1E",
               color: "#FDC831",
-              border: "1.5px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 10, fontWeight: 800,
@@ -2210,7 +2210,7 @@ function GuideCard({ guide, index, onOpen }) {
         <div style={{
           width: 28, height: 28, borderRadius: "50%",
           background: hover ? "#FDC831" : "transparent",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           color: "#211E1E",
           transition: "background .15s ease",
@@ -2233,7 +2233,7 @@ function RelatedRow({ ticket, index }) {
     <div style={{
       padding: "12px 14px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderTop: index === 0 ? "2px solid #211E1E" : "none",
       borderBottomLeftRadius: 0,
       borderBottomRightRadius: 0,
@@ -2247,7 +2247,7 @@ function RelatedRow({ ticket, index }) {
         color: "#211E1E", minWidth: 64,
         padding: "3px 6px",
         background: "#FFF9E6",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 3,
         textAlign: "center",
       }}>{ticket.id}</div>
@@ -2272,7 +2272,7 @@ function RelatedRow({ ticket, index }) {
         color: "#211E1E",
         padding: "3px 8px",
         background: "#FDC831",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 3,
       }}>
         {Math.round(ticket.similar * 100)}%
@@ -2287,9 +2287,9 @@ function TicketCard({ ticket, onFile, filed, index }) {
     <div style={{
       padding: "20px 22px",
       background: filed ? "#E8F5EC" : "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 10,
-      boxShadow: filed ? "3px 3px 0 #0A8A3E" : "3px 3px 0 #211E1E",
+      boxShadow: filed ? "2px 2px 0 #0A8A3E" : "2px 2px 0 #211E1E",
       animation: `fadeUp .5s ${index * 80}ms var(--ease) both`,
       transition: "background .35s ease, box-shadow .35s ease",
     }}>
@@ -2310,7 +2310,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
               padding: "3px 8px",
               background: "#FDC831",
               color: "#211E1E",
-              border: "1.5px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 3,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 10.5, fontWeight: 800,
@@ -2331,7 +2331,7 @@ function TicketCard({ ticket, onFile, filed, index }) {
       <div style={{
         padding: "10px 12px",
         background: "#FFF9E6",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 6,
         fontSize: 12, marginBottom: 14,
       }}>
@@ -2353,9 +2353,9 @@ function TicketCard({ ticket, onFile, filed, index }) {
           display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
           background: filed ? "#0A8A3E" : "#FDC831",
           color: filed ? "#FFFFFF" : "#211E1E",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 4,
-          boxShadow: filed ? "none" : (hover ? "3px 3px 0 #211E1E" : "2px 2px 0 #211E1E"),
+          boxShadow: filed ? "none" : (hover ? "2px 2px 0 #211E1E" : "1px 1px 0 #211E1E"),
           transform: !filed && hover ? "translate(-1px,-1px)" : "none",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 13,
@@ -2403,7 +2403,7 @@ function GuideSheet({ guide, onClose }) {
         style={{
           width: "min(580px, 100%)", height: "100%",
           background: "#FFF9E6",
-          borderLeft: "2px solid #211E1E",
+          borderLeft: "1px solid #211E1E",
           boxShadow: "-12px 0 0 #211E1E",
           padding: "28px 32px 36px",
           overflowY: "auto",
@@ -2417,7 +2417,7 @@ function GuideSheet({ guide, onClose }) {
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "5px 10px",
             background: "#FDC831",
-            border: "1.5px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 10.5, fontWeight: 800,
@@ -2429,9 +2429,9 @@ function GuideSheet({ guide, onClose }) {
           <button onClick={onClose} style={{
             width: 32, height: 32,
             background: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "1px 1px 0 #211E1E",
             display: "grid", placeItems: "center",
             color: "#211E1E", cursor: "pointer",
           }}>
@@ -2455,15 +2455,15 @@ function GuideSheet({ guide, onClose }) {
             display: "grid", gridTemplateColumns: "36px 1fr", gap: 16,
             padding: "16px 16px",
             background: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 8,
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
             marginBottom: 12,
           }}>
               <div style={{
               width: 30, height: 30, borderRadius: "50%",
               background: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               color: "#211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "'Archivo', sans-serif",
@@ -2479,9 +2479,9 @@ function GuideSheet({ guide, onClose }) {
         <div style={{
           marginTop: 28, padding: "18px 20px",
           background: "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 10,
-          boxShadow: "4px 4px 0 #211E1E",
+          boxShadow: "2px 2px 0 #211E1E",
           display: "flex", alignItems: "center", gap: 12,
         }}>
           <div style={{
@@ -2494,9 +2494,9 @@ function GuideSheet({ guide, onClose }) {
           <button style={{
             padding: "8px 14px",
             background: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2505,9 +2505,9 @@ function GuideSheet({ guide, onClose }) {
           <button style={{
             padding: "8px 14px",
             background: "#FDC831",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -2538,9 +2538,9 @@ function FiledToast({ ticket, onClose, onView }) {
       position: "fixed", bottom: 28, right: 28, zIndex: 80,
       width: 380,
       background: "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 10,
-      boxShadow: "5px 5px 0 #FDC831, 5px 5px 0 2px #211E1E",
+      boxShadow: "3px 3px 0 #FDC831, 5px 5px 0 2px #211E1E",
       padding: "18px 20px",
       animation: "toastIn .4s var(--ease) both",
     }}>
@@ -2549,7 +2549,7 @@ function FiledToast({ ticket, onClose, onView }) {
         <div style={{
           width: 38, height: 38, borderRadius: "50%",
           background: "#0A8A3E",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           color: "#FFFFFF",
           display: "grid", placeItems: "center", flexShrink: 0,
         }}>
@@ -2574,9 +2574,9 @@ function FiledToast({ ticket, onClose, onView }) {
             <button onClick={onView} style={{
               padding: "7px 12px",
               background: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 4,
-              boxShadow: "2px 2px 0 #211E1E",
+              boxShadow: "1px 1px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 11,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -3503,7 +3503,7 @@ function SliceDatePicker({ value, onChange, label, required, error, minDate, pla
     fontSize: 14, fontWeight: 700,
     color: "#211E1E",
     cursor: "text",
-    boxShadow: error && !open ? "3px 3px 0 #B92323" : (open || focused ? "3px 3px 0 #211E1E" : "none"),
+    boxShadow: error && !open ? "2px 2px 0 #B92323" : (open || focused ? "2px 2px 0 #211E1E" : "none"),
     transition: "box-shadow 80ms ease, transform 80ms ease",
     transform: open || focused ? "translate(-1px, -1px)" : "none",
     textAlign: "left",
@@ -3574,9 +3574,9 @@ function SliceDatePicker({ value, onChange, label, required, error, minDate, pla
           top: "calc(100% + 6px)", left: 0,
           width: 320,
           background: "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 8,
-          boxShadow: "4px 4px 0 #211E1E",
+          boxShadow: "2px 2px 0 #211E1E",
           overflow: "hidden",
         }}>
           {/* Parse preview */}
@@ -3587,7 +3587,7 @@ function SliceDatePicker({ value, onChange, label, required, error, minDate, pla
                 padding: "10px 14px",
                 background: "#FDC831",
                 border: "none",
-                borderBottom: "2px solid #211E1E",
+                borderBottom: "1px solid #211E1E",
                 fontFamily: "'Archivo', sans-serif",
                 fontSize: 12, fontWeight: 800, color: "#211E1E",
                 textAlign: "left",
@@ -3609,7 +3609,7 @@ function SliceDatePicker({ value, onChange, label, required, error, minDate, pla
             display: "flex", flexWrap: "wrap", gap: 4,
             padding: "8px 10px",
             background: "#FFF9E6",
-            borderBottom: "1.5px solid #211E1E",
+            borderBottom: "1px solid #211E1E",
           }}>
             {presets.filter(p => !min || p.date >= min).map(p => {
               const active = spSameDay(p.date, selected);
@@ -3618,7 +3618,7 @@ function SliceDatePicker({ value, onChange, label, required, error, minDate, pla
                   style={{
                     padding: "4px 8px",
                     background: active ? "#FDC831" : "#FFFFFF",
-                    border: "1.5px solid #211E1E",
+                    border: "1px solid #211E1E",
                     borderRadius: 3,
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 10.5, fontWeight: 800, letterSpacing: "0.02em",
@@ -3633,7 +3633,7 @@ function SliceDatePicker({ value, onChange, label, required, error, minDate, pla
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
             padding: "8px 10px",
-            borderBottom: "1.5px solid #211E1E",
+            borderBottom: "1px solid #211E1E",
           }}>
             <button type="button" onClick={() => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1))}
               style={spNavBtn} aria-label="Previous month">‹</button>
@@ -3742,7 +3742,7 @@ const spClearBtn = {
   width: 18, height: 18,
   display: "flex", alignItems: "center", justifyContent: "center",
   background: "#FFF2B8",
-  border: "1.5px solid #211E1E",
+  border: "1px solid #211E1E",
   borderRadius: 3,
   fontFamily: "'Archivo', sans-serif",
   fontSize: 13, fontWeight: 900, lineHeight: 1, color: "#211E1E",
@@ -3755,7 +3755,7 @@ const spNavBtn = {
   width: 26, height: 26,
   display: "flex", alignItems: "center", justifyContent: "center",
   background: "#FDC831",
-  border: "1.5px solid #211E1E",
+  border: "1px solid #211E1E",
   borderRadius: 4,
   fontFamily: "'Archivo', sans-serif",
   fontSize: 18, fontWeight: 900, lineHeight: 1, color: "#211E1E",
@@ -3931,7 +3931,7 @@ function SliceTimePicker({ value, onChange, label, required, error, placeholder 
             style={{
               height: 36, padding: "0 12px",
               background: "#211E1E", color: "#FDC831",
-              border: "none", borderLeft: "2px solid #211E1E",
+              border: "none", borderLeft: "1px solid #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontSize: 11.5, fontWeight: 900, letterSpacing: "0.1em",
               cursor: "pointer",
@@ -3947,13 +3947,13 @@ function SliceTimePicker({ value, onChange, label, required, error, placeholder 
                 style={{
                   padding: "6px 10px",
                   background: active ? "#FDC831" : "#FFFFFF",
-                  border: "1.5px solid #211E1E",
+                  border: "1px solid #211E1E",
                   borderRadius: 4,
                   fontFamily: "'Archivo', sans-serif",
                   fontSize: 11, fontWeight: 800, letterSpacing: "0.02em",
                   color: "#211E1E",
                   cursor: "pointer",
-                  boxShadow: active ? "2px 2px 0 #211E1E" : "none",
+                  boxShadow: active ? "1px 1px 0 #211E1E" : "none",
                 }}>{c.label}</button>
             );
           })}
@@ -4242,9 +4242,9 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
       <div style={{
         padding: "14px 16px",
         background: "#FFF9E6",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 8,
-        boxShadow: "3px 3px 0 #211E1E",
+        boxShadow: "2px 2px 0 #211E1E",
       }}>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -4274,7 +4274,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
               padding: "5px 10px",
               background: "#211E1E",
               color: "#FDC831",
-              border: "1.5px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 10, fontWeight: 900,
@@ -4290,7 +4290,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
             <div style={{
               width: 120, height: 8,
               background: "#FFFFFF",
-              border: "1.5px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               overflow: "hidden",
             }}>
               <div style={{
@@ -4330,7 +4330,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
                   <button onClick={() => work.toggle(item.id)} style={{
                     width: tick ? 18 : 22, height: tick ? 18 : 22, borderRadius: 4,
                     background: tick ? "#211E1E" : "#FFFFFF",
-                    border: "2px solid #211E1E",
+                    border: "1px solid #211E1E",
                     display: "grid", placeItems: "center",
                     cursor: "pointer", flexShrink: 0,
                     marginTop: tick ? 0 : 1,
@@ -4415,7 +4415,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
                   <button onClick={() => setExpanded(isExpanded ? null : item.id)} style={{
                     padding: "5px 9px",
                     background: note ? "#FDC831" : "#FFFFFF",
-                    border: "1.5px solid #211E1E",
+                    border: "1px solid #211E1E",
                     borderRadius: 3,
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 10, fontWeight: 800,
@@ -4446,7 +4446,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
                         width: "100%",
                         padding: "7px 9px",
                         background: "#FFFFFF",
-                        border: "1.5px solid #211E1E",
+                        border: "1px solid #211E1E",
                         borderRadius: 3,
                         fontFamily: "'Archivo', sans-serif",
                         fontSize: 12, fontWeight: 600,
@@ -4473,7 +4473,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
           }}>Activity log</div>
           <div style={{
             background: "#FFFFFF",
-            border: "1.5px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 6,
             maxHeight: 160, overflowY: "auto",
             padding: work.log.length ? "6px 10px" : "12px",
@@ -4530,7 +4530,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
                 flex: 1,
                 padding: "8px 11px",
                 background: "#FFFFFF",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 borderRadius: 4,
                 fontFamily: "'Archivo', sans-serif",
                 fontSize: 12, fontWeight: 600,
@@ -4545,7 +4545,7 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
             }} style={{
               padding: "8px 14px",
               background: logDraft.trim() ? "#FDC831" : "rgba(253,200,49,0.4)",
-              border: "1.5px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 11, fontWeight: 800,
@@ -4764,7 +4764,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
     <nav style={{
       position: "sticky", top: 0, zIndex: 50,
       background: "#FFFFFF",
-      borderBottom: "2px solid #211E1E",
+      borderBottom: "1px solid #211E1E",
       padding: "10px 28px",
       display: "flex", alignItems: "center", justifyContent: "space-between",
       gap: 24,
@@ -4868,8 +4868,8 @@ function ItServicesButton() {
         display: "inline-flex", alignItems: "center", gap: 6,
         background: "#B92323",
         color: "#FFFFFF",
-        borderRadius: 4, border: "2px solid #211E1E",
-        boxShadow: "2px 2px 0 #211E1E",
+        borderRadius: 4, border: "1px solid #211E1E",
+        boxShadow: "1px 1px 0 #211E1E",
         cursor: "pointer", textDecoration: "none",
         fontFamily: "'Archivo', sans-serif",
         fontWeight: 600, fontSize: 12, letterSpacing: "0.01em",
@@ -4877,11 +4877,11 @@ function ItServicesButton() {
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
       }}
     >
       {/* Arrow slides left on hover via the .back-to-slicedesk:hover svg rule
@@ -4935,7 +4935,7 @@ function NotificationsMenu({ onViewAll }) {
   const Dot = ({ bg }) => (
     <span style={{
       width: 28, height: 28, borderRadius: 8,
-      background: bg, border: "1.5px solid #211E1E",
+      background: bg, border: "1px solid #211E1E",
       display: "grid", placeItems: "center",
       flexShrink: 0,
     }}>
@@ -4966,13 +4966,13 @@ function NotificationsMenu({ onViewAll }) {
           background: open ? "#FDC831" : "#FFFFFF",
           color: "#211E1E",
           display: "grid", placeItems: "center",
-          borderRadius: "50%", border: "2px solid #211E1E",
+          borderRadius: "50%", border: "1px solid #211E1E",
           cursor: "pointer",
           transition: "transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease",
           position: "relative",
           boxShadow: open ? "2.5px 2.5px 0 #211E1E" : "none",
         }}
-        onMouseEnter={(e)=>{ if (open) return; e.currentTarget.style.transform="translate(-1px,-1px)"; e.currentTarget.style.boxShadow="2px 2px 0 #211E1E"; }}
+        onMouseEnter={(e)=>{ if (open) return; e.currentTarget.style.transform="translate(-1px,-1px)"; e.currentTarget.style.boxShadow="1px 1px 0 #211E1E"; }}
         onMouseLeave={(e)=>{ if (open) return; e.currentTarget.style.transform="none"; e.currentTarget.style.boxShadow="none"; }}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -4985,7 +4985,7 @@ function NotificationsMenu({ onViewAll }) {
             minWidth: 16, height: 16, padding: "0 4px",
             display: "grid", placeItems: "center",
             background: "#E8534E", color: "#FFFFFF",
-            border: "1.5px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 999,
             fontSize: 9.5, fontWeight: 800,
             fontFamily: "'Archivo', sans-serif",
@@ -4999,9 +4999,9 @@ function NotificationsMenu({ onViewAll }) {
           position: "absolute", top: "calc(100% + 10px)", right: 0,
           width: 340,
           background: "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 12,
-          boxShadow: "5px 5px 0 #211E1E",
+          boxShadow: "3px 3px 0 #211E1E",
           overflow: "hidden",
           animation: "notifMenuIn .14s var(--ease) both",
           zIndex: 60,
@@ -5010,7 +5010,7 @@ function NotificationsMenu({ onViewAll }) {
           <div style={{
             padding: "12px 14px",
             background: "#FDC831",
-            borderBottom: "2px solid #211E1E",
+            borderBottom: "1px solid #211E1E",
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
             <div>
@@ -5030,7 +5030,7 @@ function NotificationsMenu({ onViewAll }) {
               style={{
                 padding: "4px 9px",
                 background: "#FFFFFF",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 borderRadius: 999,
                 fontSize: 10.5, fontWeight: 700,
                 color: "#211E1E",
@@ -5113,7 +5113,7 @@ function NotificationsMenu({ onViewAll }) {
 
           {/* Footer */}
           <div style={{
-            borderTop: "2px solid #211E1E",
+            borderTop: "1px solid #211E1E",
             padding: "10px 14px",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
@@ -5194,7 +5194,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
           padding: "3px 9px 3px 3px",
           background: open ? "#FDC831" : "#FFFFFF",
           color: "#211E1E",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 999,
           cursor: "pointer",
           transition: "transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease",
@@ -5219,7 +5219,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
             display: "grid", placeItems: "center",
             fontSize: 11, fontWeight: 900, letterSpacing: "0.03em",
             borderRadius: "50%",
-            border: "1.5px solid #211E1E",
+            border: "1px solid #211E1E",
             fontFamily: "'Archivo', sans-serif",
             transition: "background .15s ease, color .15s ease",
           }}>{_initials}</span>
@@ -5244,9 +5244,9 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
           position: "absolute", top: "calc(100% + 10px)", right: 0,
           width: 280,
           background: "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 12,
-          boxShadow: "5px 5px 0 #211E1E",
+          boxShadow: "3px 3px 0 #211E1E",
           overflow: "hidden",
           animation: "userMenuIn .14s var(--ease) both",
           zIndex: 60,
@@ -5255,7 +5255,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
           <div style={{
             padding: "14px 14px 12px",
             background: "#FDC831",
-            borderBottom: "2px solid #211E1E",
+            borderBottom: "1px solid #211E1E",
             display: "flex", alignItems: "center", gap: 11,
             position: "relative",
           }}>
@@ -5266,7 +5266,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
               fontSize: 14, fontWeight: 900,
               borderRadius: "50%",
               fontFamily: "'Archivo', sans-serif",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               letterSpacing: "0.02em",
             }}>{_initials}</div>
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -5283,7 +5283,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5,
               padding: "2px 7px",
-              background: "#FFFFFF", border: "1.5px solid #211E1E",
+              background: "#FFFFFF", border: "1px solid #211E1E",
               borderRadius: 999,
               fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em",
               textTransform: "uppercase", color: "#211E1E",
@@ -5329,7 +5329,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
                   width: 28, height: 28,
                   display: "grid", placeItems: "center",
                   background: "#F2EBD8",
-                  border: "1.5px solid #211E1E",
+                  border: "1px solid #211E1E",
                   borderRadius: 8,
                   color: "#211E1E",
                   flexShrink: 0,
@@ -5351,7 +5351,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
                     minWidth: 18, height: 18, padding: "0 5px",
                     display: "inline-grid", placeItems: "center",
                     background: "#E8534E", color: "#FFFFFF",
-                    border: "1.5px solid #211E1E",
+                    border: "1px solid #211E1E",
                     borderRadius: 999,
                     fontSize: 10, fontWeight: 800,
                     fontFamily: "'Archivo', sans-serif",
@@ -5389,7 +5389,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
                 width: 28, height: 28,
                 display: "grid", placeItems: "center",
                 background: "#FFE4E2",
-                border: "1.5px solid #B92323",
+                border: "1px solid #B92323",
                 borderRadius: 8,
                 color: "#B92323",
                 flexShrink: 0,
@@ -5482,7 +5482,7 @@ function Footer() {
           display: "inline-flex", alignItems: "center", gap: 7,
           padding: "7px 14px",
           background: skin.bg,
-          border: "1.5px solid #000000",
+          border: "1px solid #000000",
           borderRadius: 999,
           boxShadow: "2.5px 2.5px 0 #000000",
           fontSize: 12, fontWeight: 600, color: "#000000",
@@ -5497,7 +5497,7 @@ function Footer() {
           // so we use the beats counter as a render trigger and the animation
           // re-runs because skin.bg changes.
         }}
-        onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="4px 4px 0 #000000";}}
+        onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="2px 2px 0 #000000";}}
         onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="2.5px 2.5px 0 #000000";}}
       >
         <span>Built by the</span>
@@ -5587,26 +5587,26 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
       onMouseEnter={(e) => {
         if (selected) return;
         e.currentTarget.style.transform = "translate(-2px, -2px)";
-        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
         e.currentTarget.style.background = "#FFF9E6";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
         e.currentTarget.style.background = "#FFFFFF";
       }}
       onMouseDown={(e) => {
         e.currentTarget.style.transform = "translate(1px, 1px)";
-        e.currentTarget.style.boxShadow = selected ? "3px 3px 0 #211E1E" : "2px 2px 0 #211E1E";
+        e.currentTarget.style.boxShadow = selected ? "2px 2px 0 #211E1E" : "1px 1px 0 #211E1E";
       }}
       onMouseUp={(e) => {
         if (selected) {
           e.currentTarget.style.transform = "none";
-          e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+          e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
         } else {
           e.currentTarget.style.transform = "translate(-2px, -2px)";
-          e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+          e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
         }
       }}
       style={{
@@ -5615,11 +5615,11 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
         padding: "16px 18px",
         width: "100%",
         background: selected ? "#FDC831" : "#FFFFFF",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 14,
         cursor: "pointer",
         transition: "transform .15s var(--ease), box-shadow .15s var(--ease), background .15s",
-        boxShadow: selected ? "5px 5px 0 #211E1E" : "3px 3px 0 #211E1E",
+        boxShadow: selected ? "3px 3px 0 #211E1E" : "2px 2px 0 #211E1E",
         transform: "translateZ(0)",
         animation: `fadeUp .45s var(--ease) both`,
         animationDelay: `${(index||0) * 50}ms`,
@@ -5627,7 +5627,7 @@ function ChoiceCard({ selected, title, hint, onSelect, index, total }) {
     >
       <div style={{
         width: 22, height: 22, borderRadius: "50%",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         background: selected ? "#211E1E" : "#FFFFFF",
         display: "grid", placeItems: "center",
         transition: "all .2s var(--ease)",
@@ -5658,7 +5658,7 @@ function MultiChip({ selected, title, onSelect, index }) {
         fontSize: 13, fontWeight: 700,
         letterSpacing: "-0.005em",
         cursor: "pointer",
-        boxShadow: selected ? "3px 3px 0 #211E1E" : "3px 3px 0 #211E1E",
+        boxShadow: selected ? "2px 2px 0 #211E1E" : "2px 2px 0 #211E1E",
         transition: "transform .18s var(--ease), box-shadow .18s var(--ease), background .18s",
         animation: `fadeUp .45s var(--ease) both`,
         animationDelay: `${(index||0) * 40}ms`,
@@ -5667,13 +5667,13 @@ function MultiChip({ selected, title, onSelect, index }) {
       onMouseEnter={(e) => {
         if (selected) return;
         e.currentTarget.style.transform = "translate(-2px,-2px)";
-        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
         e.currentTarget.style.background = "#FFF9E6";
       }}
       onMouseLeave={(e) => {
         if (selected) return;
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
         e.currentTarget.style.background = "#FFFFFF";
       }}
       onMouseDown={(e) => {
@@ -5682,7 +5682,7 @@ function MultiChip({ selected, title, onSelect, index }) {
       }}
       onMouseUp={(e) => {
         e.currentTarget.style.transform = "translate(-2px,-2px)";
-        e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
       }}
     >
       <span style={{
@@ -5707,7 +5707,7 @@ function Progress({ current, total }) {
         <div key={i} style={{
           width: i === current ? 28 : 10, height: 10, borderRadius: 999,
           background: i <= current ? "#211E1E" : "#FFFFFF",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           transition: "all .4s var(--ease)",
         }}/>
       ))}
@@ -5786,9 +5786,9 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
         margin: "16px 0 0",
         padding: "14px 18px",
         background: "#FFF9E6",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 12,
-        boxShadow: "3px 3px 0 #211E1E",
+        boxShadow: "2px 2px 0 #211E1E",
         display: "flex",
         gap: 12,
         alignItems: "flex-start",
@@ -5801,7 +5801,7 @@ function TipCard({ tips = IT_TIPS, intervalMs = 7000, style }) {
           flexShrink: 0,
           width: 28, height: 28, borderRadius: 8,
           background: "#FDC831",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           fontSize: 14,
         }}
@@ -5914,7 +5914,7 @@ function ProfilePage({ onBack }) {
           Profile feels like part of the same product family. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "20px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -5929,7 +5929,7 @@ function ProfilePage({ onBack }) {
               display: "inline-flex", alignItems: "center", gap: 5,
               padding: "5px 10px",
               background: "#D4F4D4",
-              border: "1.5px solid #0A8A3E",
+              border: "1px solid #0A8A3E",
               borderRadius: 999,
               fontSize: 11, fontWeight: 700, color: "#0A6B30",
               animation: "fadeUp .3s var(--ease) both",
@@ -5945,16 +5945,16 @@ function ProfilePage({ onBack }) {
             padding: "9px 18px",
             background: "#FDC831",
             color: "#211E1E",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 999,
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
             fontWeight: 700, fontSize: 13,
             cursor: "pointer",
             fontFamily: "inherit",
             transition: "transform .15s ease, box-shadow .15s ease",
           }}
           onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="4.5px 4.5px 0 #211E1E";}}
-          onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="3px 3px 0 #211E1E";}}>
+          onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";}}>
             Save changes
           </button>
         </div>
@@ -5976,15 +5976,15 @@ function ProfilePage({ onBack }) {
           {/* Identity card */}
           <div style={{
             background: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 16,
-            boxShadow: "4px 4px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
             overflow: "hidden",
           }}>
             <div style={{
               height: 70,
               background: "#FDC831",
-              borderBottom: "2px solid #211E1E",
+              borderBottom: "1px solid #211E1E",
               position: "relative",
               overflow: "hidden",
             }}>
@@ -5999,7 +5999,7 @@ function ProfilePage({ onBack }) {
                 position: "absolute", top: 12, right: 12,
                 display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "4px 10px",
-                background: "#FFFFFF", border: "1.5px solid #211E1E",
+                background: "#FFFFFF", border: "1px solid #211E1E",
                 borderRadius: 999,
                 fontSize: 9.5, fontWeight: 800, textTransform: "uppercase",
                 letterSpacing: "0.06em", color: "#211E1E",
@@ -6017,7 +6017,7 @@ function ProfilePage({ onBack }) {
                 fontFamily: "'Archivo', sans-serif",
                 fontSize: 26, fontWeight: 900, letterSpacing: "0.02em",
                 borderRadius: "50%",
-                border: "3px solid #211E1E",
+                border: "1px solid #211E1E",
                 marginBottom: 12,
                 position: "relative",
               }}>
@@ -6026,10 +6026,10 @@ function ProfilePage({ onBack }) {
                   position: "absolute", bottom: -2, right: -2,
                   width: 26, height: 26, borderRadius: "50%",
                   background: "#FFFFFF", color: "#211E1E",
-                  border: "2px solid #211E1E",
+                  border: "1px solid #211E1E",
                   display: "grid", placeItems: "center",
                   cursor: "pointer",
-                  boxShadow: "2px 2px 0 #211E1E",
+                  boxShadow: "1px 1px 0 #211E1E",
                   transition: "transform .12s ease",
                 }}
                 onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}
@@ -6062,7 +6062,7 @@ function ProfilePage({ onBack }) {
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "8px 10px",
                 background: "#F6EECB",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 borderRadius: 10,
               }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -6090,10 +6090,10 @@ function ProfilePage({ onBack }) {
           {/* Quick actions */}
           <div style={{
             background: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 14,
             padding: "6px",
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
           }}>
             <QuickAction icon="shield" label="Security & MFA"    hint="2 trusted devices" />
             <QuickAction icon="signal" label="Sign-in history"   hint="Review last 30 days" />
@@ -6175,7 +6175,7 @@ function NotificationsPage({ onBack }) {
       {/* Hero strip */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "20px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -6190,8 +6190,8 @@ function NotificationsPage({ onBack }) {
             style={{
               padding: "8px 14px",
               background: unreadCount ? "#FFFFFF" : "#F7F4EF",
-              border: "2px solid #211E1E", borderRadius: 999,
-              boxShadow: unreadCount ? "2px 2px 0 #211E1E" : "none",
+              border: "1px solid #211E1E", borderRadius: 999,
+              boxShadow: unreadCount ? "1px 1px 0 #211E1E" : "none",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 700, fontSize: 12,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -6231,7 +6231,7 @@ function NotificationsPage({ onBack }) {
         {filtered.length === 0 ? (
           <div style={{
             padding: "48px 24px", textAlign: "center",
-            background: "#FFFFFF", border: "2px dashed #211E1E", borderRadius: 14,
+            background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14,
           }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E", marginBottom: 6 }}>You're all caught up</div>
             <div style={{ fontSize: 13.5, color: "#78684C" }}>No notifications match this filter right now.</div>
@@ -6246,8 +6246,8 @@ function NotificationsPage({ onBack }) {
               }}>{group}</div>
               <div style={{
                 background: "#FFFFFF",
-                border: "2px solid #211E1E", borderRadius: 14,
-                boxShadow: "4px 4px 0 #211E1E",
+                border: "1px solid #211E1E", borderRadius: 14,
+                boxShadow: "2px 2px 0 #211E1E",
                 overflow: "hidden",
               }}>
                 {list.map((it, i) => (
@@ -6274,7 +6274,7 @@ function NotificationsPage({ onBack }) {
                     <div className="notif-icon" style={{
                       width: 40, height: 40, flexShrink: 0,
                       background: KIND_META[it.kind]?.color || "#FDC831",
-                      border: "1.5px solid #211E1E", borderRadius: 8,
+                      border: "1px solid #211E1E", borderRadius: 8,
                       display: "grid", placeItems: "center",
                       color: "#211E1E",
                     }}>
@@ -6302,7 +6302,7 @@ function NotificationsPage({ onBack }) {
                           color: "#4A3F2E",
                           padding: "2px 7px",
                           background: "#FFF9E6",
-                          border: "1.5px solid #211E1E",
+                          border: "1px solid #211E1E",
                           borderRadius: 3,
                         }}>{KIND_META[it.kind]?.label || it.kind}</span>
                       </div>
@@ -6316,7 +6316,7 @@ function NotificationsPage({ onBack }) {
                         flexShrink: 0,
                         width: 26, height: 26,
                         background: "transparent",
-                        border: "1.5px solid transparent",
+                        border: "1px solid transparent",
                         borderRadius: 999,
                         display: "grid", placeItems: "center",
                         cursor: "pointer", color: "#78684C",
@@ -6345,10 +6345,10 @@ function StatChip({ label, value, accent }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "1.5px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 10,
       padding: "9px 11px",
-      boxShadow: "2px 2px 0 #211E1E",
+      boxShadow: "1px 1px 0 #211E1E",
       position: "relative",
       overflow: "hidden",
     }}>
@@ -6396,7 +6396,7 @@ function QuickAction({ icon, label, hint }) {
         width: 28, height: 28,
         display: "grid", placeItems: "center",
         background: "#F6EECB",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 8,
         color: "#211E1E",
         flexShrink: 0,
@@ -6424,10 +6424,10 @@ function Section({ title, hint, children }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 14,
       padding: "18px 20px 20px",
-      boxShadow: "3px 3px 0 #211E1E",
+      boxShadow: "2px 2px 0 #211E1E",
     }}>
       <div style={{ marginBottom: 14 }}>
         <h2 style={{
@@ -6450,7 +6450,7 @@ function Field({ label, value, onChange, multiline }) {
     width: "100%", boxSizing: "border-box",
     padding: "9px 12px",
     background: "#FFFCF3",
-    border: "1.5px solid #211E1E",
+    border: "1px solid #211E1E",
     borderRadius: 8,
     fontSize: 13, color: "#211E1E",
     fontFamily: "inherit",
@@ -6459,7 +6459,7 @@ function Field({ label, value, onChange, multiline }) {
     lineHeight: 1.5,
     transition: "box-shadow .15s ease, background .15s ease",
   };
-  const onFocus = (e)=>{e.currentTarget.style.background="#FFFFFF";e.currentTarget.style.boxShadow="2px 2px 0 #FDC831, 2px 2px 0 1.5px #211E1E";};
+  const onFocus = (e)=>{e.currentTarget.style.background="#FFFFFF";e.currentTarget.style.boxShadow="1px 1px 0 #FDC831, 2px 2px 0 1.5px #211E1E";};
   const onBlur  = (e)=>{e.currentTarget.style.background="#FFFCF3";e.currentTarget.style.boxShadow="none";};
   return (
     <label style={{ display: "block", flex: 1, minWidth: 0 }}>
@@ -6505,7 +6505,7 @@ function Toggle({ label, sub, checked, onChange }) {
         width: 38, height: 22,
         background: checked ? "#211E1E" : "#E6DFC6",
         borderRadius: 999,
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         position: "relative",
         flexShrink: 0,
         transition: "background .18s ease",
@@ -6516,7 +6516,7 @@ function Toggle({ label, sub, checked, onChange }) {
           width: 16, height: 16,
           background: checked ? "#FDC831" : "#FFFFFF",
           borderRadius: "50%",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           transition: "left .18s ease, background .18s ease",
         }}/>
       </span>
@@ -6591,9 +6591,9 @@ const __TWEAKS_STYLE = `
   .twk-body::-webkit-scrollbar{width:8px}
   .twk-body::-webkit-scrollbar-track{background:transparent;margin:2px}
   .twk-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.15);border-radius:4px;
-    border:2px solid transparent;background-clip:content-box}
+    border:1px solid transparent;background-clip:content-box}
   .twk-body::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.25);
-    border:2px solid transparent;background-clip:content-box}
+    border:1px solid transparent;background-clip:content-box}
   .twk-row{display:flex;flex-direction:column;gap:5px}
   .twk-row-h{flex-direction:row;align-items:center;justify-content:space-between;gap:10px}
   .twk-lbl{display:flex;justify-content:space-between;align-items:baseline;
@@ -7154,7 +7154,7 @@ function ApprovalStatusCards({ onOpen }) {
           minWidth: 22, height: 22, padding: "0 7px",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
           background: "#FFE08A", color: "#211E1E",
-          border: "1.5px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
         }}>{pending.length}</div>
         <div style={{ flex: 1 }}/>
         <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>Apps & hardware approval</div>
@@ -7181,7 +7181,7 @@ function ApprovalRow({ req, onOpen }) {
       background: "#FFFFFF",
       border: `2px solid ${returned ? "#B92323" : "#211E1E"}`,
       borderRadius: 10,
-      boxShadow: returned ? "3px 3px 0 #B92323" : (overdue ? "3px 3px 0 #D97706" : "3px 3px 0 #211E1E"),
+      boxShadow: returned ? "2px 2px 0 #B92323" : (overdue ? "2px 2px 0 #D97706" : "2px 2px 0 #211E1E"),
       cursor: "pointer", textAlign: "left",
       fontFamily: "'Archivo', sans-serif",
       transition: "transform .12s ease, box-shadow .12s ease",
@@ -7194,7 +7194,7 @@ function ApprovalRow({ req, onOpen }) {
         background: returned ? "#B92323" : (overdue ? "#D97706" : "#FFE08A"),
         color: returned || overdue ? "#FFFFFF" : "#211E1E",
         display: "grid", placeItems: "center",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 900,
       }}>{initialsFor(req.manager)}</div>
 
@@ -7206,17 +7206,17 @@ function ApprovalRow({ req, onOpen }) {
           {returned && <span style={{
             fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
             padding: "2px 6px", background: "#B92323", color: "#FFFFFF",
-            border: "1.5px solid #B92323", borderRadius: 3,
+            border: "1px solid #B92323", borderRadius: 3,
           }}>Returned · needs HR fix</span>}
           {!returned && overdue && <span style={{
             fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
             padding: "2px 6px", background: "#D97706", color: "#FFFFFF",
-            border: "1.5px solid #D97706", borderRadius: 3,
+            border: "1px solid #D97706", borderRadius: 3,
           }}>Overdue · 48h+</span>}
           {!returned && nudged && <span style={{
             fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
             padding: "2px 6px", background: "#FFFFFF", color: "#211E1E",
-            border: "1.5px solid #211E1E", borderRadius: 3,
+            border: "1px solid #211E1E", borderRadius: 3,
           }}>Nudged {timeAgo(req.nudgedAt)}</span>}
         </div>
         <div style={{ fontSize: 11.5, color: "#78684C", fontWeight: 600, marginTop: 3 }}>
@@ -7234,7 +7234,7 @@ function ApprovalRow({ req, onOpen }) {
           padding: "6px 10px",
           background: nudged ? "#F0EDE5" : "#FFFFFF",
           color: "#211E1E",
-          border: "1.5px solid #211E1E", borderRadius: 4,
+          border: "1px solid #211E1E", borderRadius: 4,
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 10.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           cursor: nudged || returned ? "default" : "pointer",
@@ -7247,7 +7247,7 @@ function ApprovalRow({ req, onOpen }) {
       <div style={{
         padding: "6px 12px",
         background: "#211E1E", color: "#FDC831",
-        border: "2px solid #211E1E", borderRadius: 6,
+        border: "1px solid #211E1E", borderRadius: 6,
         textAlign: "center", minWidth: 80,
       }}>
         <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase" }}>
@@ -7277,15 +7277,15 @@ function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
       {/* Hero strip */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "20px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", gap: 10 }}>
         <button onClick={onBack} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
@@ -7296,8 +7296,8 @@ function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
         <button onClick={() => onOpenManagerView(req.id)} style={{
           padding: "8px 14px",
           background: "#FFFFFF", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 4,
-          boxShadow: "2px 2px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 4,
+          boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           cursor: "pointer",
@@ -7335,8 +7335,8 @@ function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
           <button onClick={() => nudgeApproval(req.id)} disabled={nudged || returned} style={{
             padding: "10px 16px",
             background: "#211E1E", color: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: "3px 3px 0 #FDC831",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: "2px 2px 0 #FDC831",
             fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: nudged || returned ? "default" : "pointer",
@@ -7345,7 +7345,7 @@ function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
           <button onClick={() => setSkipOpen(true)} style={{
             padding: "10px 16px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px dashed #211E1E", borderRadius: 4,
+            border: "1px dashed #211E1E", borderRadius: 4,
             fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
@@ -7367,8 +7367,8 @@ function HRApprovalDetail({ requestId, onBack, onOpenManagerView }) {
       <div style={{
         padding: "16px 20px",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 10,
-        boxShadow: "3px 3px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 10,
+        boxShadow: "2px 2px 0 #211E1E",
       }}>
         <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5, marginBottom: 10 }}>Activity</div>
         <div style={{ display: "grid", gap: 8, fontSize: 12.5 }}>
@@ -7409,14 +7409,14 @@ function HRWaitingHireCard({ hire }) {
       display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center",
       padding: "12px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
-      boxShadow: "2px 2px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 8,
+      boxShadow: "1px 1px 0 #211E1E",
     }}>
       <div style={{
         width: 36, height: 36, borderRadius: "50%",
         background: "#FDC831", color: "#211E1E",
         display: "grid", placeItems: "center",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 900,
       }}>{(hire.firstName?.[0] || "") + (hire.lastName?.[0] || "")}</div>
       <div style={{ minWidth: 0 }}>
@@ -7430,7 +7430,7 @@ function HRWaitingHireCard({ hire }) {
       <div style={{
         fontFamily: "'Archivo', monospace", fontSize: 10.5, fontWeight: 800,
         padding: "3px 8px", background: "#FFF9E6", color: "#211E1E",
-        border: "1.5px solid #211E1E", borderRadius: 3,
+        border: "1px solid #211E1E", borderRadius: 3,
         letterSpacing: "0.04em", textTransform: "uppercase",
       }}>Awaiting kit</div>
     </div>
@@ -7462,7 +7462,7 @@ function SkipManagerModal({ req, onCancel, onConfirm }) {
           width: "100%", boxSizing: "border-box",
           padding: "10px 12px",
           background: "#FFF9E6", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 6,
+          border: "1px solid #211E1E", borderRadius: 6,
           fontFamily: "'Archivo', sans-serif", fontSize: 13,
           outline: "none", resize: "vertical",
         }}/>
@@ -7488,7 +7488,7 @@ function ManagerInbox({ managerName, onOpen, onBackToHR }) {
       {/* Hero strip */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "28px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -7496,8 +7496,8 @@ function ManagerInbox({ managerName, onOpen, onBackToHR }) {
         <button onClick={onBackToHR} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
@@ -7505,7 +7505,7 @@ function ManagerInbox({ managerName, onOpen, onBackToHR }) {
         <span style={{
           fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
           padding: "3px 8px", background: "#211E1E", color: "#FDC831",
-          border: "2px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
           letterSpacing: "0.06em", textTransform: "uppercase",
         }}>Demo · Manager view</span>
       </div>
@@ -7532,7 +7532,7 @@ function ManagerInbox({ managerName, onOpen, onBackToHR }) {
           minWidth: 22, height: 22, padding: "0 7px",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
           background: "#FDC831", color: "#211E1E",
-          border: "1.5px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
         }}>{myReqs.length}</div>
       </div>
 
@@ -7540,7 +7540,7 @@ function ManagerInbox({ managerName, onOpen, onBackToHR }) {
         <div style={{
           padding: "40px 20px", textAlign: "center",
           background: "#FFFFFF",
-          border: "2px dashed rgba(33,30,30,0.25)", borderRadius: 10,
+          border: "1px dashed rgba(33,30,30,0.25)", borderRadius: 10,
           fontFamily: "'Archivo', sans-serif", fontSize: 14, color: "#78684C", fontWeight: 600,
         }}>
           You're all caught up — nothing waiting on you.
@@ -7563,19 +7563,19 @@ function ManagerInboxRow({ req, onOpen }) {
       display: "block", width: "100%", textAlign: "left",
       padding: "18px 20px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 12,
-      boxShadow: "4px 4px 0 #FDC831",
+      border: "1px solid #211E1E", borderRadius: 12,
+      boxShadow: "2px 2px 0 #FDC831",
       cursor: "pointer",
       fontFamily: "'Archivo', sans-serif",
       transition: "transform .12s ease, box-shadow .12s ease",
     }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translate(-2px,-2px)";
-        e.currentTarget.style.boxShadow = "6px 6px 0 #FDC831";
+        e.currentTarget.style.boxShadow = "3px 3px 0 #FDC831";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
@@ -7587,14 +7587,14 @@ function ManagerInboxRow({ req, onOpen }) {
         {overdue && <span style={{
           fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
           padding: "2px 6px", background: "#D97706", color: "#FFFFFF",
-          border: "1.5px solid #D97706", borderRadius: 3,
+          border: "1px solid #D97706", borderRadius: 3,
         }}>Overdue · 48h+</span>}
         <div style={{ flex: 1 }}/>
         <span style={{
           padding: "5px 12px",
           background: "#FDC831", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 4,
-          boxShadow: "2px 2px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 4,
+          boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
           letterSpacing: "0.04em", textTransform: "uppercase",
         }}>Review kit →</span>
@@ -7617,7 +7617,7 @@ function ManagerInboxRow({ req, onOpen }) {
               display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 10, alignItems: "center",
               padding: "8px 10px",
               background: "#FFF9E6",
-              border: "1.5px solid rgba(33,30,30,0.2)", borderRadius: 6,
+              border: "1px solid rgba(33,30,30,0.2)", borderRadius: 6,
             }}>
               <div style={{
                 width: 28, height: 28, borderRadius: "50%",
@@ -7748,7 +7748,7 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
           always reachable while the manager reads the kit. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         height: 60,
         flexShrink: 0,
         padding: "0 32px",
@@ -7760,8 +7760,8 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
         <button onClick={onBack} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
@@ -7770,7 +7770,7 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
         <span style={{
           fontFamily: "'Archivo', monospace", fontSize: 10, fontWeight: 800,
           padding: "3px 8px", background: "#211E1E", color: "#FDC831",
-          border: "2px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
           letterSpacing: "0.06em", textTransform: "uppercase",
           flexShrink: 0,
         }}>Demo · {managerName}</span>
@@ -7786,8 +7786,8 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
             in the bottom sticky bar. */}
         <button onClick={() => setReturnOpen(true)} style={{
           padding: "7px 12px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
           color: "#211E1E", cursor: "pointer",
@@ -7797,8 +7797,8 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
           <button onClick={markDoneAndNext} style={{
             padding: "7px 14px",
             background: "#FDC831", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
@@ -7808,8 +7808,8 @@ function ManagerApprove({ requestId, managerName, onBack, onSubmitted }) {
           <button onClick={handleApprove} style={{
             padding: "7px 14px",
             background: "#0A8A3E", color: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
@@ -7917,17 +7917,17 @@ function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "min(540px, 100%)",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 16,
-        boxShadow: "10px 10px 0 #211E1E, 0 30px 60px rgba(33,30,30,0.30)",
+        border: "1px solid #211E1E", borderRadius: 16,
+        boxShadow: "5px 5px 0 #211E1E, 0 30px 60px rgba(33,30,30,0.30)",
         padding: 28,
       }}>
         {/* Warning icon + title */}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }}>
           <div style={{
             width: 44, height: 44, flexShrink: 0,
-            background: "#FFE8A3", border: "2px solid #211E1E",
+            background: "#FFE8A3", border: "1px solid #211E1E",
             borderRadius: 10, display: "grid", placeItems: "center",
-            color: "#211E1E", boxShadow: "3px 3px 0 #211E1E",
+            color: "#211E1E", boxShadow: "2px 2px 0 #211E1E",
           }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 9v4M12 17h0"/>
@@ -7954,7 +7954,7 @@ function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
         {/* List of affected hires */}
         <div style={{
           background: "#FFF9E6",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 10,
           padding: 4,
           marginBottom: 18,
@@ -7988,7 +7988,7 @@ function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
                   fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em",
                   textTransform: "uppercase",
                   color: "#B45309",
-                  background: "#FFFFFF", border: "1.5px solid #B45309",
+                  background: "#FFFFFF", border: "1px solid #B45309",
                   padding: "2px 7px", borderRadius: 3,
                 }}>No {m}</span>
               ))}
@@ -8002,8 +8002,8 @@ function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
           <button type="button" onClick={onCancel} style={{
             padding: "10px 18px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 8,
-            boxShadow: "2px 2px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 8,
+            boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -8011,14 +8011,14 @@ function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
             transition: "transform .15s ease, box-shadow .15s ease",
           }}
             onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="3.5px 3.5px 0 #211E1E";}}
-            onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";}}>
+            onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";}}>
             Keep editing
           </button>
           <button type="button" onClick={onConfirm} style={{
             padding: "10px 18px",
             background: "#0A8A3E", color: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 8,
-            boxShadow: "2px 2px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 8,
+            boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -8026,7 +8026,7 @@ function EmptyKitConfirmModal({ empties, onCancel, onJumpTo, onConfirm }) {
             transition: "transform .15s ease, box-shadow .15s ease, background .15s ease",
           }}
             onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="3.5px 3.5px 0 #211E1E";e.currentTarget.style.background="#0FA34A";}}
-            onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";e.currentTarget.style.background="#0A8A3E";}}>
+            onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="1px 1px 0 #211E1E";e.currentTarget.style.background="#0A8A3E";}}>
             Approve anyway
           </button>
         </div>
@@ -8051,14 +8051,14 @@ function ManagerHireRail({ hires, activeIdx, doneIdxs, onPick }) {
       alignSelf: "flex-start",
       maxHeight: "calc(100vh - 100px)", overflowY: "auto",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       padding: "12px 10px",
     }}>
       <div className="eyebrow" style={{
         color: "#78684C", fontSize: 9.5, fontWeight: 900, letterSpacing: "0.1em",
         textTransform: "uppercase", padding: "0 4px 8px",
-        borderBottom: "1.5px solid #F0E5C7", marginBottom: 8,
+        borderBottom: "1px solid #F0E5C7", marginBottom: 8,
       }}>
         Hires · {doneIdxs.size}/{hires.length} done
       </div>
@@ -8074,7 +8074,7 @@ function ManagerHireRail({ hires, activeIdx, doneIdxs, onPick }) {
               color: "#211E1E",
               border: active ? "2px solid #211E1E" : "2px solid transparent",
               borderRadius: 6,
-              boxShadow: active ? "2px 2px 0 #211E1E" : "none",
+              boxShadow: active ? "1px 1px 0 #211E1E" : "none",
               fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13,
               cursor: "pointer", textAlign: "left",
               transition: "all .12s ease",
@@ -8122,8 +8122,8 @@ function ManagerHireIdentityInline({ hire, loc, posLabel, onFlag }) {
       marginBottom: 16,
       padding: "12px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 14, alignItems: "center",
     }}>
       <div style={{
@@ -8178,7 +8178,7 @@ function ManagerHireIdentityInline({ hire, loc, posLabel, onFlag }) {
       <button onClick={onFlag} style={{
         padding: "7px 12px",
         background: "transparent", color: "#B92323",
-        border: "1.5px dashed #B92323", borderRadius: 4,
+        border: "1px dashed #B92323", borderRadius: 4,
         fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 10.5,
         letterSpacing: "0.04em", textTransform: "uppercase",
         cursor: "pointer", whiteSpace: "nowrap",
@@ -8211,7 +8211,7 @@ function ReturnToHRModal({ onCancel, onConfirm }) {
           width: "100%", boxSizing: "border-box",
           padding: "10px 12px",
           background: "#FFF9E6", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 6,
+          border: "1px solid #211E1E", borderRadius: 6,
           fontFamily: "'Archivo', sans-serif", fontSize: 13,
           outline: "none", resize: "vertical",
         }}/>
@@ -8244,12 +8244,12 @@ function ModalShell({ title, kicker, onClose, children }) {
       <div onClick={e => e.stopPropagation()} style={{
         width: "100%", maxWidth: 540,
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 12,
-        boxShadow: "6px 6px 0 #FDC831",
+        border: "1px solid #211E1E", borderRadius: 12,
+        boxShadow: "3px 3px 0 #FDC831",
       }}>
         <div style={{
           padding: "16px 22px",
-          borderBottom: "2px solid #211E1E",
+          borderBottom: "1px solid #211E1E",
         }}>
           {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
           <h2 style={{
@@ -8266,8 +8266,8 @@ function ModalShell({ title, kicker, onClose, children }) {
 const btnPrimary = {
   padding: "10px 16px",
   background: "#211E1E", color: "#FDC831",
-  border: "2px solid #211E1E", borderRadius: 4,
-  boxShadow: "3px 3px 0 #FDC831",
+  border: "1px solid #211E1E", borderRadius: 4,
+  boxShadow: "2px 2px 0 #FDC831",
   fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
@@ -8275,7 +8275,7 @@ const btnPrimary = {
 const btnSecondary = {
   padding: "10px 16px",
   background: "#FFFFFF", color: "#211E1E",
-  border: "2px solid #211E1E", borderRadius: 4,
+  border: "1px solid #211E1E", borderRadius: 4,
   fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
@@ -8441,7 +8441,7 @@ function OnboardingHistory({ onBack }) {
       {/* Hero strip — full-bleed cream banner. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "28px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -8450,17 +8450,17 @@ function OnboardingHistory({ onBack }) {
         <button onClick={onBack}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translate(-1px,-1px)";
-            e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+            e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
           }}
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "7px 12px 7px 10px",
-            background: "#FFFFFF", border: "2px solid #211E1E",
-            borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+            background: "#FFFFFF", border: "1px solid #211E1E",
+            borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -8494,10 +8494,10 @@ function OnboardingHistory({ onBack }) {
             placeholder="Search by name, title, or team…"
             style={{
               width: "100%", padding: "11px 14px 11px 36px",
-              border: "2px solid #211E1E", borderRadius: 6,
+              border: "1px solid #211E1E", borderRadius: 6,
               fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600,
               color: "#211E1E", background: "#FFFFFF",
-              boxShadow: "2px 2px 0 #211E1E",
+              boxShadow: "1px 1px 0 #211E1E",
               outline: "none",
             }}/>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -8527,7 +8527,7 @@ function OnboardingHistory({ onBack }) {
       {filtered.length === 0 && (
         <div style={{
           padding: "40px 24px", textAlign: "center",
-          background: "#FFF9E6", border: "2px dashed #211E1E", borderRadius: 10,
+          background: "#FFF9E6", border: "1px dashed #211E1E", borderRadius: 10,
           color: "#4A3F2E", fontFamily: "'Archivo', sans-serif",
         }}>
           <div style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>No records match.</div>
@@ -8569,8 +8569,8 @@ function OnbHistoryChip({ label, count, active, onClick, tone }) {
       padding: "7px 11px",
       background: active ? "#211E1E" : "#FFFFFF",
       color: active ? "#FDC831" : "#211E1E",
-      border: "2px solid #211E1E", borderRadius: 4,
-      boxShadow: active ? "none" : "2px 2px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 4,
+      boxShadow: active ? "none" : "1px 1px 0 #211E1E",
       fontFamily: "'Archivo', sans-serif",
       fontWeight: 800, fontSize: 11.5,
       letterSpacing: "0.03em", textTransform: "uppercase",
@@ -8613,7 +8613,7 @@ function OnbHistoryRow({ row, onOpen }) {
       alignItems: "center", gap: 18,
       padding: "12px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
+      border: "1px solid #211E1E", borderRadius: 8,
       cursor: isArchiveOnly ? "default" : "pointer",
       opacity: isArchiveOnly ? 0.85 : 1,
       transition: "transform .12s ease, box-shadow .12s ease",
@@ -8621,7 +8621,7 @@ function OnbHistoryRow({ row, onOpen }) {
     onMouseEnter={(e) => {
       if (isArchiveOnly) return;
       e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
     }}
     onMouseLeave={(e) => {
       e.currentTarget.style.transform = "none";
@@ -8631,7 +8631,7 @@ function OnbHistoryRow({ row, onOpen }) {
         width: 36, height: 36, borderRadius: "50%",
         background: isInProgress ? "#FDC831" : "#FFF9E6",
         color: "#211E1E",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         display: "grid", placeItems: "center",
         fontFamily: "'Archivo', sans-serif",
         fontSize: 12, fontWeight: 900,
@@ -9680,7 +9680,7 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
       {/* Hero strip — full-bleed cream banner. Mirrors Knowledge / Status. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "28px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -9692,8 +9692,8 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
         <button onClick={prev} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -9738,8 +9738,8 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "10px 16px",
               background: "#211E1E", color: "#FDC831",
-              border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: "3px 3px 0 #FDC831",
+              border: "1px solid #211E1E", borderRadius: 4,
+              boxShadow: "2px 2px 0 #FDC831",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 12,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -9748,11 +9748,11 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #FDC831";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
             }}
             title="Clone from an existing Slicer — copies role, dept, location, and manager">
             <IconCopy size={13} stroke={2.5}/> Clone user
@@ -9799,8 +9799,8 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
         <div style={{
           marginTop: 24, padding: "12px 16px",
           background: "#FFE8E8",
-          border: "2px solid #B92323", borderRadius: 8,
-          boxShadow: "3px 3px 0 #B92323",
+          border: "1px solid #B92323", borderRadius: 8,
+          boxShadow: "2px 2px 0 #B92323",
           display: "flex", alignItems: "center", gap: 10,
           animation: "fadeUp .25s var(--ease) both",
           fontFamily: "'Archivo', sans-serif",
@@ -9833,9 +9833,9 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "13px 24px",
             background: "#FDC831",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 4,
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 13,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -9845,11 +9845,11 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translate(-1px,-1px)";
-            e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
           }}>
           {hires.length > 1 ? `Send ${hires.length} hires to managers` : "Send to manager"}
           <IconArrow size={14} stroke={2.5} />
@@ -9936,8 +9936,8 @@ function OnbStepper({ steps, current, maxStep, onStep }) {
       display: "flex", alignItems: "stretch", gap: 0,
       padding: 5,
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 8,
+      boxShadow: "2px 2px 0 #211E1E",
       maxWidth: "100%", overflowX: "auto",
     }}>
       {steps.map((s, i) => {
@@ -9973,9 +9973,9 @@ function OnbStepper({ steps, current, maxStep, onStep }) {
                 transform: active ? "scale(1.04)" : "scale(1)",
                 transformOrigin: "center",
                 boxShadow: active
-                  ? "2px 2px 0 #211E1E"
+                  ? "1px 1px 0 #211E1E"
                   : done
-                  ? "2px 2px 0 #FDC831"
+                  ? "1px 1px 0 #FDC831"
                   : "none",
               }}>
               <span style={{
@@ -10130,7 +10130,7 @@ function EmailProvisionBlock({
         background: "#FFFFFF",
         border: `2px solid ${showError ? "#B92323" : "#211E1E"}`,
         borderRadius: 6,
-        boxShadow: showError ? "3px 3px 0 #B92323" : "none",
+        boxShadow: showError ? "2px 2px 0 #B92323" : "none",
         overflow: "hidden",
         transition: "all .15s ease",
       }}>
@@ -10152,7 +10152,7 @@ function EmailProvisionBlock({
           display: "grid", placeItems: "center",
           padding: "0 14px",
           background: "#FFF9E6",
-          borderLeft: "2px solid #211E1E",
+          borderLeft: "1px solid #211E1E",
           fontFamily: "'Archivo', monospace",
           fontSize: 13, fontWeight: 700, color: "#211E1E",
         }}>@slice.com</div>
@@ -10180,7 +10180,7 @@ function EmailProvisionBlock({
                 display: "inline-flex", alignItems: "center", gap: 5,
                 padding: "3px 9px",
                 background: "#FFFFFF",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 borderRadius: 999,
                 cursor: "pointer",
                 fontFamily: "'Archivo', monospace",
@@ -10190,7 +10190,7 @@ function EmailProvisionBlock({
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#FDC831";
-                e.currentTarget.style.boxShadow  = "2px 2px 0 #211E1E";
+                e.currentTarget.style.boxShadow  = "1px 1px 0 #211E1E";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "#FFFFFF";
@@ -10226,7 +10226,7 @@ function EmailProvisionBlock({
               display: "inline-flex", alignItems: "center", gap: 5,
               padding: "1px 7px 1px 5px",
               background: "#FDC831", color: "#211E1E",
-              border: "1.5px solid #211E1E", borderRadius: 3,
+              border: "1px solid #211E1E", borderRadius: 3,
               fontWeight: 800, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase",
             }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
@@ -10329,7 +10329,7 @@ function IdentityHireCard({ hire, idx, total, isCurrent, isFirst = true, firstHi
           display: "flex", alignItems: "center", gap: 10,
           padding: "8px 14px",
           background: headerBg,
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderBottom: "none",
           borderRadius: "8px 8px 0 0",
         }}>
@@ -10624,8 +10624,8 @@ function HireSwitcherBar({ hires, currentIdx, onSwitchHire, step }) {
       display: "flex", alignItems: "center", gap: 10,
       padding: "10px 14px",
       background: "#FFF9E6",
-      border: "2px solid #211E1E", borderRadius: 8,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 8,
+      boxShadow: "2px 2px 0 #211E1E",
       marginBottom: 20,
       flexWrap: "wrap",
     }}>
@@ -10649,8 +10649,8 @@ function HireSwitcherBar({ hires, currentIdx, onSwitchHire, step }) {
                 padding: "5px 10px",
                 background: active ? "#211E1E" : "#FFFFFF",
                 color: active ? "#FDC831" : "#211E1E",
-                border: "2px solid #211E1E", borderRadius: 4,
-                boxShadow: active ? "2px 2px 0 #FDC831" : "none",
+                border: "1px solid #211E1E", borderRadius: 4,
+                boxShadow: active ? "1px 1px 0 #FDC831" : "none",
                 fontFamily: "'Archivo', sans-serif",
                 fontSize: 12, fontWeight: 800,
                 cursor: active ? "default" : "pointer",
@@ -10662,7 +10662,7 @@ function HireSwitcherBar({ hires, currentIdx, onSwitchHire, step }) {
                 padding: "1px 5px",
                 background: active ? "#FDC831" : "#FFF9E6",
                 color: "#211E1E",
-                border: "1.5px solid " + (active ? "#FDC831" : "#211E1E"),
+                border: "1px solid " + (active ? "#FDC831" : "#211E1E"),
                 borderRadius: 2,
               }}>{idx + 1}</span>
               {name}
@@ -10718,7 +10718,7 @@ function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = 
         padding: "1px 6px",
         background: isInherited ? "#FDC831" : "#FFFFFF",
         color: "#211E1E",
-        border: "1.5px solid #211E1E", borderRadius: 3,
+        border: "1px solid #211E1E", borderRadius: 3,
       }}>{isInherited ? "Inherited" : "Custom"}</span>
     );
   };
@@ -10733,7 +10733,7 @@ function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = 
           <div style={{
             padding: "10px 12px",
             background: "#FFF9E6",
-            border: "2px dashed #211E1E", borderRadius: 6,
+            border: "1px dashed #211E1E", borderRadius: 6,
             fontSize: 12, lineHeight: 1.5, color: "#4A3F2E",
             marginBottom: 4,
           }}>
@@ -10795,7 +10795,7 @@ function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = 
           margin: errors.location ? -8 : 0,
           border: errors.location ? "2px solid #B92323" : "2px solid transparent",
           borderRadius: 8,
-          boxShadow: errors.location ? "3px 3px 0 #B92323" : "none",
+          boxShadow: errors.location ? "2px 2px 0 #B92323" : "none",
           transition: "all .2s ease",
           animation: errors.location ? "shake .4s ease-in-out" : "none",
         }}>
@@ -10813,8 +10813,8 @@ function StepOrg({ form, patch, errors = {}, firstHire, isFirst = true, hires = 
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "12px 14px",
                 background: form.location === l.id ? "#FDC831" : "#FFFFFF",
-                border: "2px solid #211E1E", borderRadius: 6,
-                boxShadow: form.location === l.id ? "2px 2px 0 #211E1E" : "none",
+                border: "1px solid #211E1E", borderRadius: 6,
+                boxShadow: form.location === l.id ? "1px 1px 0 #211E1E" : "none",
                 fontFamily: "'Archivo', sans-serif",
                 cursor: "pointer",
                 textAlign: "left",
@@ -10907,9 +10907,9 @@ function SectionDivider({ label }) {
         color: "#211E1E",
         padding: "3px 8px",
         background: "#FDC831",
-        border: "1.5px solid #211E1E", borderRadius: 4,
+        border: "1px solid #211E1E", borderRadius: 4,
       }}>{label}</div>
-      <div style={{ flex: 1, height: 0, borderTop: "1.5px dashed rgba(33,30,30,0.3)" }}/>
+      <div style={{ flex: 1, height: 0, borderTop: "1px dashed rgba(33,30,30,0.3)" }}/>
     </div>
   );
 }
@@ -10956,8 +10956,8 @@ function HireRail({ hires, currentIdx, onSwitchHire }) {
               display: "flex", flexDirection: "column",
               padding: 0,
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 6,
-              boxShadow: active ? "2px 2px 0 #211E1E" : "none",
+              border: "1px solid #211E1E", borderRadius: 6,
+              boxShadow: active ? "1px 1px 0 #211E1E" : "none",
               transform: active ? "scale(1.02)" : "none",
               transformOrigin: "left center",
               cursor: active ? "default" : "pointer",
@@ -10984,7 +10984,7 @@ function HireRail({ hires, currentIdx, onSwitchHire }) {
                     fontSize: 9.5, fontWeight: 900,
                     padding: "1px 5px",
                     background: "#FDC831", color: "#211E1E",
-                    border: "1.5px solid #FDC831",
+                    border: "1px solid #FDC831",
                     borderRadius: 2,
                   }}>{String(idx + 1).padStart(2, "0")}</span>
                   <span style={{
@@ -11021,7 +11021,7 @@ function HireRail({ hires, currentIdx, onSwitchHire }) {
                   padding: "1px 5px",
                   background: "#FFF9E6",
                   color: "#211E1E",
-                  border: "1.5px solid #211E1E",
+                  border: "1px solid #211E1E",
                   borderRadius: 2,
                   flexShrink: 0,
                 }}>{String(idx + 1).padStart(2, "0")}</span>
@@ -11160,8 +11160,8 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
           padding: "12px 16px",
           marginBottom: 16,
           background: "#FFF8DC",
-          border: "2px solid #211E1E", borderRadius: 8,
-          boxShadow: "3px 3px 0 #FDC831",
+          border: "1px solid #211E1E", borderRadius: 8,
+          boxShadow: "2px 2px 0 #FDC831",
           flexWrap: "wrap",
         }}>
           <span style={{
@@ -11178,7 +11178,7 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
             <button onClick={onDismissAppsReset} style={{
               padding: "6px 12px",
               background: "#FFFFFF", color: "#211E1E",
-              border: "1.5px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 10.5, fontWeight: 800,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -11187,7 +11187,7 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
             <button onClick={onAcceptAppsReset} style={{
               padding: "6px 12px",
               background: "#211E1E", color: "#FDC831",
-              border: "1.5px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 10.5, fontWeight: 800,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -11205,8 +11205,8 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
       <div style={{
         padding: "20px 22px",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 12,
-        boxShadow: "4px 4px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 12,
+        boxShadow: "2px 2px 0 #211E1E",
         display: "flex", flexDirection: "column", gap: 14,
       }}>
         <div style={{
@@ -11236,7 +11236,7 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
               }} style={{
                 padding: "5px 10px",
                 background: "#FFFFFF", color: "#211E1E",
-                border: "1.5px dashed #211E1E", borderRadius: 4,
+                border: "1px dashed #211E1E", borderRadius: 4,
                 fontFamily: "'Archivo', sans-serif",
                 fontWeight: 800, fontSize: 10.5,
                 letterSpacing: "0.04em", textTransform: "uppercase",
@@ -11269,7 +11269,7 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
               color: "#211E1E",
               padding: "2px 7px",
               background: "#FDC831",
-              border: "1.5px solid #211E1E", borderRadius: 3,
+              border: "1px solid #211E1E", borderRadius: 3,
               marginBottom: 8,
             }}>Required for everyone</div>
             <div style={{
@@ -11310,7 +11310,7 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
         <div style={{
           display: "flex", alignItems: "center", gap: 12,
           paddingTop: 6,
-          borderTop: "1.5px dashed rgba(33,30,30,0.2)",
+          borderTop: "1px dashed rgba(33,30,30,0.2)",
           marginTop: 2,
         }}>
           <button onClick={() => setPickerOpen(true)}
@@ -11318,8 +11318,8 @@ function StepApps({ form, toggleApp, patch, hires = [form], currentIdx = 0, onSw
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "8px 14px",
               background: "#211E1E", color: "#FDC831",
-              border: "2px solid #211E1E", borderRadius: 6,
-              boxShadow: "2px 2px 0 #FDC831",
+              border: "1px solid #211E1E", borderRadius: 6,
+              boxShadow: "1px 1px 0 #FDC831",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 11.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -11394,7 +11394,7 @@ function AppRow({ app, onRemove }) {
             display: "grid", placeItems: "center",
             width: 20, height: 20,
             background: "transparent", color: "#211E1E",
-            border: "1.5px solid rgba(33,30,30,0.4)", borderRadius: 3,
+            border: "1px solid rgba(33,30,30,0.4)", borderRadius: 3,
             cursor: "pointer", flexShrink: 0,
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 900, fontSize: 12,
@@ -11429,7 +11429,7 @@ function AppPickerModal({ form, toggleApp, onClose }) {
             width: "100%", boxSizing: "border-box",
             padding: "10px 14px",
             background: "#FFF9E6",
-            border: "2px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 13, fontWeight: 600,
             color: "#211E1E",
@@ -11453,7 +11453,7 @@ function AppPickerModal({ form, toggleApp, onClose }) {
                 display: "inline-flex", alignItems: "center", gap: 8,
                 padding: "2px 7px",
                 background: "#FDC831",
-                border: "1.5px solid #211E1E", borderRadius: 3,
+                border: "1px solid #211E1E", borderRadius: 3,
               }}>{cat}</div>
               <div style={{
                 display: "grid",
@@ -11472,14 +11472,14 @@ function AppPickerModal({ form, toggleApp, onClose }) {
       <div style={{
         display: "flex", justifyContent: "flex-end",
         marginTop: 12, paddingTop: 12,
-        borderTop: "1.5px dashed rgba(33,30,30,0.2)",
+        borderTop: "1px dashed rgba(33,30,30,0.2)",
       }}>
         <button onClick={onClose}
           style={{
             padding: "8px 16px",
             background: "#211E1E", color: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 6,
-            boxShadow: "2px 2px 0 #FDC831",
+            border: "1px solid #211E1E", borderRadius: 6,
+            boxShadow: "1px 1px 0 #FDC831",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -11500,7 +11500,7 @@ function AppTile({ app, selected, onToggle }) {
         background: selected ? "#FFF9E6" : "#FFFFFF",
         border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.3)"}`,
         borderRadius: 6,
-        boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
+        boxShadow: selected ? "1px 1px 0 #211E1E" : "none",
         cursor: app.essential ? "default" : "pointer",
         textAlign: "left",
         transition: "all .2s ease",
@@ -11615,9 +11615,9 @@ function StepHardware({ form, setHW, toggleExtra, hires = [form], currentIdx = 0
               width: "100%",
               padding: "16px 20px",
               background: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 6,
-              boxShadow: "4px 4px 0 #211E1E",
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -11627,11 +11627,11 @@ function StepHardware({ form, setHW, toggleExtra, hires = [form], currentIdx = 0
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}>
             Continue to review
             <IconArrow size={14} stroke={2.5} />
@@ -11713,7 +11713,7 @@ function HWTile({ item, selected, onSelect, radio, wide, small, category }) {
         background: selected ? "#FFF9E6" : "#FFFFFF",
         border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.3)"}`,
         borderRadius: 8,
-        boxShadow: selected ? "3px 3px 0 #211E1E" : "none",
+        boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
         cursor: "pointer",
         textAlign: "left",
         transition: "all .2s ease",
@@ -11733,7 +11733,7 @@ function HWTile({ item, selected, onSelect, radio, wide, small, category }) {
           width: small ? 44 : 56, height: small ? 32 : 40,
           display: "grid", placeItems: "center",
           background: "#FFF9E6",
-          border: "1.5px solid rgba(33,30,30,0.25)",
+          border: "1px solid rgba(33,30,30,0.25)",
           borderRadius: 5,
           color: "#211E1E",
           flexShrink: 0,
@@ -11797,8 +11797,8 @@ function HWCart({ form }) {
     <div style={{
       padding: "20px 22px",
       background: "#211E1E",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "4px 4px 0 #FDC831",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #FDC831",
       color: "#FFFFFF",
     }}>
       {/* Header — eyebrow on left, hire's name on right so HR always knows
@@ -11875,7 +11875,7 @@ function HWCart({ form }) {
       {items.length > 0 && (
         <div style={{
           display: "flex", justifyContent: "space-between", alignItems: "baseline",
-          marginTop: 14, paddingTop: 14, borderTop: "2px solid #FDC831",
+          marginTop: 14, paddingTop: 14, borderTop: "1px solid #FDC831",
         }}>
           <div className="eyebrow" style={{ color: "#FDC831", fontSize: 10.5 }}>Est. total</div>
           <div style={{
@@ -11988,8 +11988,8 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
       <div style={{
         marginBottom: 22,
         background: "#211E1E",
-        border: "2px solid #211E1E", borderRadius: 14,
-        boxShadow: "5px 5px 0 #FDC831",
+        border: "1px solid #211E1E", borderRadius: 14,
+        boxShadow: "3px 3px 0 #FDC831",
         overflow: "hidden",
         color: "#FFFFFF",
       }}>
@@ -12049,7 +12049,7 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
           <div style={{
             textAlign: "right",
             paddingLeft: 20,
-            borderLeft: "1.5px dashed rgba(253,200,49,0.35)",
+            borderLeft: "1px dashed rgba(253,200,49,0.35)",
           }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
@@ -12215,7 +12215,7 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
             <div style={{
               padding: "10px 12px",
               background: "#FFF9E6",
-              border: "1.5px dashed #B59020", borderRadius: 6,
+              border: "1px dashed #B59020", borderRadius: 6,
               fontSize: 12, color: "#78684C", lineHeight: 1.45,
             }}>
               No hardware in the box — they'll need a shared workstation on day 1.
@@ -12227,7 +12227,7 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "8px 10px",
                   background: "#FBF6E6",
-                  border: "1.5px solid rgba(33,30,30,0.18)", borderRadius: 6,
+                  border: "1px solid rgba(33,30,30,0.18)", borderRadius: 6,
                 }}>
                   <div style={{
                     width: 36, height: 26,
@@ -12297,8 +12297,8 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
         <div style={{
           padding: "22px 24px",
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 14,
-          boxShadow: "5px 5px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 14,
+          boxShadow: "3px 3px 0 #211E1E",
         }}>
           <div className="eyebrow" style={{ color: "#78684C", fontSize: 10.5, marginBottom: 4 }}>
             Launch timeline
@@ -12326,7 +12326,7 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
                     position: "absolute", left: -24, top: 2,
                     width: 20, height: 20, borderRadius: "50%",
                     background: isStart ? "#FDC831" : (past ? "#211E1E" : "#FFFFFF"),
-                    border: "2px solid #211E1E",
+                    border: "1px solid #211E1E",
                     display: "grid", placeItems: "center",
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 9, fontWeight: 900,
@@ -12360,8 +12360,8 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
         <div style={{
           padding: "16px 18px",
           background: "#FFF9E6",
-          border: "2px solid #211E1E", borderRadius: 10,
-          boxShadow: "3px 3px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 10,
+          boxShadow: "2px 2px 0 #211E1E",
         }}>
           <div style={{
             display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8,
@@ -12390,13 +12390,13 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
               lineHeight: 1.5,
               color: "#211E1E",
               background: "#FFFFFF",
-              border: "1.5px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 6,
               outline: "none",
               resize: "vertical",
               boxSizing: "border-box",
             }}
-            onFocus={(e) => { e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831"; }}
+            onFocus={(e) => { e.currentTarget.style.boxShadow = "1px 1px 0 #FDC831"; }}
             onBlur={(e) => { e.currentTarget.style.boxShadow = "none"; }}
           />
         </div>
@@ -12409,9 +12409,9 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
               width: "100%",
               padding: "18px 22px",
               background: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 6,
-              boxShadow: "4px 4px 0 #211E1E",
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 14,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -12421,11 +12421,11 @@ function StepReview({ form, hires = [form], currentIdx = 0, onSwitchHire, onKick
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}>
             {multiHire ? `Kick off ${hires.length} onboardings` : "Kick off onboarding"}
             <IconArrow size={14} stroke={2.5} />
@@ -12446,7 +12446,7 @@ function TicketLine({ code, label, muted }) {
         fontSize: 9.5, fontWeight: 800, letterSpacing: "0.06em",
         padding: "2px 6px",
         background: "#211E1E", color: "#FDC831",
-        border: "1.5px solid #211E1E", borderRadius: 3,
+        border: "1px solid #211E1E", borderRadius: 3,
         flexShrink: 0,
       }}>{code}</span>
       <span style={{ fontSize: 12, color: "#211E1E", fontWeight: 600 }}>{label}</span>
@@ -12462,7 +12462,7 @@ function ReviewAppChip({ app, required }) {
       display: "inline-flex", alignItems: "center", gap: 6,
       padding: "4px 10px 4px 4px",
       background: required ? "#211E1E" : "#FFFFFF",
-      border: "1.5px solid #211E1E", borderRadius: 4,
+      border: "1px solid #211E1E", borderRadius: 4,
       color: required ? "#FFFFFF" : "#211E1E",
     }}>
       <div style={{
@@ -12491,8 +12491,8 @@ function ReviewSection({ title, icon, right, children }) {
     <div style={{
       padding: "18px 20px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       marginBottom: 14,
     }}>
       <div style={{
@@ -12506,7 +12506,7 @@ function ReviewSection({ title, icon, right, children }) {
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "3px 9px",
           background: "#FDC831",
-          border: "1.5px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
         }}>
           {icon && <ReviewIcon kind={icon} />}
           {title}
@@ -12566,8 +12566,8 @@ function OnbCard({ title, kicker, children, topLeftAction }) {
     <div style={{
       padding: "22px 24px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 12,
-      boxShadow: "4px 4px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 12,
+      boxShadow: "2px 2px 0 #211E1E",
       display: "flex", flexDirection: "column", gap: 14,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
@@ -12637,7 +12637,7 @@ function OnbInput({ label, labelBadge, value, onChange, placeholder, type = "tex
           display: "grid", placeItems: "center",
           padding: "0 12px",
           background: "#FFF9E6",
-          borderLeft: "2px solid #211E1E",
+          borderLeft: "1px solid #211E1E",
           fontFamily: "'Archivo', monospace",
           fontSize: 12, fontWeight: 700, color: "#211E1E",
         }}>{suffix}</div>}
@@ -12686,7 +12686,7 @@ function OnbSelect({ label, labelBadge, value, options, onChange, placeholder, d
           background: disabled ? "#F5F0E4" : "#FFFFFF",
           border: `2px solid ${(error && !open) ? "#B92323" : (open ? "#FDC831" : "#211E1E")}`,
           borderRadius: 6,
-          boxShadow: open ? "3px 3px 0 #FDC831" : ((error && !open) ? "3px 3px 0 #B92323" : "none"),
+          boxShadow: open ? "2px 2px 0 #FDC831" : ((error && !open) ? "2px 2px 0 #B92323" : "none"),
           fontFamily: "'Archivo', sans-serif",
           fontSize: 14, fontWeight: current ? 700 : 500,
           color: current ? "#211E1E" : "#78684C",
@@ -12710,8 +12710,8 @@ function OnbSelect({ label, labelBadge, value, options, onChange, placeholder, d
         <div style={{
           position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0,
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 6,
-          boxShadow: "4px 4px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 6,
+          boxShadow: "2px 2px 0 #211E1E",
           zIndex: 20,
           maxHeight: 280, overflowY: "auto",
         }}>
@@ -12722,7 +12722,7 @@ function OnbSelect({ label, labelBadge, value, options, onChange, placeholder, d
               width: "100%", boxSizing: "border-box",
               padding: "10px 12px",
               background: "#FFF9E6",
-              border: "none", borderBottom: "2px solid #211E1E",
+              border: "none", borderBottom: "1px solid #211E1E",
               outline: "none",
               fontSize: 13, fontFamily: "'Archivo', sans-serif", fontWeight: 500,
               color: "#211E1E",
@@ -12788,8 +12788,8 @@ function OnboardingFiled({ form, onDone }) {
       <div style={{
         width: 72, height: 72, borderRadius: "50%",
         background: "#0A8A3E", color: "#FFFFFF",
-        border: "3px solid #211E1E",
-        boxShadow: "4px 4px 0 #211E1E",
+        border: "1px solid #211E1E",
+        boxShadow: "2px 2px 0 #211E1E",
         display: "grid", placeItems: "center",
         margin: "0 auto 24px",
         animation: "popIn .5s var(--ease) both",
@@ -12820,8 +12820,8 @@ function OnboardingFiled({ form, onDone }) {
           display: "inline-flex", flexDirection: "column", gap: 8,
           padding: "14px 18px",
           background: "#FFF9E6",
-          border: "2px solid #211E1E", borderRadius: 8,
-          boxShadow: "3px 3px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 8,
+          boxShadow: "2px 2px 0 #211E1E",
           marginBottom: 28, textAlign: "left",
         }}>
           {hires.map((h, i) => (
@@ -12862,8 +12862,8 @@ function OnboardingFiled({ form, onDone }) {
         <button onClick={onDone} style={{
           padding: "12px 20px",
           background: "#FDC831", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 4,
-          boxShadow: "3px 3px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 4,
+          boxShadow: "2px 2px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 13,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -12874,7 +12874,7 @@ function OnboardingFiled({ form, onDone }) {
         <button onClick={onDone} style={{
           padding: "12px 20px",
           background: "#FFFFFF", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 4,
+          border: "1px solid #211E1E", borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 13,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -13022,8 +13022,8 @@ function HireQueueList({ hires, currentIdx, onSwitchHire, onAddHire, onRemoveHir
     <div style={{
       padding: "14px 14px 14px 14px",
       background: "#211E1E",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "4px 4px 0 #FDC831",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #FDC831",
       position: "sticky", top: 100,
       display: "flex", flexDirection: "column", gap: 8,
     }}>
@@ -13101,7 +13101,7 @@ function HireQueueList({ hires, currentIdx, onSwitchHire, onAddHire, onRemoveHir
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           padding: "10px 8px",
           background: "#FDC831", color: "#211E1E",
-          border: "2px solid #FDC831", borderRadius: 6,
+          border: "1px solid #FDC831", borderRadius: 6,
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.05em", textTransform: "uppercase",
@@ -13137,12 +13137,12 @@ function OnbModal({ title, kicker, onClose, width = 520, children }) {
           maxHeight: "calc(100vh - 40px)",
           display: "flex", flexDirection: "column", overflow: "hidden",
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 12,
-          boxShadow: "6px 6px 0 #FDC831",
+          border: "1px solid #211E1E", borderRadius: 12,
+          boxShadow: "3px 3px 0 #FDC831",
         }}>
         <div style={{
           padding: "12px 22px",
-          borderBottom: "2px solid #211E1E",
+          borderBottom: "1px solid #211E1E",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
           flex: "0 0 auto",
         }}>
@@ -13157,7 +13157,7 @@ function OnbModal({ title, kicker, onClose, width = 520, children }) {
           <button onClick={onClose}
             style={{
               background: "#FFFFFF", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               padding: "6px 8px",
               fontFamily: "'Archivo', sans-serif",
               fontSize: 13, fontWeight: 900, cursor: "pointer",
@@ -13206,8 +13206,8 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
               style={{
                 padding: "10px 14px",
                 background: count === n ? "#FDC831" : "#FFFFFF",
-                border: "2px solid #211E1E", borderRadius: 6,
-                boxShadow: count === n ? "2px 2px 0 #211E1E" : "none",
+                border: "1px solid #211E1E", borderRadius: 6,
+                boxShadow: count === n ? "1px 1px 0 #211E1E" : "none",
                 fontFamily: "'Archivo', sans-serif",
                 fontWeight: 800, fontSize: 14,
                 color: "#211E1E", cursor: "pointer",
@@ -13223,7 +13223,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
             style={{
               width: 70, padding: "10px 10px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 6,
+              border: "1px solid #211E1E", borderRadius: 6,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 14, fontWeight: 800,
               color: "#211E1E", textAlign: "center",
@@ -13245,13 +13245,13 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
             padding: "12px 14px",
             background: seed === "blank" ? "#FDC831" : "#FFFFFF",
             color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             cursor: "pointer", textAlign: "left",
-            boxShadow: seed === "blank" ? "2px 2px 0 #211E1E" : "none",
+            boxShadow: seed === "blank" ? "1px 1px 0 #211E1E" : "none",
           }}>
             <span style={{
               width: 18, height: 18, borderRadius: "50%",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               background: seed === "blank" ? "#211E1E" : "#FFFFFF",
               display: "grid", placeItems: "center",
             }}>
@@ -13273,9 +13273,9 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
 
           {/* Clone option */}
           <div style={{
-            border: "2px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             background: seed === "clone" ? "#FDC831" : "#FFFFFF",
-            boxShadow: seed === "clone" ? "2px 2px 0 #211E1E" : "none",
+            boxShadow: seed === "clone" ? "1px 1px 0 #211E1E" : "none",
             overflow: "hidden",
           }}>
             <button onClick={() => { setSeed("clone"); if (!cloneFrom) setPickerOpen(true); }} style={{
@@ -13288,7 +13288,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
             }}>
               <span style={{
                 width: 18, height: 18, borderRadius: "50%",
-                border: "2px solid #211E1E",
+                border: "1px solid #211E1E",
                 background: seed === "clone" ? "#211E1E" : "#FFFFFF",
                 display: "grid", placeItems: "center",
               }}>
@@ -13314,7 +13314,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
                   display: "inline-flex", alignItems: "center", gap: 8,
                   padding: "6px 10px",
                   background: "#211E1E", color: "#FDC831",
-                  border: "1.5px solid #211E1E", borderRadius: 4,
+                  border: "1px solid #211E1E", borderRadius: 4,
                   fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 800,
                   letterSpacing: "0.04em", textTransform: "uppercase",
                 }}>
@@ -13326,7 +13326,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
             {/* Picker — visible when Clone is active */}
             {seed === "clone" && (
               <div style={{
-                padding: 10, borderTop: "1.5px solid #211E1E",
+                padding: 10, borderTop: "1px solid #211E1E",
                 background: "#FFF9E6",
               }}>
                 <input
@@ -13336,7 +13336,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
                   style={{
                     width: "100%", padding: "9px 12px",
                     background: "#FFFFFF",
-                    border: "2px solid #211E1E", borderRadius: 4,
+                    border: "1px solid #211E1E", borderRadius: 4,
                     fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 600,
                     color: "#211E1E", outline: "none",
                     marginBottom: 8,
@@ -13344,7 +13344,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
                 />
                 <div style={{
                   maxHeight: 220, overflowY: "auto",
-                  border: "1.5px solid #211E1E", borderRadius: 4,
+                  border: "1px solid #211E1E", borderRadius: 4,
                   background: "#FFFFFF",
                 }}>
                   {filtered.length === 0 && (
@@ -13408,7 +13408,7 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
           style={{
             padding: "11px 18px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
+            border: "1px solid #211E1E", borderRadius: 4,
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -13420,8 +13420,8 @@ function BulkOnboardModal({ sources = [], onCancel, onConfirm }) {
             padding: "11px 20px",
             background: canSubmit ? "#FDC831" : "rgba(253,200,49,0.4)",
             color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: canSubmit ? "3px 3px 0 #211E1E" : "none",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: canSubmit ? "2px 2px 0 #211E1E" : "none",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -13444,8 +13444,8 @@ function ExitDraftModal({ hires, onCancel, onConfirm }) {
         display: "flex", gap: 12,
         padding: "12px 14px",
         background: "#FBE9E9",
-        border: "2px solid #B92323", borderRadius: 8,
-        boxShadow: "3px 3px 0 #B92323",
+        border: "1px solid #B92323", borderRadius: 8,
+        boxShadow: "2px 2px 0 #B92323",
         marginBottom: 16,
       }}>
         <div style={{
@@ -13470,30 +13470,30 @@ function ExitDraftModal({ hires, onCancel, onConfirm }) {
           style={{
             padding: "11px 18px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 6,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 6,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}>
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
           Keep editing
         </button>
         <button onClick={onConfirm}
           style={{
             padding: "11px 18px",
             background: "#B92323", color: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 6,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 6,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}>
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
           Discard & exit
         </button>
       </div>
@@ -13523,8 +13523,8 @@ function RemoveHireModal({ hire, idx, onCancel, onConfirm }) {
         display: "flex", gap: 12,
         padding: "12px 14px",
         background: "#FBE9E9",
-        border: "2px solid #B92323", borderRadius: 8,
-        boxShadow: "3px 3px 0 #B92323",
+        border: "1px solid #B92323", borderRadius: 8,
+        boxShadow: "2px 2px 0 #B92323",
         marginBottom: 16,
       }}>
         <div style={{
@@ -13550,32 +13550,32 @@ function RemoveHireModal({ hire, idx, onCancel, onConfirm }) {
           style={{
             padding: "11px 18px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 6,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 6,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
             transition: "transform .15s ease, box-shadow .15s ease",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}>
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
           Keep hire
         </button>
         <button onClick={onConfirm}
           style={{
             padding: "11px 18px",
             background: "#B92323", color: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 6,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 6,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
             transition: "transform .15s ease, box-shadow .15s ease",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}>
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
           Yes, remove
         </button>
       </div>
@@ -13602,7 +13602,7 @@ function UnvisitedHiresModal({ unvisited, totalHires, onCancel, onJumpTo, onConf
         display: "flex", gap: 12,
         padding: "12px 14px",
         background: "#FFF8DC",
-        border: "2px solid #211E1E", borderRadius: 8,
+        border: "1px solid #211E1E", borderRadius: 8,
         marginBottom: 16,
       }}>
         <span style={{
@@ -13635,19 +13635,19 @@ function UnvisitedHiresModal({ unvisited, totalHires, onCancel, onJumpTo, onConf
                 display: "flex", alignItems: "center", gap: 10,
                 padding: "8px 12px",
                 background: "#FFFFFF",
-                border: "1.5px solid #211E1E", borderRadius: 6,
+                border: "1px solid #211E1E", borderRadius: 6,
                 fontFamily: "'Archivo', sans-serif",
                 cursor: "pointer", textAlign: "left",
                 transition: "all .15s ease",
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = "#FFF9E6"; e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#FFF9E6"; e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "#FFFFFF"; e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}>
               <span style={{
                 fontFamily: "'Archivo', monospace",
                 fontSize: 10, fontWeight: 900,
                 padding: "2px 6px",
                 background: "#FFF9E6", color: "#211E1E",
-                border: "1.5px solid #211E1E", borderRadius: 2,
+                border: "1px solid #211E1E", borderRadius: 2,
                 flexShrink: 0,
               }}>{String(i + 1).padStart(2, "0")}</span>
               <span style={{
@@ -13670,7 +13670,7 @@ function UnvisitedHiresModal({ unvisited, totalHires, onCancel, onJumpTo, onConf
         <button onClick={onCancel} style={{
           padding: "10px 16px",
           background: "#FFFFFF", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 6,
+          border: "1px solid #211E1E", borderRadius: 6,
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -13679,8 +13679,8 @@ function UnvisitedHiresModal({ unvisited, totalHires, onCancel, onJumpTo, onConf
         <button onClick={onConfirm} style={{
           padding: "10px 16px",
           background: "#211E1E", color: "#FDC831",
-          border: "2px solid #211E1E", borderRadius: 6,
-          boxShadow: "3px 3px 0 #FDC831",
+          border: "1px solid #211E1E", borderRadius: 6,
+          boxShadow: "2px 2px 0 #FDC831",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -13706,7 +13706,7 @@ function CloneUserModal({ sources, currentDrafts, onCancel, onPick }) {
       <div style={{
         padding: "10px 12px",
         background: "#FFF9E6",
-        border: "2px dashed #211E1E", borderRadius: 8,
+        border: "1px dashed #211E1E", borderRadius: 8,
         fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.5,
         marginBottom: 16,
       }}>
@@ -13724,7 +13724,7 @@ function CloneUserModal({ sources, currentDrafts, onCancel, onPick }) {
             width: "100%", boxSizing: "border-box",
             padding: "11px 14px",
             background: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 14, fontWeight: 500,
             color: "#211E1E", outline: "none",
@@ -13746,14 +13746,14 @@ function CloneUserModal({ sources, currentDrafts, onCancel, onPick }) {
                 display: "flex", alignItems: "center", gap: 12,
                 padding: "12px 14px",
                 background: "#FFFFFF",
-                border: "2px solid #211E1E", borderRadius: 8,
+                border: "1px solid #211E1E", borderRadius: 8,
                 cursor: "pointer", textAlign: "left",
                 transition: "transform .12s ease, box-shadow .12s ease",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "#FFF9E6";
                 e.currentTarget.style.transform = "translate(-1px,-1px)";
-                e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+                e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "#FFFFFF";
@@ -13785,7 +13785,7 @@ function CloneUserModal({ sources, currentDrafts, onCancel, onPick }) {
                   fontSize: 10, fontWeight: 800,
                   padding: "2px 6px",
                   background: "#FDC831", color: "#211E1E",
-                  border: "1.5px solid #211E1E", borderRadius: 3,
+                  border: "1px solid #211E1E", borderRadius: 3,
                 }}>{s.apps.size} apps</div>
               </div>
             </button>
@@ -13932,7 +13932,7 @@ function HireDetailModal({ hire, onClose }) {
                   display: "inline-flex", alignItems: "center", gap: 5,
                   padding: "3px 8px 3px 3px",
                   background: "#FFFFFF",
-                  border: "1.5px solid #211E1E", borderRadius: 3,
+                  border: "1px solid #211E1E", borderRadius: 3,
                 }}>
                   <AppLogo app={a} size={14} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#211E1E" }}>{a.name}</span>
@@ -13983,7 +13983,7 @@ function HireDetailModal({ hire, onClose }) {
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         marginTop: 20, paddingTop: 14,
-        borderTop: "2px dashed rgba(33,30,30,0.2)",
+        borderTop: "1px dashed rgba(33,30,30,0.2)",
       }}>
         <div style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>
           Ref: <span style={{ fontFamily: "'Archivo', monospace", fontWeight: 800, color: "#211E1E" }}>{trail?.requestId}</span>
@@ -13992,7 +13992,7 @@ function HireDetailModal({ hire, onClose }) {
         <button onClick={onClose} style={{
           padding: "8px 16px",
           background: "#FFFFFF", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 4,
+          border: "1px solid #211E1E", borderRadius: 4,
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5, letterSpacing: "0.04em", textTransform: "uppercase",
           cursor: "pointer",
@@ -14008,8 +14008,8 @@ function HDMCard({ title, accent, action, children }) {
     <div style={{
       padding: "12px 14px",
       background: accent ? "#FFF9E6" : "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 8,
+      boxShadow: "2px 2px 0 #211E1E",
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
@@ -14071,11 +14071,11 @@ function RosterFilterPill({ label, value, onChange, options }) {
         display: "inline-flex", alignItems: "center", gap: 6,
         padding: "5px 9px",
         background: isActive ? "#FDC831" : "#FFFFFF",
-        border: "1.5px solid #211E1E", borderRadius: 4,
+        border: "1px solid #211E1E", borderRadius: 4,
         fontFamily: "'Archivo', sans-serif",
         fontSize: 11, fontWeight: 800, color: "#211E1E",
         cursor: "pointer",
-        boxShadow: isActive ? "2px 2px 0 #211E1E" : "none",
+        boxShadow: isActive ? "1px 1px 0 #211E1E" : "none",
       }}>
         <span style={{ color: "#78684C", fontWeight: 700, fontSize: 10, letterSpacing: "0.04em", textTransform: "uppercase" }}>{label}</span>
         {selected.icon && (
@@ -14091,8 +14091,8 @@ function RosterFilterPill({ label, value, onChange, options }) {
           position: "absolute", top: "calc(100% + 4px)", left: 0,
           minWidth: 200, maxHeight: 280, overflowY: "auto",
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 6,
-          boxShadow: "4px 4px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 6,
+          boxShadow: "2px 2px 0 #211E1E",
           padding: 4, zIndex: 50,
         }}>
           {options.map(o => (
@@ -14209,9 +14209,9 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
   return (
     <aside className="it-ws-panel" style={{
       background: "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 14,
-      boxShadow: "5px 5px 0 #211E1E, 0 6px 16px rgba(33,30,30,0.06)",
+      boxShadow: "3px 3px 0 #211E1E, 0 6px 16px rgba(33,30,30,0.06)",
       padding: "18px 18px 16px",
       position: "sticky", top: 24,
       alignSelf: "start",
@@ -14219,10 +14219,10 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
       <style>{`
         .it-ws-stat {
           background: #FFFFFF;
-          border: 1.5px solid #211E1E;
+          border: 1px solid #211E1E;
           border-radius: 8px;
           padding: 10px 12px;
-          box-shadow: 2px 2px 0 #211E1E;
+          box-shadow: 1px 1px 0 #211E1E;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease;
         }
         .it-ws-stat:hover { transform: translate(-1.5px,-1.5px); box-shadow: 3.5px 3.5px 0 #211E1E; }
@@ -14230,9 +14230,9 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
           display: flex; align-items: center; gap: 10px;
           padding: 10px 12px;
           background: #FFFFFF;
-          border: 1.5px solid #211E1E;
+          border: 1px solid #211E1E;
           border-radius: 8px;
-          box-shadow: 2px 2px 0 #211E1E;
+          box-shadow: 1px 1px 0 #211E1E;
           cursor: pointer;
           text-align: left;
           transition: transform .18s cubic-bezier(.34, 1.56, .64, 1), box-shadow .18s ease, background .15s;
@@ -14244,8 +14244,8 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
           display: inline-flex; align-items: center; gap: 8px;
           padding: 8px 14px;
           background: #211E1E; color: #FDC831;
-          border: 2px solid #211E1E; border-radius: 6px;
-          box-shadow: 2px 2px 0 #FDC831;
+          border: 1px solid #211E1E; border-radius: 6px;
+          box-shadow: 1px 1px 0 #FDC831;
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 11.5px;
           letter-spacing: 0.04em; text-transform: uppercase;
@@ -14288,10 +14288,10 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
             width: 36, height: 36, flexShrink: 0,
             background: pending > 8 ? "#B92323" : pending > 4 ? "#FDC831" : "#D4F4D4",
             color: pending > 8 ? "#FFFFFF" : "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 8,
+            border: "1px solid #211E1E", borderRadius: 8,
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 900, fontSize: 14,
-            boxShadow: "2px 2px 0 #211E1E",
+            boxShadow: "1px 1px 0 #211E1E",
           }}>{pending}</span>
         )}
       </div>
@@ -14364,7 +14364,7 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 9.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
                     color: chip.color, background: chip.bg,
-                    border: "1.5px solid #211E1E", borderRadius: 3,
+                    border: "1px solid #211E1E", borderRadius: 3,
                     padding: "2px 6px", flexShrink: 0,
                   }}>{chip.label}</span>
                 </button>
@@ -14420,7 +14420,7 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
       {pending === 0 && priority.length === 0 && activity.length === 0 && (
         <div style={{
           padding: "20px 12px", textAlign: "center",
-          background: "#FFF9E6", border: "1.5px dashed #211E1E", borderRadius: 8,
+          background: "#FFF9E6", border: "1px dashed #211E1E", borderRadius: 8,
           marginBottom: 14,
         }}>
           <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: "#211E1E", marginBottom: 4 }}>Inbox zero ✓</div>
@@ -14431,7 +14431,7 @@ function _ITWorkspacePanel_DISABLED({ mode, rows, onOpenRow }) {
       {/* Footer / stats line */}
       <div style={{
         paddingTop: 12,
-        borderTop: "1.5px dashed rgba(33,30,30,0.18)",
+        borderTop: "1px dashed rgba(33,30,30,0.18)",
         fontSize: 10.5, color: "#78684C", fontWeight: 600,
         fontFamily: "'Archivo', sans-serif",
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
@@ -14502,7 +14502,7 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
           the People Ops modules feel like part of the same product family. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "28px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -14512,13 +14512,13 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
           <button onClick={onBack}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
               const arr = e.currentTarget.querySelector("svg");
               if (arr) arr.style.transform = "translateX(-2px)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
               const arr = e.currentTarget.querySelector("svg");
               if (arr) arr.style.transform = "none";
             }}
@@ -14528,13 +14528,13 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
             }}
             onMouseUp={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "7px 12px 7px 10px",
-              background: "#FFFFFF", border: "2px solid #211E1E",
-              borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+              background: "#FFFFFF", border: "1px solid #211E1E",
+              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 11.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -14547,17 +14547,17 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
           <button className="onb-history-btn" onClick={onHistory}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
             }}
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "7px 12px",
-              background: "#FFFFFF", border: "2px solid #211E1E",
-              borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+              background: "#FFFFFF", border: "1px solid #211E1E",
+              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 11.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -14586,8 +14586,8 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 18px",
               background: "#FFFFFF", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 4,
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -14596,11 +14596,11 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             title="Onboard multiple Slicers at once">
             {/* Stacked-people icon — matches the offboarding bulk button */}
@@ -14618,8 +14618,8 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 22px",
               background: "#FDC831", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 4,
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -14628,11 +14628,11 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}>
             <span className="onb-start-plus" style={{
               fontSize: 15, fontWeight: 900, lineHeight: 1,
@@ -14678,16 +14678,16 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
             style={{
               width: "100%", padding: "11px 16px 11px 42px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 8,
+              border: "1px solid #211E1E", borderRadius: 8,
               fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600, color: "#211E1E",
               outline: "none", boxSizing: "border-box",
-              boxShadow: "2px 2px 0 #211E1E",
+              boxShadow: "1px 1px 0 #211E1E",
             }} />
           {query && (
             <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
               position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
               width: 24, height: 24, padding: 0, cursor: "pointer",
-              background: "#F7F4EF", border: "1.5px solid #211E1E", borderRadius: "50%",
+              background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
               display: "grid", placeItems: "center", color: "#211E1E",
             }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
@@ -14769,7 +14769,7 @@ function OnboardingRoster({ onBack, onStart, onStartBulk, onHistory, sentToast, 
       {(q || hasFilters) && totalMatches === 0 && (
         <div style={{
           padding: "32px 20px", textAlign: "center",
-          background: "#FFFFFF", border: "2px dashed #211E1E", borderRadius: 10,
+          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 10,
           fontFamily: "'Archivo', sans-serif", color: "#78684C",
         }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: "#211E1E", marginBottom: 4 }}>
@@ -14805,8 +14805,8 @@ function RosterStat({ k, v, sub, highlight }) {
     <div style={{
       padding: "16px 18px",
       background: highlight ? "#FDC831" : "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
     }}>
       <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>{k}</div>
       <div style={{
@@ -14837,7 +14837,7 @@ function RosterSection({ title, count, kicker, children }) {
           padding: "0 7px",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
           background: "#FDC831", color: "#211E1E",
-          border: "1.5px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
         }}>{count}</div>
         <div style={{ flex: 1 }}/>
         <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>{kicker}</div>
@@ -14863,26 +14863,26 @@ function InProgressRow({ hire, onOpen }) {
       display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 14, alignItems: "center",
       padding: "14px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       cursor: "pointer", textAlign: "left",
       fontFamily: "'Archivo', sans-serif",
       transition: "transform .12s ease, box-shadow .12s ease",
     }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
     >
       <div style={{
         width: 40, height: 40, borderRadius: "50%",
         background: "#FDC831", color: "#211E1E",
         display: "grid", placeItems: "center",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         fontFamily: "'Archivo', sans-serif",
         fontSize: 13, fontWeight: 900,
       }}>
@@ -14920,7 +14920,7 @@ function InProgressRow({ hire, onOpen }) {
             background: itProgress.done === itProgress.total
               ? "#211E1E" : (itProgress.done > 0 ? "#FDC831" : "#FFF9E6"),
             color: itProgress.done === itProgress.total ? "#FDC831" : "#211E1E",
-            border: "1.5px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 3,
             letterSpacing: "0.02em",
           }} title={`${itProgress.done}/${itProgress.total} IT tasks complete`}>
@@ -14937,7 +14937,7 @@ function InProgressRow({ hire, onOpen }) {
         padding: "6px 12px",
         background: daysUntil <= 7 ? "#211E1E" : "#FFF9E6",
         color: daysUntil <= 7 ? "#FDC831" : "#211E1E",
-        border: "2px solid #211E1E", borderRadius: 6,
+        border: "1px solid #211E1E", borderRadius: 6,
         textAlign: "center", minWidth: 72,
       }}>
         <div style={{
@@ -14960,8 +14960,8 @@ function CompletedCard({ slicer, onOpen }) {
     <button onClick={onOpen} style={{
       padding: "14px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       display: "flex", flexDirection: "column", gap: 10,
       cursor: "pointer", textAlign: "left",
       fontFamily: "'Archivo', sans-serif",
@@ -14969,11 +14969,11 @@ function CompletedCard({ slicer, onOpen }) {
     }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -14998,7 +14998,7 @@ function CompletedCard({ slicer, onOpen }) {
           display: "inline-flex", alignItems: "center", gap: 4,
           padding: "2px 6px 2px 4px",
           background: "#E4F7EA", color: "#0A8A3E",
-          border: "1.5px solid #0A8A3E", borderRadius: 3,
+          border: "1px solid #0A8A3E", borderRadius: 3,
           fontFamily: "'Archivo', sans-serif",
           fontSize: 9, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase",
         }}>
@@ -15010,7 +15010,7 @@ function CompletedCard({ slicer, onOpen }) {
         display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
         padding: "8px 10px",
         background: "#FFF9E6",
-        border: "1.5px solid #211E1E", borderRadius: 6,
+        border: "1px solid #211E1E", borderRadius: 6,
       }}>
         <div style={{ fontSize: 11.5, fontFamily: "'Archivo', sans-serif", fontWeight: 700, color: "#211E1E" }}>
           {slicer.title}
@@ -15067,15 +15067,15 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "7px 12px 7px 10px",
-            background: "#FFFFFF", border: "2px solid #211E1E",
-            borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+            background: "#FFFFFF", border: "1px solid #211E1E",
+            borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 11.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
             color: "#211E1E", cursor: "pointer",
           }}
-          onMouseEnter={e => { e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; e.currentTarget.style.transform = "translate(-1px,-1px)"; }}
-          onMouseLeave={e => { e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; e.currentTarget.style.transform = "none"; }}
+          onMouseEnter={e => { e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; e.currentTarget.style.transform = "translate(-1px,-1px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; e.currentTarget.style.transform = "none"; }}
         >
           <span style={{ fontSize: 14 }}>←</span> Back to roster
         </button>
@@ -15092,9 +15092,9 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
       <div style={{
         position: "relative",
         background: "#FFFFFF",
-        border: "3px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 16,
-        boxShadow: "8px 8px 0 #FDC831",
+        boxShadow: "4px 4px 0 #FDC831",
         padding: "44px 36px 36px",
         textAlign: "center",
       }}>
@@ -15103,9 +15103,9 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
           width: 72, height: 72,
           margin: "0 auto 20px",
           background: "#0A8A3E",
-          border: "3px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: "50%",
-          boxShadow: "4px 4px 0 #211E1E",
+          boxShadow: "2px 2px 0 #211E1E",
           display: "grid", placeItems: "center",
           animation: "successPop .45s cubic-bezier(.34,1.56,.64,1)",
         }}>
@@ -15153,8 +15153,8 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
           gap: 0,
           marginTop: 28,
           padding: "16px 0",
-          borderTop: "2px solid #F0EDE6",
-          borderBottom: "2px solid #F0EDE6",
+          borderTop: "1px solid #F0EDE6",
+          borderBottom: "1px solid #F0EDE6",
         }}>
           <Stat label="Hires" value={hireCount} />
           <div style={{ background: "#F0EDE6" }} />
@@ -15185,13 +15185,13 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
                   gap: 14, alignItems: "center",
                   padding: "12px 14px",
                   background: "#FFF9E6",
-                  border: "2px solid #211E1E",
+                  border: "1px solid #211E1E",
                   borderRadius: 8,
                 }}>
                   <div style={{
                     width: 36, height: 36,
                     background: "#211E1E", color: "#FDC831",
-                    border: "2px solid #211E1E", borderRadius: 6,
+                    border: "1px solid #211E1E", borderRadius: 6,
                     display: "grid", placeItems: "center",
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 12, fontWeight: 900,
@@ -15219,15 +15219,15 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
                       style={{
                         padding: "7px 12px",
                         background: "#FFFFFF", color: "#211E1E",
-                        border: "2px solid #211E1E", borderRadius: 4,
-                        boxShadow: "2px 2px 0 #211E1E",
+                        border: "1px solid #211E1E", borderRadius: 4,
+                        boxShadow: "1px 1px 0 #211E1E",
                         fontFamily: "'Archivo', sans-serif",
                         fontWeight: 800, fontSize: 11,
                         letterSpacing: "0.04em", textTransform: "uppercase",
                         cursor: "pointer", whiteSpace: "nowrap",
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}
-                      onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
                     >Track</button>
                   )}
                 </div>
@@ -15246,30 +15246,30 @@ function SubmissionSuccess({ summary, onBackToRoster, onOpenApproval, onStartAno
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 20px",
               background: "#211E1E", color: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 6,
-              boxShadow: "3px 3px 0 #FDC831",
+              border: "1px solid #211E1E", borderRadius: 6,
+              boxShadow: "2px 2px 0 #FDC831",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #FDC831"; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831"; }}
           >+ Start another hire</button>
           <button onClick={onBackToRoster}
             style={{
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 20px",
               background: "#FFFFFF", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 6,
-              boxShadow: "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 6,
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
           >Back to roster</button>
         </div>
       </div>
@@ -15335,8 +15335,8 @@ function SentToManagersToast({ toast, onDismiss, onOpen }) {
       marginBottom: 24,
       padding: "16px 20px",
       background: "#0A8A3E",
-      border: "2px solid #211E1E", borderRadius: 12,
-      boxShadow: "5px 5px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 12,
+      boxShadow: "3px 3px 0 #211E1E",
       color: "#FFFFFF",
       display: "grid", gridTemplateColumns: "auto 1fr auto auto", gap: 16, alignItems: "center",
       fontFamily: "'Archivo', sans-serif",
@@ -15346,7 +15346,7 @@ function SentToManagersToast({ toast, onDismiss, onOpen }) {
         width: 40, height: 40, borderRadius: "50%",
         background: "#FFFFFF", color: "#0A8A3E",
         display: "grid", placeItems: "center",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         fontSize: 20, fontWeight: 900,
       }}>✓</div>
       <div>
@@ -15361,8 +15361,8 @@ function SentToManagersToast({ toast, onDismiss, onOpen }) {
         <button onClick={() => onOpen(ids[0])} style={{
           padding: "7px 12px",
           background: "#FFFFFF", color: "#211E1E",
-          border: "2px solid #211E1E", borderRadius: 4,
-          boxShadow: "2px 2px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 4,
+          boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
           letterSpacing: "0.04em", textTransform: "uppercase",
           cursor: "pointer",
@@ -15371,7 +15371,7 @@ function SentToManagersToast({ toast, onDismiss, onOpen }) {
       <button onClick={onDismiss} style={{
         width: 28, height: 28,
         background: "transparent", color: "#FFFFFF",
-        border: "1.5px solid rgba(255,255,255,0.5)", borderRadius: "50%",
+        border: "1px solid rgba(255,255,255,0.5)", borderRadius: "50%",
         fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 14,
         cursor: "pointer",
       }} aria-label="Dismiss">×</button>
@@ -15588,8 +15588,8 @@ function OffboardingWizard({ drafts, setDrafts, currentIdx, setCurrentIdx, maxBu
         <button onClick={prev} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -15620,7 +15620,7 @@ function OffboardingWizard({ drafts, setDrafts, currentIdx, setCurrentIdx, maxBu
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "6px 12px",
-            background: "#FFF9E6", border: "2px solid #211E1E", borderRadius: 6,
+            background: "#FFF9E6", border: "1px solid #211E1E", borderRadius: 6,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 11.5, fontWeight: 700, color: "#211E1E",
           }}>
@@ -15649,19 +15649,19 @@ function OffboardingWizard({ drafts, setDrafts, currentIdx, setCurrentIdx, maxBu
         <button onClick={next}
           onMouseEnter={(e) => {
             e.currentTarget.style.transform = "translate(-1px,-1px)";
-            e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+            e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
           }}
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
             padding: "13px 24px",
             background: step === steps.length - 1 ? "#B92323" : "#FDC831",
             color: step === steps.length - 1 ? "#FFFFFF" : "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800,
             letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
@@ -15775,15 +15775,15 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "100%", maxWidth: 560,
         background: "#FDC831",
-        border: "2px solid #211E1E", borderRadius: 14,
-        boxShadow: "6px 6px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 14,
+        boxShadow: "3px 3px 0 #211E1E",
         overflow: "hidden",
         animation: "ofbRise .18s cubic-bezier(.2,.9,.3,1)",
       }}>
         {/* Header */}
         <div style={{
           padding: "20px 24px 14px",
-          borderBottom: "1.5px solid rgba(33,30,30,0.25)",
+          borderBottom: "1px solid rgba(33,30,30,0.25)",
           display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16,
         }}>
           <div>
@@ -15803,7 +15803,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
           <button onClick={onCancel} disabled={submitting} aria-label="Close" style={{
             width: 32, height: 32, flexShrink: 0,
             background: "#FFFFFF", color: "#211E1E",
-            border: "1.5px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             fontSize: 16, fontWeight: 900, lineHeight: 1,
             cursor: submitting ? "not-allowed" : "pointer",
             opacity: submitting ? 0.4 : 1,
@@ -15817,7 +15817,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
           margin: "18px 24px 0",
           padding: "22px 22px 20px",
           background: "#211E1E", color: "#FDC831",
-          border: "2px solid #211E1E", borderRadius: 10,
+          border: "1px solid #211E1E", borderRadius: 10,
           textAlign: "left",
         }}>
           <div style={{
@@ -15911,7 +15911,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
           margin: "14px 24px 0",
           padding: "12px 14px",
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 8,
+          border: "1px solid #211E1E", borderRadius: 8,
           display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
           fontSize: 12, color: "#4A3F2E",
         }}>
@@ -15932,7 +15932,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
           margin: "14px 24px 0",
           padding: "12px 14px",
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 8,
+          border: "1px solid #211E1E", borderRadius: 8,
           fontSize: 12, color: "#4A3F2E", lineHeight: 1.5,
         }}>
           <div className="eyebrow" style={{ fontSize: 9.5, color: "#78684C", marginBottom: 6 }}>What happens next</div>
@@ -15952,7 +15952,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
             margin: "18px 24px 0",
             padding: "14px 16px",
             background: "#211E1E", color: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 10,
+            border: "1px solid #211E1E", borderRadius: 10,
           }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
@@ -16022,7 +16022,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
             margin: "14px 24px 0",
             padding: "12px 14px",
             background: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 8,
+            border: "1px solid #211E1E", borderRadius: 8,
             fontSize: 12, color: "#4A3F2E", lineHeight: 1.5,
           }}>
             <div className="eyebrow" style={{ fontSize: 9.5, color: "#78684C", marginBottom: 6 }}>What happens next</div>
@@ -16043,7 +16043,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
           <button onClick={onCancel} disabled={submitting} style={{
             padding: "11px 18px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 12, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: submitting ? "not-allowed" : "pointer",
@@ -16058,7 +16058,7 @@ function OfbConfirmFileModal({ drafts, onCancel, onConfirm }) {
             fontFamily: "'Archivo', sans-serif",
             fontSize: 12, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: submitting ? "not-allowed" : "pointer",
-            boxShadow: submitting ? "none" : "3px 3px 0 #211E1E",
+            boxShadow: submitting ? "none" : "2px 2px 0 #211E1E",
             transition: "all .12s ease",
           }}>
             {submitting ? "Filing…" : (isBulk ? `Yes, file ${drafts.length} offboardings` : "Yes, file offboarding")}
@@ -16094,8 +16094,8 @@ function OfbDraftRail({ drafts, currentIdx, steps_, readyFlags, onSwitch, onAdd,
     <aside style={{
       position: "sticky", top: 24,
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "4px 4px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       overflow: "hidden",
       alignSelf: "flex-start",
       maxHeight: "calc(100vh - 56px)",
@@ -16105,7 +16105,7 @@ function OfbDraftRail({ drafts, currentIdx, steps_, readyFlags, onSwitch, onAdd,
       <div style={{
         padding: "14px 16px",
         background: "#211E1E", color: "#FDC831",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
       }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
           <div style={{
@@ -16179,7 +16179,7 @@ function OfbDraftRail({ drafts, currentIdx, steps_, readyFlags, onSwitch, onAdd,
                   borderRadius: 6,
                   cursor: "pointer",
                   textAlign: "left",
-                  boxShadow: active ? "2px 2px 0 #211E1E" : "none",
+                  boxShadow: active ? "1px 1px 0 #211E1E" : "none",
                   transition: "background .15s ease, transform .12s ease",
                 }}>
                 <div style={{
@@ -16274,7 +16274,7 @@ function OfbDraftRail({ drafts, currentIdx, steps_, readyFlags, onSwitch, onAdd,
       <div style={{
         padding: "8px 12px",
         background: "#FFF9E6",
-        borderTop: "1.5px solid #211E1E",
+        borderTop: "1px solid #211E1E",
         fontFamily: "'Archivo', monospace",
         fontSize: 10, fontWeight: 700,
         color: "#78684C",
@@ -16315,14 +16315,14 @@ function OfbRemoveDraftModal({ draft, idx, onCancel, onConfirm }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "min(440px, 100%)",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 12,
-        boxShadow: "6px 6px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 12,
+        boxShadow: "3px 3px 0 #211E1E",
         overflow: "hidden",
       }}>
         <div style={{
           padding: "14px 18px",
           background: "#FDC831",
-          borderBottom: "2px solid #211E1E",
+          borderBottom: "1px solid #211E1E",
         }}>
           <div className="eyebrow" style={{
             fontSize: 9.5, fontWeight: 900, color: "#78684C", letterSpacing: "0.1em",
@@ -16344,7 +16344,7 @@ function OfbRemoveDraftModal({ draft, idx, onCancel, onConfirm }) {
           <button onClick={onCancel} style={{
             padding: "10px 16px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 6,
+            border: "1px solid #211E1E", borderRadius: 6,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 11.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
@@ -16352,11 +16352,11 @@ function OfbRemoveDraftModal({ draft, idx, onCancel, onConfirm }) {
           <button onClick={onConfirm} style={{
             padding: "10px 18px",
             background: "#B92323", color: "#FFFFFF",
-            border: "2px solid #B92323", borderRadius: 6,
+            border: "1px solid #B92323", borderRadius: 6,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 11.5, fontWeight: 900, letterSpacing: "0.04em", textTransform: "uppercase",
             cursor: "pointer",
-            boxShadow: "3px 3px 0 #211E1E",
+            boxShadow: "2px 2px 0 #211E1E",
           }}>Yes, remove</button>
         </div>
       </div>
@@ -16377,8 +16377,8 @@ function OfbStepper({ steps, current, maxStep, onGoTo }) {
       display: "flex", alignItems: "stretch", gap: 0,
       padding: 5,
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 8,
+      boxShadow: "2px 2px 0 #211E1E",
       maxWidth: "100%", overflowX: "auto",
     }}>
       {steps.map((s, i) => {
@@ -16414,9 +16414,9 @@ function OfbStepper({ steps, current, maxStep, onGoTo }) {
                 transform: active ? "scale(1.04)" : "scale(1)",
                 transformOrigin: "center",
                 boxShadow: active
-                  ? "2px 2px 0 #211E1E"
+                  ? "1px 1px 0 #211E1E"
                   : wasLastPos
-                    ? "2px 2px 0 rgba(253,200,49,0.6)"
+                    ? "1px 1px 0 rgba(253,200,49,0.6)"
                     : "none",
               }}
               title={wasLastPos ? "Click to return to this step" : undefined}>
@@ -16485,8 +16485,8 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
           style={{
             width: "100%", padding: "18px 20px 18px 48px",
             background: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 10,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 10,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 600, color: "#211E1E",
             outline: "none", boxSizing: "border-box",
           }}/>
@@ -16495,7 +16495,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
             position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)",
             width: 28, height: 28,
             background: "#FFF9E6", color: "#211E1E",
-            border: "1.5px solid #211E1E", borderRadius: 4,
+            border: "1px solid #211E1E", borderRadius: 4,
             fontSize: 13, fontWeight: 900,
             cursor: "pointer",
           }}>×</button>
@@ -16506,7 +16506,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
         <div style={{
           padding: "8px 12px",
           background: "#FFF0F0",
-          border: "2px solid #B92323", borderRadius: 6,
+          border: "1px solid #B92323", borderRadius: 6,
           color: "#B92323", fontSize: 12, fontWeight: 800,
         }}>{errors.slicer}</div>
       )}
@@ -16531,8 +16531,8 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
           <div style={{
             padding: "16px 18px",
             background: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 10,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 10,
+            boxShadow: "2px 2px 0 #211E1E",
             display: "flex", alignItems: "center", gap: 14,
           }}>
             <div style={{
@@ -16557,7 +16557,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
             })} style={{
               padding: "8px 14px",
               background: "#FFFFFF", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
+              border: "1px solid #211E1E", borderRadius: 4,
               fontFamily: "'Archivo', sans-serif", fontSize: 11.5, fontWeight: 800,
               letterSpacing: "0.04em", textTransform: "uppercase",
               cursor: "pointer",
@@ -16568,17 +16568,17 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
             padding: "56px 28px",
             textAlign: "center",
             background: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 12,
-            boxShadow: "4px 4px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 12,
+            boxShadow: "2px 2px 0 #211E1E",
           }}>
             <div style={{
               width: 56, height: 56,
               margin: "0 auto 14px",
               borderRadius: "50%",
               background: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               display: "grid", placeItems: "center",
-              boxShadow: "3px 3px 0 #211E1E",
+              boxShadow: "2px 2px 0 #211E1E",
             }}>
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
@@ -16605,7 +16605,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
           padding: "40px 24px",
           textAlign: "center",
           background: "#FFF9E6",
-          border: "2px dashed #211E1E", borderRadius: 10,
+          border: "1px dashed #211E1E", borderRadius: 10,
         }}>
           <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 15, fontWeight: 800, color: "#211E1E" }}>
             No Slicers match "{q}"
@@ -16618,8 +16618,8 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
         <div style={{
           display: "flex", flexDirection: "column", gap: 8,
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 10,
-          boxShadow: "3px 3px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 10,
+          boxShadow: "2px 2px 0 #211E1E",
           padding: 8,
         }}>
           {filtered.map(s => {
@@ -16649,7 +16649,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
                 background: selected ? "#FDC831" : "#FFFFFF",
                 border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.15)"}`,
                 borderRadius: 8,
-                boxShadow: selected ? "3px 3px 0 #211E1E" : "none",
+                boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
                 cursor: "pointer",
                 display: "flex", alignItems: "center", gap: 14,
                 transition: "all .12s ease",
@@ -16707,7 +16707,7 @@ function OfbStepPick({ draft, patch, errors, excludeSlicerIds = [], onAdvance })
                   <div style={{
                     width: 24, height: 24,
                     background: "#211E1E", color: "#FDC831",
-                    border: "2px solid #211E1E", borderRadius: "50%",
+                    border: "1px solid #211E1E", borderRadius: "50%",
                     display: "grid", placeItems: "center",
                     fontSize: 13, fontWeight: 900,
                     flexShrink: 0,
@@ -16769,7 +16769,7 @@ function OfbStepWhen({ draft, patch, errors }) {
           <div style={{
             padding: "14px 16px",
             background: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 8,
+            border: "1px solid #211E1E", borderRadius: 8,
           }}>
             <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>The Slicer experiences</div>
             <div style={{
@@ -16830,7 +16830,7 @@ function OfbStepWhen({ draft, patch, errors }) {
                   background: selected ? "#FDC831" : "#FFFFFF",
                   border: `2px solid ${selected ? "#211E1E" : "rgba(33,30,30,0.18)"}`,
                   borderRadius: 6,
-                  boxShadow: selected ? "2px 2px 0 #211E1E" : "none",
+                  boxShadow: selected ? "1px 1px 0 #211E1E" : "none",
                   cursor: "pointer",
                   display: "grid",
                   gridTemplateColumns: "auto 1fr",
@@ -16884,7 +16884,7 @@ function OfbStepWhen({ draft, patch, errors }) {
               width: "100%", boxSizing: "border-box",
               padding: "8px 10px",
               background: "#FFFFFF",
-              border: "2px solid rgba(33,30,30,0.3)",
+              border: "1px solid rgba(33,30,30,0.3)",
               borderRadius: 6,
               fontFamily: "'Archivo', sans-serif", fontSize: 12.5, color: "#211E1E",
               resize: "vertical",
@@ -16913,7 +16913,7 @@ function OfbStepWhen({ draft, patch, errors }) {
             textAlign: "center", color: "#78684C",
             fontFamily: "'Archivo', sans-serif",
             fontSize: 13, fontWeight: 600,
-            background: "#FFF9E6", border: "2px dashed #211E1E", borderRadius: 8,
+            background: "#FFF9E6", border: "1px dashed #211E1E", borderRadius: 8,
           }}>
             Pick a date and time — we'll show it in every office clock so your team isn't surprised.
           </div>
@@ -16936,7 +16936,7 @@ function OfbStepWhen({ draft, patch, errors }) {
                   background: isSlicerTz ? "#FDC831" : "#FFFFFF",
                   border: `2px solid ${isSlicerTz ? "#211E1E" : "rgba(33,30,30,0.3)"}`,
                   borderRadius: 6,
-                  boxShadow: isSlicerTz ? "2px 2px 0 #211E1E" : "none",
+                  boxShadow: isSlicerTz ? "1px 1px 0 #211E1E" : "none",
                 }}>
                   <CountryFlag country={primaryCountry} size={18} />
                   <div>
@@ -17009,7 +17009,7 @@ function OfbStepWhen({ draft, patch, errors }) {
                 <div style={{
                   marginTop: 4, padding: "10px 12px",
                   background: "#FFF9E6",
-                  border: "2px dashed #B92323", borderRadius: 6,
+                  border: "1px dashed #B92323", borderRadius: 6,
                   display: "flex", gap: 8, alignItems: "flex-start",
                 }}>
                   <div style={{ fontSize: 16, lineHeight: 1 }}>⚠</div>
@@ -17090,14 +17090,14 @@ function AssignedAssetsCard({ slicer }) {
       kicker={`${rows.length} item${rows.length === 1 ? "" : "s"} on file`}
     >
       <div style={{
-        border: "1.5px solid #211E1E", borderRadius: 6, overflow: "hidden",
+        border: "1px solid #211E1E", borderRadius: 6, overflow: "hidden",
       }}>
         {/* Column header row — monospace eyebrow */}
         <div style={{
           display: "grid", gridTemplateColumns: "1fr 0.8fr",
           padding: "8px 12px",
           background: "#F4F0E8",
-          borderBottom: "1.5px solid #211E1E",
+          borderBottom: "1px solid #211E1E",
           fontFamily: "'Archivo', monospace",
           fontSize: 9.5, fontWeight: 800, color: "#5A5755",
           letterSpacing: "0.08em", textTransform: "uppercase",
@@ -17303,7 +17303,7 @@ function ReturnShipCard({ draft, patch, errors = {} }) {
 function RetShipInput({ label, value, onChange, placeholder, type = "text", required = false, error }) {
   const [focus, setFocus] = React.useState(false);
   const borderColor = error ? "#B92323" : (focus ? "#FDC831" : "#211E1E");
-  const shadow      = error ? "3px 3px 0 #B92323" : (focus ? "3px 3px 0 #FDC831" : "none");
+  const shadow      = error ? "2px 2px 0 #B92323" : (focus ? "2px 2px 0 #FDC831" : "none");
   return (
     <label style={{ display: "block" }}>
       <div style={{
@@ -17423,7 +17423,7 @@ function OfbStepAccess({ draft, patch, patchHardware }) {
                 <div style={{
                   width: 20, height: 20,
                   background: on ? "#B92323" : "#FFFFFF",
-                  border: "2px solid #211E1E",
+                  border: "1px solid #211E1E",
                   borderRadius: 3,
                   display: "grid", placeItems: "center",
                   color: "#FFFFFF", fontSize: 11, fontWeight: 900,
@@ -17443,13 +17443,13 @@ function OfbStepAccess({ draft, patch, patchHardware }) {
               display: "flex", alignItems: "center", gap: 12,
               padding: "10px 12px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 6,
+              border: "1px solid #211E1E", borderRadius: 6,
             }}>
               <div style={{
                 width: 50, height: 36,
                 display: "grid", placeItems: "center",
                 background: "#FFF9E6",
-                border: "1.5px solid rgba(33,30,30,0.25)",
+                border: "1px solid rgba(33,30,30,0.25)",
                 borderRadius: 5,
                 color: "#211E1E",
                 flexShrink: 0,
@@ -17493,8 +17493,8 @@ function OfbStepAccess({ draft, patch, patchHardware }) {
                   style={{
                     flex: 1, padding: "10px 8px",
                     background: draft.hardware.shipBox === o.id ? "#FDC831" : "#FFFFFF",
-                    border: "2px solid #211E1E", borderRadius: 6,
-                    boxShadow: draft.hardware.shipBox === o.id ? "2px 2px 0 #211E1E" : "none",
+                    border: "1px solid #211E1E", borderRadius: 6,
+                    boxShadow: draft.hardware.shipBox === o.id ? "1px 1px 0 #211E1E" : "none",
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 12, fontWeight: 800, color: "#211E1E",
                     cursor: "pointer",
@@ -17516,8 +17516,8 @@ function OfbStepAccess({ draft, patch, patchHardware }) {
                   style={{
                     flex: 1, padding: "10px 8px",
                     background: draft.hardware.wipeMode === o.id ? "#FDC831" : "#FFFFFF",
-                    border: "2px solid #211E1E", borderRadius: 6,
-                    boxShadow: draft.hardware.wipeMode === o.id ? "2px 2px 0 #211E1E" : "none",
+                    border: "1px solid #211E1E", borderRadius: 6,
+                    boxShadow: draft.hardware.wipeMode === o.id ? "1px 1px 0 #211E1E" : "none",
                     fontFamily: "'Archivo', sans-serif",
                     fontSize: 12, fontWeight: 800, color: "#211E1E",
                     cursor: "pointer",
@@ -17539,7 +17539,7 @@ function ofbMiniBtn(primary) {
     padding: "4px 8px",
     background: primary ? "#211E1E" : "#FFFFFF",
     color: primary ? "#FDC831" : "#211E1E",
-    border: "2px solid #211E1E", borderRadius: 4,
+    border: "1px solid #211E1E", borderRadius: 4,
     fontFamily: "'Archivo', sans-serif",
     fontSize: 10, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase",
     cursor: "pointer",
@@ -17606,7 +17606,7 @@ function OfbStepReview({ draft }) {
           <div style={{
             padding: "14px 18px",
             background: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 8,
+            border: "1px solid #211E1E", borderRadius: 8,
           }}>
             <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 5 }}>Accounts lock at</div>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 900, color: "#211E1E", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
@@ -17628,7 +17628,7 @@ function OfbStepReview({ draft }) {
                 <div key={z.iana} style={{
                   padding: "8px 10px",
                   background: "#FFFFFF",
-                  border: "1.5px solid rgba(33,30,30,0.3)", borderRadius: 6,
+                  border: "1px solid rgba(33,30,30,0.3)", borderRadius: 6,
                   display: "flex", alignItems: "center", gap: 8,
                 }}>
                   <CountryFlag country={z.countries[0]} size={14} />
@@ -17657,7 +17657,7 @@ function OfbStepReview({ draft }) {
                   display: "inline-flex", alignItems: "center", gap: 5,
                   padding: "3px 7px",
                   background: "#FFFFFF",
-                  border: "1.5px solid #B92323", borderRadius: 3,
+                  border: "1px solid #B92323", borderRadius: 3,
                   fontSize: 11, fontWeight: 700, color: "#211E1E", fontFamily: "'Archivo', sans-serif",
                 }}>
                   <img src={`https://www.google.com/s2/favicons?sz=16&domain=${a.favicon}`}
@@ -17720,14 +17720,14 @@ function OffboardingFiled({ drafts, onDone }) {
         maxWidth: isBulk ? 820 : 720, margin: "0 auto",
         padding: "40px 36px",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 12,
-        boxShadow: "6px 6px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 12,
+        boxShadow: "3px 3px 0 #211E1E",
       }}>
         <div style={{
           display: "inline-grid", placeItems: "center",
           width: 64, height: 64,
           background: "#FDC831",
-          border: "2px solid #211E1E", borderRadius: "50%",
+          border: "1px solid #211E1E", borderRadius: "50%",
           margin: "0 auto 18px",
           fontSize: 30, fontWeight: 900, color: "#211E1E",
         }}>✓</div>
@@ -17753,7 +17753,7 @@ function OffboardingFiled({ drafts, onDone }) {
             display: "inline-block",
             marginTop: 20, padding: "8px 14px",
             background: "#FFF9E6",
-            border: "2px solid #211E1E", borderRadius: 4,
+            border: "1px solid #211E1E", borderRadius: 4,
             fontFamily: "'Archivo', monospace",
             fontSize: 12, fontWeight: 800, color: "#211E1E", letterSpacing: "0.04em",
           }}>Ticket {rows[0].ticket}</div>
@@ -17771,7 +17771,7 @@ function OffboardingFiled({ drafts, onDone }) {
                 alignItems: "center",
                 padding: "10px 12px",
                 background: "#FFF9E6",
-                border: "1.5px solid #211E1E", borderRadius: 6,
+                border: "1px solid #211E1E", borderRadius: 6,
               }}>
                 <span style={{
                   fontFamily: "'Archivo', monospace",
@@ -17797,7 +17797,7 @@ function OffboardingFiled({ drafts, onDone }) {
                   fontSize: 10.5, fontWeight: 800, color: "#211E1E",
                   padding: "3px 7px",
                   background: "#FFFFFF",
-                  border: "1.5px solid #211E1E", borderRadius: 3,
+                  border: "1px solid #211E1E", borderRadius: 3,
                   letterSpacing: "0.04em",
                 }}>{r.ticket}</div>
               </div>
@@ -17809,8 +17809,8 @@ function OffboardingFiled({ drafts, onDone }) {
           <button onClick={onDone} style={{
             padding: "12px 22px",
             background: "#211E1E", color: "#FDC831",
-            border: "2px solid #211E1E", borderRadius: 6,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 6,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800,
             letterSpacing: "0.05em", textTransform: "uppercase",
             cursor: "pointer",
@@ -17850,14 +17850,14 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
         maxWidth: 760, width: "100%", maxHeight: "90vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 12,
-        boxShadow: "6px 6px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 12,
+        boxShadow: "3px 3px 0 #211E1E",
       }}>
         {/* Header */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           padding: "12px 22px",
-          borderBottom: "2px solid #211E1E",
+          borderBottom: "1px solid #211E1E",
           background: "#FDC831",
           flex: "0 0 auto",
         }}>
@@ -17880,7 +17880,7 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
           <button onClick={onClose} style={{
             width: 32, height: 32,
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
+            border: "1px solid #211E1E", borderRadius: 4,
             fontSize: 16, fontWeight: 900,
             cursor: "pointer",
           }}>×</button>
@@ -17899,7 +17899,7 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
             <div style={{
               padding: "14px 18px",
               background: "#FFF9E6",
-              border: "2px solid #211E1E", borderRadius: 8,
+              border: "1px solid #211E1E", borderRadius: 8,
             }}>
               <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 6 }}>Scheduled lockout</div>
               <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 900, color: "#211E1E", letterSpacing: "-0.01em", lineHeight: 1.15 }}>
@@ -17918,7 +17918,7 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
                       display: "flex", alignItems: "center", gap: 6,
                       padding: "5px 8px",
                       background: "#FFFFFF",
-                      border: "1.5px solid rgba(33,30,30,0.3)", borderRadius: 4,
+                      border: "1px solid rgba(33,30,30,0.3)", borderRadius: 4,
                     }}>
                       <CountryFlag country={z.countries[0]} size={12} />
                       <div>
@@ -17942,7 +17942,7 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
                   display: "inline-flex", alignItems: "center", gap: 4,
                   padding: "3px 7px",
                   background: "#FFFFFF",
-                  border: "1.5px solid #211E1E", borderRadius: 3,
+                  border: "1px solid #211E1E", borderRadius: 3,
                   fontSize: 11, fontWeight: 700, color: "#211E1E",
                 }}>
                   <img src={`https://www.google.com/s2/favicons?sz=16&domain=${a.favicon}`}
@@ -17979,7 +17979,7 @@ function OfbDetailModal({ ofb, slicer, onClose }) {
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "8px 10px",
                       background: "#FFFFFF",
-                      border: "1.5px solid #211E1E", borderRadius: 5,
+                      border: "1px solid #211E1E", borderRadius: 5,
                     }}>
                       <div style={{
                         width: 44, height: 30,
@@ -18365,7 +18365,7 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
           the People Ops modules feel like part of the same product family. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "28px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -18375,13 +18375,13 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
           <button onClick={onBack}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
               const arr = e.currentTarget.querySelector("svg");
               if (arr) arr.style.transform = "translateX(-2px)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
               const arr = e.currentTarget.querySelector("svg");
               if (arr) arr.style.transform = "none";
             }}
@@ -18391,13 +18391,13 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
             }}
             onMouseUp={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "7px 12px 7px 10px",
-              background: "#FFFFFF", border: "2px solid #211E1E",
-              borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+              background: "#FFFFFF", border: "1px solid #211E1E",
+              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 11.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -18410,17 +18410,17 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
           <button className="onb-history-btn" onClick={onHistory}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
             }}
             style={{
               display: "inline-flex", alignItems: "center", gap: 6,
               padding: "7px 12px",
-              background: "#FFFFFF", border: "2px solid #211E1E",
-              borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+              background: "#FFFFFF", border: "1px solid #211E1E",
+              borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 11.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -18451,8 +18451,8 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 18px",
               background: "#FFFFFF", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 4,
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -18461,11 +18461,11 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}>
             {/* Stacked-people icon to telegraph "multiple Slicers at once" */}
             <svg className="onb-bulk-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
@@ -18482,8 +18482,8 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
               display: "inline-flex", alignItems: "center", gap: 8,
               padding: "12px 22px",
               background: "#FDC831", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 4,
+              boxShadow: "2px 2px 0 #211E1E",
               fontFamily: "'Archivo', sans-serif",
               fontWeight: 800, fontSize: 13,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -18492,11 +18492,11 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translate(-1px,-1px)";
-              e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.transform = "none";
-              e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+              e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
             }}>
             <span className="onb-start-plus" style={{
               fontSize: 15, fontWeight: 900, lineHeight: 1,
@@ -18539,16 +18539,16 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
             style={{
               width: "100%", padding: "11px 16px 11px 42px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 8,
+              border: "1px solid #211E1E", borderRadius: 8,
               fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600, color: "#211E1E",
               outline: "none", boxSizing: "border-box",
-              boxShadow: "2px 2px 0 #211E1E",
+              boxShadow: "1px 1px 0 #211E1E",
             }} />
           {query && (
             <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
               position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
               width: 24, height: 24, padding: 0, cursor: "pointer",
-              background: "#F7F4EF", border: "1.5px solid #211E1E", borderRadius: "50%",
+              background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
               display: "grid", placeItems: "center", color: "#211E1E",
             }}>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6l-12 12"/></svg>
@@ -18623,7 +18623,7 @@ function OffboardingDashboard({ onBack, onStart, onStartBulk, onStartFor, onHist
           <div style={{
             padding: "20px 16px",
             background: "#FFFFFF",
-            border: "2px dashed rgba(33,30,30,0.25)", borderRadius: 8,
+            border: "1px dashed rgba(33,30,30,0.25)", borderRadius: 8,
             textAlign: "center",
             fontFamily: "'Archivo', sans-serif",
             fontSize: 13, fontWeight: 700, color: "#78684C",
@@ -18667,7 +18667,7 @@ function OfbSection({ title, count, kicker, children }) {
           padding: "0 7px",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
           background: "#FDC831", color: "#211E1E",
-          border: "1.5px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
         }}>{count}</div>
         <div style={{ flex: 1 }}/>
         <div className="eyebrow" style={{ color: "#78684C", fontSize: 10 }}>{kicker}</div>
@@ -18691,18 +18691,18 @@ function OfbInProgressRow({ ofb, slicer, onOpen }) {
       alignItems: "center", gap: 18,
       padding: "14px 18px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 10,
+      boxShadow: "2px 2px 0 #211E1E",
       cursor: "pointer",
       transition: "transform .12s ease, box-shadow .12s ease",
     }}
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831";
+      e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
     }}
     onMouseLeave={(e) => {
       e.currentTarget.style.transform = "none";
-      e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
     }}>
       <div className="onb-row-avatar" style={{
         width: 40, height: 40, borderRadius: "50%",
@@ -18746,7 +18746,7 @@ function OfbInProgressRow({ ofb, slicer, onOpen }) {
           width: 22, height: 22, flexShrink: 0,
           borderRadius: "50%",
           background: "#0A8A3E", color: "#FFFFFF",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           display: "grid", placeItems: "center",
           boxShadow: "1px 1px 0 #211E1E",
         }}>
@@ -18776,14 +18776,14 @@ function ActiveSlicerCard({ slicer, onPick }) {
       textAlign: "left",
       padding: "14px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 10,
+      border: "1px solid #211E1E", borderRadius: 10,
       cursor: "pointer",
       display: "flex", flexDirection: "column", gap: 10,
       transition: "transform .12s ease, box-shadow .12s ease, background .12s ease",
     }}
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       e.currentTarget.style.background = "#FFF9E6";
     }}
     onMouseLeave={(e) => {
@@ -18890,7 +18890,7 @@ function OffboardingHistory({ onBack }) {
       {/* Hero strip — full-bleed cream banner. */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "28px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -18899,8 +18899,8 @@ function OffboardingHistory({ onBack }) {
         <button onClick={onBack} style={{
           display: "inline-flex", alignItems: "center", gap: 6,
           padding: "7px 12px 7px 10px",
-          background: "#FFFFFF", border: "2px solid #211E1E",
-          borderRadius: 4, boxShadow: "2px 2px 0 #211E1E",
+          background: "#FFFFFF", border: "1px solid #211E1E",
+          borderRadius: 4, boxShadow: "1px 1px 0 #211E1E",
           fontFamily: "'Archivo', sans-serif",
           fontWeight: 800, fontSize: 11.5,
           letterSpacing: "0.04em", textTransform: "uppercase",
@@ -18938,7 +18938,7 @@ function OffboardingHistory({ onBack }) {
             style={{
               width: "100%", padding: "13px 16px 13px 42px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 8,
+              border: "1px solid #211E1E", borderRadius: 8,
               fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 600, color: "#211E1E",
               outline: "none", boxSizing: "border-box",
             }}/>
@@ -18956,7 +18956,7 @@ function OffboardingHistory({ onBack }) {
       <div style={{
         display: "flex", alignItems: "baseline", justifyContent: "space-between",
         marginBottom: 14,
-        paddingBottom: 10, borderBottom: "2px solid #211E1E",
+        paddingBottom: 10, borderBottom: "1px solid #211E1E",
       }}>
         <div style={{
           fontFamily: "'Archivo', sans-serif",
@@ -18977,7 +18977,7 @@ function OffboardingHistory({ onBack }) {
         <div style={{
           padding: "60px 24px", textAlign: "center",
           background: "#FFF9E6",
-          border: "2px dashed #211E1E", borderRadius: 10,
+          border: "1px dashed #211E1E", borderRadius: 10,
         }}>
           <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: "#211E1E" }}>
             No offboardings match this filter
@@ -19014,7 +19014,7 @@ function HistoryChip({ label, count, active, onClick, tone, icon }) {
       padding: "7px 12px",
       background: active ? "#211E1E" : "#FFFFFF",
       color: active ? "#FDC831" : "#211E1E",
-      border: "2px solid #211E1E", borderRadius: 6,
+      border: "1px solid #211E1E", borderRadius: 6,
       fontFamily: "'Archivo', sans-serif",
       fontSize: 11.5, fontWeight: 800, letterSpacing: "0.02em",
       cursor: "pointer",
@@ -19047,13 +19047,13 @@ function OfbHistoryRow({ row, onOpen }) {
       alignItems: "center", gap: 18,
       padding: "12px 16px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
+      border: "1px solid #211E1E", borderRadius: 8,
       cursor: "pointer",
       transition: "transform .12s ease, box-shadow .12s ease",
     }}
     onMouseEnter={(e) => {
       e.currentTarget.style.transform = "translate(-1px,-1px)";
-      e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+      e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
     }}
     onMouseLeave={(e) => {
       e.currentTarget.style.transform = "none";
@@ -19131,8 +19131,8 @@ function BulkOffboardModal({ maxBulk = 30, onCancel, onConfirm }) {
         display: "flex", gap: 12,
         padding: "12px 14px",
         background: "#FFF0F0",
-        border: "2px solid #B92323", borderRadius: 8,
-        boxShadow: "3px 3px 0 #B92323",
+        border: "1px solid #B92323", borderRadius: 8,
+        boxShadow: "2px 2px 0 #B92323",
         marginBottom: 18,
       }}>
         <div style={{
@@ -19161,8 +19161,8 @@ function BulkOffboardModal({ maxBulk = 30, onCancel, onConfirm }) {
               style={{
                 padding: "10px 14px",
                 background: count === n ? "#FDC831" : "#FFFFFF",
-                border: "2px solid #211E1E", borderRadius: 6,
-                boxShadow: count === n ? "2px 2px 0 #211E1E" : "none",
+                border: "1px solid #211E1E", borderRadius: 6,
+                boxShadow: count === n ? "1px 1px 0 #211E1E" : "none",
                 fontFamily: "'Archivo', sans-serif",
                 fontWeight: 800, fontSize: 14,
                 color: "#211E1E", cursor: "pointer",
@@ -19178,7 +19178,7 @@ function BulkOffboardModal({ maxBulk = 30, onCancel, onConfirm }) {
             style={{
               width: 70, padding: "10px 10px",
               background: "#FFFFFF",
-              border: "2px solid #211E1E", borderRadius: 6,
+              border: "1px solid #211E1E", borderRadius: 6,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 14, fontWeight: 800,
               color: "#211E1E", textAlign: "center",
@@ -19198,7 +19198,7 @@ function BulkOffboardModal({ maxBulk = 30, onCancel, onConfirm }) {
           style={{
             padding: "11px 18px",
             background: "#FFFFFF", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
+            border: "1px solid #211E1E", borderRadius: 4,
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -19208,8 +19208,8 @@ function BulkOffboardModal({ maxBulk = 30, onCancel, onConfirm }) {
           style={{
             padding: "11px 20px",
             background: "#FDC831", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: "3px 3px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: "2px 2px 0 #211E1E",
             fontFamily: "'Archivo', sans-serif",
             fontWeight: 800, fontSize: 12.5,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -19461,7 +19461,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
       {/* Hero */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "44px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
@@ -19485,9 +19485,9 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           {/* Search bar */}
           <form onSubmit={onSubmit} className="kb-search-form" style={{
             background: "#FFFFFF",
-            border: "2px solid #211E1E",
+            border: "1px solid #211E1E",
             borderRadius: 14,
-            boxShadow: "6px 6px 0 #211E1E",
+            boxShadow: "3px 3px 0 #211E1E",
             padding: "8px 8px 8px 20px",
             display: "flex", alignItems: "center", gap: 14,
             maxWidth: 1120,
@@ -19511,7 +19511,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear search" style={{
                 width: 28, height: 28, padding: 0, cursor: "pointer",
-                background: "#F7F4EF", border: "1.5px solid #211E1E", borderRadius: "50%",
+                background: "#F7F4EF", border: "1px solid #211E1E", borderRadius: "50%",
                 display: "grid", placeItems: "center", color: "#211E1E",
                 marginRight: 4,
               }}>
@@ -19523,11 +19523,11 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           <style>{`
             .kb-search-form:hover {
               transform: translate(-2px, -2px);
-              box-shadow: 8px 8px 0 #211E1E;
+              box-shadow: 4px 4px 0 #211E1E;
             }
             .kb-search-form:focus-within {
               transform: translate(-3px, -3px);
-              box-shadow: 9px 9px 0 #211E1E;
+              box-shadow: 5px 5px 0 #211E1E;
               border-color: #211E1E;
             }
             .kb-search-form input::placeholder {
@@ -19632,8 +19632,8 @@ function KnowledgePage({ onBack, onOpenGuide }) {
             <div style={{
               marginTop: 18,
               background: "#FFF9E6", color: "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 10,
-              boxShadow: "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 10,
+              boxShadow: "2px 2px 0 #211E1E",
               padding: "18px 20px",
             }}>
               <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A6A14", marginBottom: 8 }}>
@@ -19681,7 +19681,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
               in
               <span style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                background: "#FDC831", border: "1.5px solid #211E1E", borderRadius: 999,
+                background: "#FDC831", border: "1px solid #211E1E", borderRadius: 999,
                 padding: "3px 10px 3px 12px", fontWeight: 700, fontSize: 12,
                 fontFamily: "Archivo, sans-serif",
               }}>
@@ -19700,7 +19700,7 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {/* Sort */}
-          <div style={{ display: "inline-flex", border: "1.5px solid #211E1E", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
+          <div style={{ display: "inline-flex", border: "1px solid #211E1E", borderRadius: 8, overflow: "hidden", background: "#FFFFFF" }}>
             {[
               { v: "relevance", label: "Best match" },
               { v: "recent", label: "Recently updated" },
@@ -19722,15 +19722,15 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
 
       {results.length === 0 ? (
         <div style={{
-          background: "#FFFFFF", border: "2px dashed #211E1E", borderRadius: 14,
+          background: "#FFFFFF", border: "1px dashed #211E1E", borderRadius: 14,
           padding: "44px 32px",
           textAlign: "center",
         }}>
           {/* Typographic mark instead of emoji */}
           <div style={{
             width: 64, height: 64, margin: "0 auto 14px",
-            background: "#FDC831", border: "2px solid #211E1E", borderRadius: "50%",
-            boxShadow: "3px 3px 0 #211E1E",
+            background: "#FDC831", border: "1px solid #211E1E", borderRadius: "50%",
+            boxShadow: "2px 2px 0 #211E1E",
             display: "grid", placeItems: "center",
             fontFamily: "'Archivo', sans-serif", fontSize: 36, fontWeight: 900, color: "#211E1E",
             lineHeight: 1,
@@ -19746,8 +19746,8 @@ function SearchResults({ query, categoryLabel, categoryId, onClearCategory, resu
       ) : (
         <div style={{
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 14,
-          boxShadow: "4px 4px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 14,
+          boxShadow: "2px 2px 0 #211E1E",
           overflow: "hidden",
         }}>
           {results.map((r, i) => (
@@ -19801,8 +19801,8 @@ function ArticleList({ items, onOpen }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 14,
-      boxShadow: "4px 4px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 14,
+      boxShadow: "2px 2px 0 #211E1E",
       overflow: "hidden",
     }}>
       {items.map((p, i) => (
@@ -19869,22 +19869,22 @@ function FeaturedGuideCard({ guide, onClick }) {
   return (
     <div onClick={onClick} style={{
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 14,
-      boxShadow: "4px 4px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 14,
+      boxShadow: "2px 2px 0 #211E1E",
       padding: "22px 22px 20px",
       cursor: "pointer",
       transition: "transform .18s var(--ease), box-shadow .18s var(--ease)",
       display: "flex", flexDirection: "column", gap: 14,
       minHeight: 220,
     }}
-    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-3px,-3px)"; e.currentTarget.style.boxShadow = "7px 7px 0 #211E1E"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}>
+    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-3px,-3px)"; e.currentTarget.style.boxShadow = "4px 4px 0 #211E1E"; }}
+    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{
           fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 900,
           letterSpacing: "0.04em", textTransform: "uppercase",
           background: "#FDC831", color: "#211E1E",
-          border: "1.5px solid #211E1E", borderRadius: 3,
+          border: "1px solid #211E1E", borderRadius: 3,
           padding: "2px 8px",
         }}>{guide.category}</span>
       </div>
@@ -19899,7 +19899,7 @@ function FeaturedGuideCard({ guide, onClick }) {
       </p>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "flex-end",
-        paddingTop: 12, borderTop: "1.5px solid #E7E1D4",
+        paddingTop: 12, borderTop: "1px solid #E7E1D4",
         fontSize: 12, fontWeight: 800, color: "#211E1E",
       }}>
         Read →
@@ -19925,8 +19925,8 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "min(540px, 100%)",
         background: "#F7F4EF",
-        border: "2px solid #211E1E", borderRadius: 16,
-        boxShadow: "10px 10px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 16,
+        boxShadow: "5px 5px 0 #211E1E",
         padding: 28,
       }}>
         {!sent ? (
@@ -19950,8 +19950,8 @@ function SuggestModal({ seedQuery, onClose, sent, onSubmit }) {
           <div style={{ textAlign: "center", padding: "12px 8px" }}>
             <div style={{
               width: 72, height: 72, margin: "0 auto 16px",
-              background: "#0A8A3E", border: "2px solid #211E1E", borderRadius: "50%",
-              boxShadow: "4px 4px 0 #211E1E",
+              background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%",
+              boxShadow: "2px 2px 0 #211E1E",
               display: "grid", placeItems: "center",
               color: "#FFFFFF", fontSize: 36, fontWeight: 900,
             }}>✓</div>
@@ -19976,7 +19976,7 @@ const inputStyle = {
   fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 500,
   color: "#211E1E",
   background: "#FFFFFF",
-  border: "1.5px solid #211E1E", borderRadius: 8,
+  border: "1px solid #211E1E", borderRadius: 8,
   outline: "none",
 };
 
@@ -20142,15 +20142,15 @@ function StatusPage({ onBack }) {
       {/* Overall banner — cream bg always; tone expressed through icon + accent only */}
       <div style={{
         background: "#F7F4EF",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         padding: "44px 32px 44px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 24, alignItems: "center" }}>
           <div style={{
             width: 88, height: 88,
             background: toneAccent,
-            border: "3px solid #211E1E", borderRadius: 18,
-            boxShadow: "4px 4px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 18,
+            boxShadow: "2px 2px 0 #211E1E",
             display: "grid", placeItems: "center",
             color: "#FFFFFF",
             fontFamily: "Archivo, sans-serif", fontWeight: 900,
@@ -20203,7 +20203,7 @@ function StatusPage({ onBack }) {
       {/* KPI strip — quick read of how things look right now */}
       <div style={{
         background: "#211E1E",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
       }}>
         <div style={{
           maxWidth: 1120, margin: "0 auto",
@@ -20268,8 +20268,8 @@ function StatusPage({ onBack }) {
                 padding: "11px 14px 11px 38px",
                 fontFamily: "'Archivo', sans-serif", fontSize: 13.5, fontWeight: 600,
                 color: "#211E1E", background: "#FFFFFF",
-                border: "2px solid #211E1E", borderRadius: 10,
-                boxShadow: "2px 2px 0 #211E1E", outline: "none",
+                border: "1px solid #211E1E", borderRadius: 10,
+                boxShadow: "1px 1px 0 #211E1E", outline: "none",
               }}
             />
           </div>
@@ -20287,8 +20287,8 @@ function StatusPage({ onBack }) {
         {/* Single top-level 90-day axis */}
         <div style={{
           background: "#FFFFFF",
-          border: "2px solid #211E1E", borderRadius: 14,
-          boxShadow: "4px 4px 0 #211E1E",
+          border: "1px solid #211E1E", borderRadius: 14,
+          boxShadow: "2px 2px 0 #211E1E",
           overflow: "hidden",
           marginBottom: 48,
         }}>
@@ -20298,7 +20298,7 @@ function StatusPage({ onBack }) {
             gridTemplateColumns: "44px 1.4fr 1fr 2fr 140px 40px",
             gap: 16,
             padding: "12px 22px",
-            background: "#F7F4EF", borderBottom: "2px solid #211E1E",
+            background: "#F7F4EF", borderBottom: "1px solid #211E1E",
             fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900,
             letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E",
           }}>
@@ -20341,7 +20341,7 @@ function StatusPage({ onBack }) {
                 padding: "10px 22px",
                 background: "#FFFDF5",
                 borderTop: gi === 0 ? "none" : "1.5px solid #E7E1D4",
-                borderBottom: "1.5px solid #E7E1D4",
+                borderBottom: "1px solid #E7E1D4",
                 fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900,
                 letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A6A14",
               }}>{group.label}</div>
@@ -20371,14 +20371,14 @@ function StatusPage({ onBack }) {
           {resolvedIncidentList.length === 0 && (
             <div style={{
               background: "#F7F4EF",
-              border: "2px dashed #78684C", borderRadius: 10,
+              border: "1px dashed #78684C", borderRadius: 10,
               padding: "18px 20px",
               display: "flex", alignItems: "center", gap: 14,
               color: "#4A3F2E", fontSize: 13.5, fontWeight: 600,
             }}>
               <div style={{
                 width: 28, height: 28,
-                background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: "50%",
+                background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: "50%",
                 display: "grid", placeItems: "center",
                 fontFamily: "Archivo, sans-serif", fontSize: 16, fontWeight: 900, color: "#0A8A3E",
                 lineHeight: 1,
@@ -20399,7 +20399,7 @@ function StatusPage({ onBack }) {
           color: "#4A3F2E",
         }}>
           <div style={{
-            borderTop: "1.5px solid rgba(33,30,30,0.15)",
+            borderTop: "1px solid rgba(33,30,30,0.15)",
             paddingTop: 24,
           }}>Built by the Slice IT Team</div>
         </div>
@@ -20447,8 +20447,8 @@ function FilterChip({ active, onClick, children }) {
         padding: "9px 14px",
         background: active ? "#211E1E" : "#FFFFFF",
         color: active ? "#FDC831" : "#211E1E",
-        border: "2px solid #211E1E", borderRadius: 999,
-        boxShadow: active ? "none" : "2px 2px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 999,
+        boxShadow: active ? "none" : "1px 1px 0 #211E1E",
         fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800,
         letterSpacing: "0.02em",
         cursor: "pointer",
@@ -20458,12 +20458,12 @@ function FilterChip({ active, onClick, children }) {
       onMouseEnter={(e) => {
         if (active) return;
         e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
       onMouseLeave={(e) => {
         if (active) return;
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E";
       }}
     >{children}</button>
   );
@@ -20490,7 +20490,7 @@ function StatusLegend() {
     <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 11.5, color: "#4A3F2E", fontWeight: 600 }}>
       {items.map(it => (
         <span key={it.label} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 10, height: 10, background: it.color, border: "1.5px solid #211E1E", borderRadius: 2 }}/>
+          <span style={{ width: 10, height: 10, background: it.color, border: "1px solid #211E1E", borderRadius: 2 }}/>
           {it.label}
         </span>
       ))}
@@ -20552,7 +20552,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
         {/* App icon */}
         <div style={{
           width: 36, height: 36,
-          border: "1.5px solid #211E1E", borderRadius: 8,
+          border: "1px solid #211E1E", borderRadius: 8,
           background: "#FFFFFF",
           display: "grid", placeItems: "center",
           overflow: "hidden",
@@ -20581,7 +20581,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
             <span style={{
               display: "inline-block",
               padding: "1px 8px",
-              background: "#F7F4EF", border: "1.5px solid #211E1E",
+              background: "#F7F4EF", border: "1px solid #211E1E",
               borderRadius: 999,
               fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -20660,7 +20660,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
               padding: "4px 8px", borderRadius: 4,
               fontFamily: "Archivo, sans-serif", fontSize: 11, fontWeight: 700,
               whiteSpace: "nowrap", pointerEvents: "none",
-              boxShadow: "2px 2px 0 rgba(0,0,0,0.2)",
+              boxShadow: "1px 1px 0 rgba(0,0,0,0.2)",
             }}>
               {bucketLabel(hist.length - 1 - hover)} — {hist[hover] === 0 ? "Up" : hist[hover] === 1 ? "Degraded" : "Down"}
             </div>
@@ -20674,7 +20674,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
         </div>
         <div style={{
           width: 28, height: 28,
-          background: "#FDC831", border: "1.5px solid #211E1E", borderRadius: 4,
+          background: "#FDC831", border: "1px solid #211E1E", borderRadius: 4,
           display: "grid", placeItems: "center",
           transform: expanded ? "rotate(180deg)" : "none",
           transition: "transform .2s var(--ease)",
@@ -20707,7 +20707,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
               <><b style={{ color: "#211E1E" }}>{service.name}</b> is health-probed every 60 seconds. We mark it <b>degraded</b> when responses exceed {Math.round(2500)}ms or return 4xx, and <b>down</b> on 5xx or connection failure.</>
             )}
             {service.last_error && (
-              <div style={{ marginTop: 8, padding: "8px 10px", background: "#FFE8E5", border: "1.5px solid #DA3327", borderRadius: 6, color: "#7A1A14", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11.5 }}>
+              <div style={{ marginTop: 8, padding: "8px 10px", background: "#FFE8E5", border: "1px solid #DA3327", borderRadius: 6, color: "#7A1A14", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11.5 }}>
                 Last error: {service.last_error}
               </div>
             )}
@@ -20721,7 +20721,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
 function MiniStat({ label, value }) {
   return (
     <div style={{
-      background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 8,
+      background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 8,
       padding: "10px 12px",
     }}>
       <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 900, letterSpacing: "0.06em", textTransform: "uppercase", color: "#78684C", marginBottom: 4 }}>{label}</div>
@@ -20750,13 +20750,13 @@ function IncidentCard({ incident, open }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 12,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 12,
+      boxShadow: "2px 2px 0 #211E1E",
       overflow: "hidden",
       transition: "transform .15s var(--ease), box-shadow .15s var(--ease)",
     }}
-    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "5px 5px 0 #FDC831, 5px 5px 0 0 #211E1E"; }}
-    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}
+    onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "3px 3px 0 #FDC831, 5px 5px 0 0 #211E1E"; }}
+    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
     >
       <div onClick={() => setExpanded(!expanded)} style={{
         padding: "18px 22px",
@@ -20768,7 +20768,7 @@ function IncidentCard({ incident, open }) {
             <span style={{
               fontFamily: "ui-monospace, Menlo, monospace",
               fontSize: 11, fontWeight: 700,
-              background: "#F7F4EF", border: "1.5px solid #211E1E",
+              background: "#F7F4EF", border: "1px solid #211E1E",
               borderRadius: 3, padding: "2px 7px", color: "#211E1E",
             }}>{idLabel}</span>
             <span style={{
@@ -20796,7 +20796,7 @@ function IncidentCard({ incident, open }) {
         </div>
         <div style={{
           width: 30, height: 30,
-          background: "#FDC831", border: "1.5px solid #211E1E", borderRadius: 4,
+          background: "#FDC831", border: "1px solid #211E1E", borderRadius: 4,
           display: "grid", placeItems: "center",
           transform: expanded ? "rotate(180deg)" : "none",
           transition: "transform .2s var(--ease)",
@@ -20809,7 +20809,7 @@ function IncidentCard({ incident, open }) {
       </div>
 
       {expanded && (
-        <div style={{ padding: "0 22px 22px", borderTop: "1.5px solid #E7E1D4", marginTop: 4, paddingTop: 18 }}>
+        <div style={{ padding: "0 22px 22px", borderTop: "1px solid #E7E1D4", marginTop: 4, paddingTop: 18 }}>
           <div style={{ fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 12 }}>
             Timeline
           </div>
@@ -20873,8 +20873,8 @@ function SubscribeModal({ onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "min(560px, 100%)",
         background: "#F7F4EF",
-        border: "2px solid #211E1E", borderRadius: 16,
-        boxShadow: "10px 10px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 16,
+        boxShadow: "5px 5px 0 #211E1E",
         padding: 28,
       }}>
         {!sent ? (
@@ -20891,8 +20891,8 @@ function SubscribeModal({ onClose }) {
                   padding: "12px 10px",
                   background: channel === c.id ? "#211E1E" : "#FFFFFF",
                   color: channel === c.id ? "#FDC831" : "#211E1E",
-                  border: "2px solid #211E1E", borderRadius: 10,
-                  boxShadow: channel === c.id ? "none" : "2px 2px 0 #211E1E",
+                  border: "1px solid #211E1E", borderRadius: 10,
+                  boxShadow: channel === c.id ? "none" : "1px 1px 0 #211E1E",
                   fontFamily: "Archivo, sans-serif", fontSize: 13, fontWeight: 800,
                   cursor: "pointer", transition: "all .12s",
                 }}>{c.label}</button>
@@ -20901,7 +20901,7 @@ function SubscribeModal({ onClose }) {
             <p style={{ fontSize: 13, color: "#4A3F2E", margin: "0 0 14px", lineHeight: 1.5 }}>{active.hint}</p>
             {channel === "rss" ? (
               <div style={{
-                background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 8,
+                background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 8,
                 padding: "12px 14px",
                 fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12.5, color: "#211E1E",
                 display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
@@ -20926,7 +20926,7 @@ function SubscribeModal({ onClose }) {
           </React.Fragment>
         ) : (
           <div style={{ textAlign: "center", padding: "12px 8px" }}>
-            <div style={{ width: 72, height: 72, margin: "0 auto 16px", background: "#0A8A3E", border: "2px solid #211E1E", borderRadius: "50%", boxShadow: "4px 4px 0 #211E1E", display: "grid", placeItems: "center", color: "#FFFFFF", fontSize: 36, fontWeight: 900 }}>✓</div>
+            <div style={{ width: 72, height: 72, margin: "0 auto 16px", background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%", boxShadow: "2px 2px 0 #211E1E", display: "grid", placeItems: "center", color: "#FFFFFF", fontSize: 36, fontWeight: 900 }}>✓</div>
             <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "#211E1E" }}>You're on the list.</h2>
             <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>We'll send a note when anything changes.</p>
             <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Close</button>
@@ -20955,8 +20955,8 @@ function ReportIssueModal({ onClose, services }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "min(560px, 100%)",
         background: "#F7F4EF",
-        border: "2px solid #211E1E", borderRadius: 16,
-        boxShadow: "10px 10px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 16,
+        boxShadow: "5px 5px 0 #211E1E",
         padding: 28,
       }}>
         {!sent ? (
@@ -20984,7 +20984,7 @@ function ReportIssueModal({ onClose, services }) {
           </form>
         ) : (
           <div style={{ textAlign: "center", padding: "12px 8px" }}>
-            <div style={{ width: 72, height: 72, margin: "0 auto 16px", background: "#0A8A3E", border: "2px solid #211E1E", borderRadius: "50%", boxShadow: "4px 4px 0 #211E1E", display: "grid", placeItems: "center", color: "#FFFFFF", fontSize: 36, fontWeight: 900 }}>✓</div>
+            <div style={{ width: 72, height: 72, margin: "0 auto 16px", background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%", boxShadow: "2px 2px 0 #211E1E", display: "grid", placeItems: "center", color: "#FFFFFF", fontSize: 36, fontWeight: 900 }}>✓</div>
             <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "#211E1E" }}>Report filed.</h2>
             <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>On-call will take a look. If it turns into an incident you'll see it listed above.</p>
             <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Close</button>
@@ -21114,7 +21114,7 @@ function AwaitingApprovalSection({ approvals, onOpenApproval, onNudge }) {
         <div style={{
           padding: "20px 18px",
           background: "#FFFFFF",
-          border: "1.5px dashed rgba(33,30,30,0.2)", borderRadius: 8,
+          border: "1px dashed rgba(33,30,30,0.2)", borderRadius: 8,
           fontFamily: "'Archivo', sans-serif",
           fontSize: 12.5, fontWeight: 600, color: "#78684C",
         }}>
@@ -21150,11 +21150,11 @@ function ApprovalCard({ row, onOpen, onNudge }) {
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = "translate(-1px,-1px)";
-        e.currentTarget.style.boxShadow = "4px 4px 0 #FDC831";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #FDC831";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.transform = "none";
-        e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E";
+        e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E";
       }}
       style={{
         display: "grid",
@@ -21162,8 +21162,8 @@ function ApprovalCard({ row, onOpen, onNudge }) {
         gap: 12, alignItems: "center",
         padding: "10px 12px",
         background: "#FFFFFF",
-        border: "2px solid #211E1E", borderRadius: 6,
-        boxShadow: "3px 3px 0 #211E1E",
+        border: "1px solid #211E1E", borderRadius: 6,
+        boxShadow: "2px 2px 0 #211E1E",
         cursor: "pointer", textAlign: "left",
         fontFamily: "'Archivo', sans-serif",
         transition: "transform .12s ease, box-shadow .12s ease",
@@ -21185,7 +21185,7 @@ function ApprovalCard({ row, onOpen, onNudge }) {
                 background: showOverflow ? "#211E1E" : "#FDC831",
                 color: showOverflow ? "#FDC831" : "#211E1E",
                 display: "grid", placeItems: "center",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 fontSize: showOverflow ? 10 : 11,
                 fontWeight: 900,
                 marginLeft: i === 0 ? 0 : -10,
@@ -21202,7 +21202,7 @@ function ApprovalCard({ row, onOpen, onNudge }) {
           width: 30, height: 30, borderRadius: "50%",
           background: "#FDC831", color: "#211E1E",
           display: "grid", placeItems: "center",
-          border: "1.5px solid #211E1E",
+          border: "1px solid #211E1E",
           fontSize: 11, fontWeight: 900,
           flexShrink: 0,
         }}>{oqInitials(primary.firstName, primary.lastName)}</div>
@@ -21223,7 +21223,7 @@ function ApprovalCard({ row, onOpen, onNudge }) {
             <span style={{
               padding: "2px 7px",
               background: "#211E1E", color: "#FDC831",
-              border: "1.5px solid #211E1E", borderRadius: 3,
+              border: "1px solid #211E1E", borderRadius: 3,
               fontFamily: "'Archivo', sans-serif",
               fontSize: 9, fontWeight: 800,
               letterSpacing: "0.08em", textTransform: "uppercase",
@@ -21240,7 +21240,7 @@ function ApprovalCard({ row, onOpen, onNudge }) {
             <span style={{
               padding: "1px 6px",
               background: "#B92323", color: "#FFFFFF",
-              border: "1.5px solid #211E1E", borderRadius: 3,
+              border: "1px solid #211E1E", borderRadius: 3,
               fontSize: 9, fontWeight: 800,
               letterSpacing: "0.06em", textTransform: "uppercase",
             }}>Returned</span>
@@ -21249,7 +21249,7 @@ function ApprovalCard({ row, onOpen, onNudge }) {
             <span style={{
               padding: "1px 6px",
               background: "#FFFFFF", color: "#B92323",
-              border: "1.5px solid #B92323", borderRadius: 3,
+              border: "1px solid #B92323", borderRadius: 3,
               fontSize: 9, fontWeight: 800,
               letterSpacing: "0.06em", textTransform: "uppercase",
             }}>Overdue</span>
@@ -21290,7 +21290,7 @@ function ApprovalCard({ row, onOpen, onNudge }) {
             padding: "6px 10px",
             background: nudged ? "#FFFFFF" : "#211E1E",
             color: nudged ? "#78684C" : "#FDC831",
-            border: "1.5px solid #211E1E", borderRadius: 3,
+            border: "1px solid #211E1E", borderRadius: 3,
             fontFamily: "'Archivo', sans-serif",
             fontSize: 10, fontWeight: 800,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -21316,7 +21316,7 @@ function CountdownChip({ days }) {
       padding: "5px 10px",
       background: urgent ? "#211E1E" : "#FFF9E6",
       color: urgent ? "#FDC831" : "#211E1E",
-      border: "1.5px solid #211E1E", borderRadius: 4,
+      border: "1px solid #211E1E", borderRadius: 4,
       fontFamily: "'Archivo', sans-serif",
       textAlign: "center", minWidth: 64,
     }}>
@@ -21377,8 +21377,8 @@ function InPrepTable({ inProgress, onOpen, onSort, sortBy, sortDir }) {
   return (
     <div style={{
       background: "#FFFFFF",
-      border: "2px solid #211E1E", borderRadius: 8,
-      boxShadow: "3px 3px 0 #211E1E",
+      border: "1px solid #211E1E", borderRadius: 8,
+      boxShadow: "2px 2px 0 #211E1E",
       overflow: "hidden",
     }}>
       {/* Header row */}
@@ -21388,7 +21388,7 @@ function InPrepTable({ inProgress, onOpen, onSort, sortBy, sortDir }) {
         gap: 16, alignItems: "center",
         padding: "10px 18px",
         background: "#FFF9E6",
-        borderBottom: "2px solid #211E1E",
+        borderBottom: "1px solid #211E1E",
         fontFamily: "'Archivo', sans-serif",
         fontSize: 9.5, fontWeight: 900,
         letterSpacing: "0.1em", textTransform: "uppercase",
@@ -21451,7 +21451,7 @@ function InPrepTable({ inProgress, onOpen, onSort, sortBy, sortDir }) {
                 width: 30, height: 30, borderRadius: "50%",
                 background: "#FDC831", color: "#211E1E",
                 display: "grid", placeItems: "center",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 fontSize: 11, fontWeight: 900,
                 flexShrink: 0,
                 position: "relative",
@@ -21499,7 +21499,7 @@ function InPrepTable({ inProgress, onOpen, onSort, sortBy, sortDir }) {
                 width: 22, height: 22, flexShrink: 0,
                 borderRadius: "50%",
                 background: "#0A8A3E", color: "#FFFFFF",
-                border: "1.5px solid #211E1E",
+                border: "1px solid #211E1E",
                 display: "grid", placeItems: "center",
                 boxShadow: "1px 1px 0 #211E1E",
               }}>
@@ -21751,7 +21751,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           50% { box-shadow: 0 0 0 8px rgba(253,200,49,0); }
         }
         .ss-action-btn { transition: transform .15s, box-shadow .15s; }
-        .ss-action-btn:hover { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 #211E1E; }
+        .ss-action-btn:hover { transform: translate(-2px,-2px); box-shadow: 3px 3px 0 #211E1E; }
         .ss-action-btn:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; }
       `}</style>
 
@@ -21760,9 +21760,9 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         style={{
           width: "min(720px, 100%)",
           background: "#FFF9E6",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 14,
-          boxShadow: "8px 8px 0 #211E1E",
+          boxShadow: "4px 4px 0 #211E1E",
           padding: 0,
           animation: "ssPanelIn .35s var(--ease) both",
           overflow: "hidden",
@@ -21771,7 +21771,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
         {/* Header */}
         <div style={{
           padding: "20px 28px",
-          borderBottom: "2px solid #211E1E",
+          borderBottom: "1px solid #211E1E",
           background: "#FDC831",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
@@ -21779,7 +21779,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
             <div style={{
               width: 36, height: 36, borderRadius: 8,
               background: "#211E1E", color: "#FDC831",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               display: "grid", placeItems: "center",
               fontFamily: "Archivo, sans-serif",
               fontSize: 18, fontWeight: 900,
@@ -21803,8 +21803,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
           <button onClick={onClose} aria-label="Close" style={{
             width: 32, height: 32,
             background: "#FFFFFF",
-            border: "2px solid #211E1E", borderRadius: 4,
-            boxShadow: "2px 2px 0 #211E1E",
+            border: "1px solid #211E1E", borderRadius: 4,
+            boxShadow: "1px 1px 0 #211E1E",
             display: "grid", placeItems: "center",
             color: "#211E1E", cursor: "pointer",
             fontFamily: "Archivo, sans-serif",
@@ -21854,8 +21854,8 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                         position: "absolute", top: 10, right: 10,
                         padding: "6px 10px",
                         background: "#FFFFFF",
-                        border: "2px solid #211E1E", borderRadius: 4,
-                        boxShadow: "2px 2px 0 #211E1E",
+                        border: "1px solid #211E1E", borderRadius: 4,
+                        boxShadow: "1px 1px 0 #211E1E",
                         fontFamily: "Archivo, sans-serif",
                         fontSize: 11, fontWeight: 800,
                         letterSpacing: "0.04em", textTransform: "uppercase",
@@ -21882,7 +21882,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                       width: 56, height: 56, borderRadius: 12,
                       background: dragOver ? "#211E1E" : "#FDC831",
                       color: dragOver ? "#FDC831" : "#211E1E",
-                      border: "2.5px solid #211E1E",
+                      border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
                       margin: "0 auto 14px",
                       fontFamily: "Archivo, sans-serif",
@@ -21932,7 +21932,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                   style={{
                     width: "100%",
                     background: "#FFFFFF",
-                    border: "2px solid #211E1E",
+                    border: "1px solid #211E1E",
                     borderRadius: 8,
                     padding: "10px 12px",
                     fontFamily: "inherit",
@@ -21963,7 +21963,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
                     color: file ? "#FDC831" : "#78684C",
                     border: `2px solid ${file ? "#211E1E" : "#C9C2B0"}`,
                     borderRadius: 4,
-                    boxShadow: file ? "3px 3px 0 #FDC831" : "none",
+                    boxShadow: file ? "2px 2px 0 #FDC831" : "none",
                     fontFamily: "Archivo, sans-serif",
                     fontWeight: 800, fontSize: 13,
                     letterSpacing: "0.04em", textTransform: "uppercase",
@@ -22006,7 +22006,7 @@ function ScreenshotHelper({ onClose, onOpenGuide, onFileTicket, initialNote = ""
               marginTop: 14,
               padding: "10px 14px",
               background: "#FFE8E5",
-              border: "1.5px solid #DA3327",
+              border: "1px solid #DA3327",
               borderRadius: 8,
               fontSize: 12.5, color: "#7A1A14", fontWeight: 600,
               lineHeight: 1.45,
@@ -22049,7 +22049,7 @@ function AnalyzingView({ file, progress }) {
       <div style={{
         position: "relative",
         background: "#211E1E",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 12,
         overflow: "hidden",
         marginBottom: 18,
@@ -22082,7 +22082,7 @@ function AnalyzingView({ file, progress }) {
             position: "absolute",
             ...pos,
             width: 14, height: 14,
-            border: "2.5px solid #FDC831",
+            border: "1px solid #FDC831",
             borderRadius: 2,
           }}/>
         ))}
@@ -22092,7 +22092,7 @@ function AnalyzingView({ file, progress }) {
       <div style={{
         height: 8,
         background: "#FFFFFF",
-        border: "1.5px solid #211E1E",
+        border: "1px solid #211E1E",
         borderRadius: 999,
         overflow: "hidden",
         marginBottom: 12,
@@ -22141,7 +22141,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
         <div style={{
           width: 120, height: 90,
           background: "#211E1E",
-          border: "2px solid #211E1E",
+          border: "1px solid #211E1E",
           borderRadius: 8,
           overflow: "hidden",
           flexShrink: 0,
@@ -22187,9 +22187,9 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
       {isHardware && (
         <div style={{
           background: "#FFE8E5",
-          border: "2px solid #DA3327",
+          border: "1px solid #DA3327",
           borderRadius: 10,
-          boxShadow: "3px 3px 0 #DA3327",
+          boxShadow: "2px 2px 0 #DA3327",
           padding: "16px 18px",
           marginBottom: 18,
         }}>
@@ -22219,7 +22219,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
           {clues.length > 0 && (
             <div style={{
               background: "#FFFFFF",
-              border: "2px solid #211E1E",
+              border: "1px solid #211E1E",
               borderRadius: 8,
               padding: "14px 18px",
               marginBottom: 18,
@@ -22253,9 +22253,9 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     className="ss-action-btn"
                     style={{
                       background: i === 0 ? "#FDC831" : "#FFFFFF",
-                      border: "2px solid #211E1E",
+                      border: "1px solid #211E1E",
                       borderRadius: 10,
-                      boxShadow: "3px 3px 0 #211E1E",
+                      boxShadow: "2px 2px 0 #211E1E",
                       padding: "12px 16px",
                       cursor: "pointer",
                       display: "flex", alignItems: "center", gap: 14,
@@ -22264,7 +22264,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     <div style={{
                       width: 36, height: 36, borderRadius: 8,
                       background: "#211E1E", color: "#FDC831",
-                      border: "2px solid #211E1E",
+                      border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
                       fontFamily: "Archivo, sans-serif",
                       fontSize: 16, fontWeight: 900,
@@ -22307,7 +22307,7 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                     <div style={{
                       width: 22, height: 22, borderRadius: "50%",
                       background: "#FFFFFF",
-                      border: "2px solid #211E1E",
+                      border: "1px solid #211E1E",
                       display: "grid", placeItems: "center",
                       fontFamily: "Archivo, sans-serif",
                       fontSize: 11, fontWeight: 800,
@@ -22328,14 +22328,14 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
       {/* Footer actions */}
       <div style={{
         display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap",
-        paddingTop: 18, borderTop: "1.5px dashed rgba(33,30,30,0.2)",
+        paddingTop: 18, borderTop: "1px dashed rgba(33,30,30,0.2)",
       }}>
         <button
           onClick={onRetry}
           style={{
             padding: "10px 16px",
             background: "transparent",
-            border: "2px solid #211E1E", borderRadius: 4,
+            border: "1px solid #211E1E", borderRadius: 4,
             fontFamily: "Archivo, sans-serif",
             fontWeight: 800, fontSize: 12,
             letterSpacing: "0.04em", textTransform: "uppercase",
@@ -22352,8 +22352,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
               padding: "11px 18px",
               background: isHardware ? "#211E1E" : "#FFFFFF",
               color: isHardware ? "#FDC831" : "#211E1E",
-              border: "2px solid #211E1E", borderRadius: 4,
-              boxShadow: isHardware ? "3px 3px 0 #FDC831" : "3px 3px 0 #211E1E",
+              border: "1px solid #211E1E", borderRadius: 4,
+              boxShadow: isHardware ? "2px 2px 0 #FDC831" : "2px 2px 0 #211E1E",
               fontFamily: "Archivo, sans-serif",
               fontWeight: 800, fontSize: 12.5,
               letterSpacing: "0.04em", textTransform: "uppercase",
@@ -22370,8 +22370,8 @@ function ResultView({ file, result, onOpenGuide, onOpenSpecificGuide, onFileTick
                 padding: "11px 18px",
                 background: "#211E1E",
                 color: "#FDC831",
-                border: "2px solid #211E1E", borderRadius: 4,
-                boxShadow: "3px 3px 0 #FDC831",
+                border: "1px solid #211E1E", borderRadius: 4,
+                boxShadow: "2px 2px 0 #FDC831",
                 fontFamily: "Archivo, sans-serif",
                 fontWeight: 800, fontSize: 12.5,
                 letterSpacing: "0.04em", textTransform: "uppercase",
@@ -22403,9 +22403,9 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
         display: "flex", alignItems: "center", gap: 14,
         padding: "14px 18px",
         background: "#FFFFFF",
-        border: "2px dashed #211E1E",
+        border: "1px dashed #211E1E",
         borderRadius: 12,
-        boxShadow: "3px 3px 0 #211E1E",
+        boxShadow: "2px 2px 0 #211E1E",
         cursor: "pointer",
         textAlign: "left",
         fontFamily: "inherit",
@@ -22414,7 +22414,7 @@ function ScreenshotEntry({ onOpen, headline, subline }) {
       <div style={{
         width: 40, height: 40, borderRadius: 8,
         background: "#FDC831",
-        border: "2px solid #211E1E",
+        border: "1px solid #211E1E",
         color: "#211E1E",
         display: "grid", placeItems: "center",
         fontFamily: "Archivo, sans-serif",
@@ -22684,15 +22684,15 @@ function renderMarkdown(md, opts = {}) {
               padding: '10px 14px',
               marginBottom: 6,
               background: '#FFFFFF',
-              border: '1.5px solid #211E1E',
+              border: '1px solid #211E1E',
               borderRadius: 8,
-              boxShadow: '2px 2px 0 #211E1E',
+              boxShadow: '1px 1px 0 #211E1E',
               width: '100%',
               boxSizing: 'border-box',
             }}>
               <div style={{
                 width: 22, height: 22, borderRadius: '50%',
-                background: '#FDC831', border: '1.5px solid #211E1E',
+                background: '#FDC831', border: '1px solid #211E1E',
                 color: '#211E1E',
                 display: 'grid', placeItems: 'center',
                 fontFamily: "'Archivo', sans-serif",
@@ -22857,14 +22857,14 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const fbBtn = (active) => ({
     background: active ? '#211E1E' : '#FFFFFF',
     color: active ? '#FDC831' : '#211E1E',
-    border: '2px solid #211E1E',
+    border: '1px solid #211E1E',
     padding: '12px 22px',
     borderRadius: 8,
     fontWeight: 800,
     fontFamily: "'Archivo', sans-serif",
     fontSize: 14,
     cursor: 'pointer',
-    boxShadow: active ? '2px 2px 0 #FDC831' : '2px 2px 0 #211E1E',
+    boxShadow: active ? '1px 1px 0 #FDC831' : '1px 1px 0 #211E1E',
   });
 
   return (
@@ -22887,7 +22887,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         .share-guide-btn:hover,
         .feedback-btn:not(:disabled):hover {
           transform: translate(-2px, -2px);
-          box-shadow: 4px 4px 0 #211E1E;
+          box-shadow: 2px 2px 0 #211E1E;
         }
         .back-to-hub-btn:active,
         .share-guide-btn:active,
@@ -22921,7 +22921,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       <button className="back-to-hub-btn" onClick={onClose} style={{
         position: 'fixed', top: 20, left: 20, zIndex: 110,
         background: '#FFFFFF',
-        border: '2px solid #211E1E',
+        border: '1px solid #211E1E',
         borderRadius: 8,
         padding: '8px 14px',
         fontFamily: "'Archivo', sans-serif",
@@ -22929,7 +22929,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         color: '#211E1E',
         cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', gap: 8,
-        boxShadow: '2px 2px 0 #211E1E',
+        boxShadow: '1px 1px 0 #211E1E',
       }}>
         <span className="back-to-hub-arrow">←</span>
         Back to hub
@@ -22946,14 +22946,14 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           position: 'fixed', top: 20, right: 20, zIndex: 110,
           background: shareCopied ? '#211E1E' : '#FFFFFF',
           color: shareCopied ? '#FDC831' : '#211E1E',
-          border: '2px solid #211E1E',
+          border: '1px solid #211E1E',
           borderRadius: 8,
           padding: '8px 14px',
           fontFamily: "'Archivo', sans-serif",
           fontSize: 13, fontWeight: 700,
           cursor: 'pointer',
           display: 'inline-flex', alignItems: 'center', gap: 8,
-          boxShadow: shareCopied ? '2px 2px 0 #FDC831' : '2px 2px 0 #211E1E',
+          boxShadow: shareCopied ? '1px 1px 0 #FDC831' : '1px 1px 0 #211E1E',
           transition: 'transform .15s, box-shadow .15s, background .15s, color .15s',
         }}
       >
@@ -22984,9 +22984,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       }}>
         <article ref={articleRef} style={{
           background: '#FFFFFF',
-          border: '2px solid #211E1E',
+          border: '1px solid #211E1E',
           borderRadius: 14,
-          boxShadow: '6px 6px 0 #211E1E',
+          boxShadow: '3px 3px 0 #211E1E',
           padding: '40px 64px',
           fontSize: 15, lineHeight: 1.65, color: '#211E1E',
           fontFamily: "'Archivo', sans-serif",
@@ -23100,8 +23100,8 @@ function ImageLightbox({ images, index, onClose }) {
     [side]: 18,
     width: 48, height: 48, borderRadius: '50%',
     background: '#FFFFFF', color: '#211E1E',
-    border: '2px solid #211E1E',
-    boxShadow: '3px 3px 0 rgba(0,0,0,0.45)',
+    border: '1px solid #211E1E',
+    boxShadow: '2px 2px 0 rgba(0,0,0,0.45)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     display: 'grid', placeItems: 'center',
     fontSize: 22, fontWeight: 800,
@@ -23156,8 +23156,8 @@ function ImageLightbox({ images, index, onClose }) {
           position: 'fixed', top: 22, right: 22,
           width: 40, height: 40, borderRadius: '50%',
           background: '#FFFFFF', color: '#211E1E',
-          border: '2px solid #211E1E',
-          boxShadow: '3px 3px 0 rgba(0,0,0,0.4)',
+          border: '1px solid #211E1E',
+          boxShadow: '2px 2px 0 rgba(0,0,0,0.4)',
           cursor: 'pointer',
           display: 'grid', placeItems: 'center',
           fontSize: 16, fontWeight: 800,
@@ -23246,17 +23246,17 @@ function FeedbackPanel({
     <div className="feedback-panel" style={{
       marginTop: 28, padding: "20px 24px",
       background: "#FFFFFF",
-      border: "2px solid #211E1E",
+      border: "1px solid #211E1E",
       borderRadius: 14,
-      boxShadow: "4px 4px 0 #211E1E, 0 4px 14px rgba(33,30,30,0.06)",
+      boxShadow: "2px 2px 0 #211E1E, 0 4px 14px rgba(33,30,30,0.06)",
     }}>
       <style>{`
         .fb-btn {
           display: inline-flex; align-items: center; gap: 8px;
           padding: 10px 18px;
           background: #FFFFFF; color: #211E1E;
-          border: 2px solid #211E1E; border-radius: 8px;
-          box-shadow: 2px 2px 0 #211E1E, 0 2px 6px rgba(33,30,30,0.05);
+          border: 1px solid #211E1E; border-radius: 8px;
+          box-shadow: 1px 1px 0 #211E1E, 0 2px 6px rgba(33,30,30,0.05);
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 13.5px;
           cursor: pointer;
@@ -23269,7 +23269,7 @@ function FeedbackPanel({
         .fb-btn:not(:disabled):not(.is-yes-on):not(.is-no-on):hover {
           transform: translate(-2px,-2px);
           background: #FFF9E6;
-          box-shadow: 4px 4px 0 #211E1E, 0 8px 18px rgba(33,30,30,0.12);
+          box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(33,30,30,0.12);
         }
         .fb-btn:not(:disabled):active {
           transform: translate(1px,1px);
@@ -23285,24 +23285,24 @@ function FeedbackPanel({
 
         /* Active states — both have explicit hover rules so the dark fill +
            bright text combination stays intact when re-hovered. */
-        .fb-btn.is-yes-on { background: #211E1E; color: #FDC831; box-shadow: 2px 2px 0 #FDC831; opacity: 1; }
+        .fb-btn.is-yes-on { background: #211E1E; color: #FDC831; box-shadow: 1px 1px 0 #FDC831; opacity: 1; }
         .fb-btn.is-yes-on:not(:disabled):hover {
           background: #000000; color: #FDC831;
           transform: translate(-2px,-2px);
-          box-shadow: 4px 4px 0 #FDC831, 0 8px 18px rgba(33,30,30,0.18);
+          box-shadow: 2px 2px 0 #FDC831, 0 8px 18px rgba(33,30,30,0.18);
         }
-        .fb-btn.is-no-on  { background: #B92323; color: #FFFFFF; box-shadow: 2px 2px 0 #211E1E; opacity: 1; }
+        .fb-btn.is-no-on  { background: #B92323; color: #FFFFFF; box-shadow: 1px 1px 0 #211E1E; opacity: 1; }
         .fb-btn.is-no-on:not(:disabled):hover {
           background: #D32D2D; color: #FFFFFF;
           transform: translate(-2px,-2px);
-          box-shadow: 4px 4px 0 #211E1E, 0 8px 18px rgba(185,35,35,0.22);
+          box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(185,35,35,0.22);
         }
 
         .fb-reason {
           padding: 6px 12px;
           background: #FFFFFF; color: #211E1E;
-          border: 1.5px solid #211E1E; border-radius: 999px;
-          box-shadow: 2px 2px 0 #211E1E;
+          border: 1px solid #211E1E; border-radius: 999px;
+          box-shadow: 1px 1px 0 #211E1E;
           font-family: 'Archivo', sans-serif;
           font-size: 12px; font-weight: 700;
           cursor: pointer;
@@ -23313,27 +23313,27 @@ function FeedbackPanel({
           background: #FFF9E6;
           box-shadow: 3.5px 3.5px 0 #211E1E;
         }
-        .fb-reason.is-on { background: #211E1E; color: #FDC831; box-shadow: 2px 2px 0 #FDC831; }
+        .fb-reason.is-on { background: #211E1E; color: #FDC831; box-shadow: 1px 1px 0 #FDC831; }
         .fb-reason.is-on:hover { box-shadow: 3.5px 3.5px 0 #FDC831; }
         .fb-textarea {
           width: 100%;
           padding: 10px 12px;
           background: #FFFFFF;
-          border: 2px solid #211E1E;
+          border: 1px solid #211E1E;
           border-radius: 8px;
           font-family: 'Archivo', sans-serif;
           font-size: 13.5px; color: #211E1E;
           resize: vertical; min-height: 64px;
-          box-shadow: 2px 2px 0 #211E1E;
+          box-shadow: 1px 1px 0 #211E1E;
           outline: none; box-sizing: border-box;
           transition: box-shadow .15s ease;
         }
-        .fb-textarea:focus { box-shadow: 3px 3px 0 #FDC831, 0 0 0 3px rgba(253,200,49,0.25); }
+        .fb-textarea:focus { box-shadow: 2px 2px 0 #FDC831, 0 0 0 3px rgba(253,200,49,0.25); }
         .fb-submit {
           padding: 10px 22px;
           background: #211E1E; color: #FDC831;
-          border: 2px solid #211E1E; border-radius: 8px;
-          box-shadow: 3px 3px 0 #FDC831, 0 4px 10px rgba(33,30,30,0.10);
+          border: 1px solid #211E1E; border-radius: 8px;
+          box-shadow: 2px 2px 0 #FDC831, 0 4px 10px rgba(33,30,30,0.10);
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 13.5px;
           letter-spacing: 0.04em; text-transform: uppercase;
@@ -23343,14 +23343,14 @@ function FeedbackPanel({
         .fb-submit:hover {
           transform: translate(-2px,-2px);
           background: #000;
-          box-shadow: 5px 5px 0 #FDC831, 0 10px 20px rgba(33,30,30,0.16);
+          box-shadow: 3px 3px 0 #FDC831, 0 10px 20px rgba(33,30,30,0.16);
         }
         .fb-submit:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #FDC831; transition-duration: .08s; }
         .fb-ticket {
           padding: 10px 22px;
           background: #B92323; color: #FFFFFF;
-          border: 2px solid #211E1E; border-radius: 8px;
-          box-shadow: 3px 3px 0 #211E1E, 0 4px 10px rgba(185,35,35,0.16);
+          border: 1px solid #211E1E; border-radius: 8px;
+          box-shadow: 2px 2px 0 #211E1E, 0 4px 10px rgba(185,35,35,0.16);
           font-family: 'Archivo', sans-serif;
           font-weight: 800; font-size: 13.5px;
           letter-spacing: 0.04em; text-transform: uppercase;
@@ -23360,7 +23360,7 @@ function FeedbackPanel({
         .fb-ticket:hover {
           transform: translate(-2px,-2px);
           background: #D32D2D;
-          box-shadow: 5px 5px 0 #211E1E, 0 10px 20px rgba(185,35,35,0.22);
+          box-shadow: 3px 3px 0 #211E1E, 0 10px 20px rgba(185,35,35,0.22);
         }
         .fb-ticket:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; transition-duration: .08s; }
         @keyframes fbSlide {
@@ -23374,8 +23374,8 @@ function FeedbackPanel({
           display: inline-flex; align-items: center;
           padding: 8px 14px;
           background: #FFF9E6; color: #211E1E;
-          border: 1.5px solid #211E1E; border-radius: 999px;
-          box-shadow: 2px 2px 0 #211E1E;
+          border: 1px solid #211E1E; border-radius: 999px;
+          box-shadow: 1px 1px 0 #211E1E;
           font-family: 'Archivo', sans-serif;
           font-size: 12.5px; font-weight: 700;
           cursor: pointer;
@@ -23388,7 +23388,7 @@ function FeedbackPanel({
         .fb-related:hover {
           transform: translate(-2px,-2px);
           background: #FDC831;
-          box-shadow: 4px 4px 0 #211E1E;
+          box-shadow: 2px 2px 0 #211E1E;
         }
         .fb-related:active {
           transform: translate(1px,1px);
@@ -23428,7 +23428,7 @@ function FeedbackPanel({
       </div>
 
       {state === "negative" && (
-        <div className="fb-expand" style={{ marginTop: 18, paddingTop: 18, borderTop: "1.5px dashed rgba(33,30,30,0.18)" }}>
+        <div className="fb-expand" style={{ marginTop: 18, paddingTop: 18, borderTop: "1px dashed rgba(33,30,30,0.18)" }}>
           {relatedGuides && relatedGuides.length > 0 && onOpenGuide && (
             <div style={{ marginBottom: 16 }}>
               <div style={{
@@ -23506,7 +23506,7 @@ function FeedbackPanel({
       {state === "sent" && (
         <div className="fb-expand" style={{
           marginTop: 18, paddingTop: 18,
-          borderTop: "1.5px dashed rgba(33,30,30,0.18)",
+          borderTop: "1px dashed rgba(33,30,30,0.18)",
           display: "flex", alignItems: "center", gap: 10,
         }}>
           <div style={{
@@ -23583,7 +23583,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         }
         .search-back-btn:hover {
           transform: translate(-2px, -2px);
-          box-shadow: 4px 4px 0 #211E1E;
+          box-shadow: 2px 2px 0 #211E1E;
         }
         .search-back-btn:hover .search-back-arrow { transform: translateX(-4px); }
         .search-back-arrow {
@@ -23592,11 +23592,11 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         }
         .search-card:hover {
           transform: translate(-2px, -2px);
-          box-shadow: 8px 8px 0 #211E1E;
+          box-shadow: 4px 4px 0 #211E1E;
         }
         .search-card:active {
           transform: translate(1px, 1px);
-          box-shadow: 3px 3px 0 #211E1E;
+          box-shadow: 2px 2px 0 #211E1E;
         }
         .search-card .card-arrow {
           transition: transform .2s var(--ease, cubic-bezier(.22,.61,.36,1)), opacity .2s;
@@ -23614,7 +23614,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         }
         .search-fb-btn:not(:disabled):hover {
           transform: translate(-2px, -2px);
-          box-shadow: 4px 4px 0 #211E1E;
+          box-shadow: 2px 2px 0 #211E1E;
         }
         .search-fb-btn:not(:disabled):active {
           transform: translate(1px, 1px);
@@ -23625,7 +23625,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
       <button className="search-back-btn" onClick={onBack} style={{
         position: 'fixed', top: 20, left: 20, zIndex: 110,
         background: '#FFFFFF',
-        border: '2px solid #211E1E',
+        border: '1px solid #211E1E',
         borderRadius: 8,
         padding: '8px 14px',
         fontFamily: "'Archivo', sans-serif",
@@ -23633,7 +23633,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         color: '#211E1E',
         cursor: 'pointer',
         display: 'inline-flex', alignItems: 'center', gap: 8,
-        boxShadow: '2px 2px 0 #211E1E',
+        boxShadow: '1px 1px 0 #211E1E',
       }}>
         <span className="search-back-arrow">←</span>
         Back to hub
@@ -23662,8 +23662,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
         {loading && (
           <div>
             <div style={{
-              background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
-              padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E',
+              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
+              padding: '24px 28px', boxShadow: '2px 2px 0 #211E1E',
               display: 'flex', alignItems: 'center', gap: 14,
             }}>
               <div style={{
@@ -23672,7 +23672,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                 display: 'grid', placeItems: 'center', flexShrink: 0,
                 fontSize: 11, fontWeight: 900,
                 fontFamily: "'Archivo', sans-serif",
-                border: '2px solid #211E1E',
+                border: '1px solid #211E1E',
                 animation: 'pizzaPulse 1.4s ease-in-out infinite',
               }}>S</div>
               <TypingDots />
@@ -23699,15 +23699,15 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           const hasTrailer = !!m;
           return (
             <div style={{
-              background: '#FFF9E6', border: '2px solid #211E1E', borderRadius: 14,
-              padding: '22px 26px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
+              background: '#FFF9E6', border: '1px solid #211E1E', borderRadius: 14,
+              padding: '22px 26px', boxShadow: '2px 2px 0 #211E1E', marginBottom: 28,
             }}>
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12,
               }}>
                 <div style={{
                   width: 26, height: 26, borderRadius: '50%',
-                  background: '#FDC831', border: '2px solid #211E1E',
+                  background: '#FDC831', border: '1px solid #211E1E',
                   display: 'grid', placeItems: 'center',
                   fontFamily: "'Archivo', sans-serif",
                   fontSize: 11, fontWeight: 900, color: '#211E1E',
@@ -23765,10 +23765,10 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                     style={{
                       textAlign: 'left',
                       background: '#FFFFFF',
-                      border: '2px solid #211E1E',
+                      border: '1px solid #211E1E',
                       borderRadius: 14,
                       padding: '20px 22px',
-                      boxShadow: '6px 6px 0 #211E1E',
+                      boxShadow: '3px 3px 0 #211E1E',
                       cursor: 'pointer',
                       fontFamily: "'Archivo', sans-serif",
                       color: '#211E1E',
@@ -23780,7 +23780,7 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   >
                     <div className="card-icon" style={{
                       width: 40, height: 40, borderRadius: 10,
-                      background: '#FDC831', border: '1.5px solid #211E1E',
+                      background: '#FDC831', border: '1px solid #211E1E',
                       display: 'grid', placeItems: 'center', flexShrink: 0,
                       marginTop: 2,
                     }}>
@@ -23825,8 +23825,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && suggestions && suggestions.length > 0 && (
           <div style={{
-            background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
-            padding: '20px 22px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
+            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
+            padding: '20px 22px', boxShadow: '2px 2px 0 #211E1E', marginBottom: 28,
           }}>
             <div style={{
               fontFamily: "'Archivo', sans-serif",
@@ -23872,8 +23872,8 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
 
         {!loading && citations.length === 0 && (!suggestions || suggestions.length === 0) && (
           <div style={{
-            background: '#FFFFFF', border: '2px solid #211E1E', borderRadius: 14,
-            padding: '24px 28px', boxShadow: '4px 4px 0 #211E1E', marginBottom: 28,
+            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 14,
+            padding: '24px 28px', boxShadow: '2px 2px 0 #211E1E', marginBottom: 28,
           }}>
             <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>No matching guides yet.</div>
             <div style={{ fontSize: 13, color: '#4A3F2E', marginBottom: 14 }}>
