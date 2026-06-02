@@ -12,6 +12,7 @@ import {
   runStatusPollers,
   mountStatusRoutes,
 } from './status.js';
+import { moduleConfig } from './module-config.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 // Claude calls are proxied to slicedesk's /api/ai/proxy — it-hub never holds
@@ -118,6 +119,50 @@ app.get('/api/me', requireSliceUser, (req, res) => {
     role: req.user.role,
     roleLabel: req.user.roleLabel,
   });
+});
+
+// ── Create a ticket in the ticket module, via the hub's inter-module proxy ──
+// The portal never talks to the ticket system directly: it POSTs through the
+// hub (/api/ext/modules/<ticketModuleId>/api/module/tickets) with our module
+// API key; the hub signs an X-Hub-Forward-Token the ticket module trusts. The
+// ticket is attributed to the signed-in user (from the verified hub_token).
+app.post('/api/tickets', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const { subject, description, type, priority } = req.body ?? {};
+  if (!subject || !String(subject).trim()) {
+    return res.status(400).json({ error: 'A subject is required.' });
+  }
+  if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
+    return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
+  }
+  const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module/tickets`;
+  try {
+    const upstream = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${moduleConfig.apiKey}` },
+      body: JSON.stringify({
+        subject: String(subject).slice(0, 300),
+        description: String(description || '').slice(0, 8000),
+        type: type || 'incident',
+        priority: priority || 'medium',
+        requester_id: u.id,
+        requester_name: u.name,
+        requester_email: u.email,
+      }),
+    });
+    // The ticket module returns an envelope: { status, message, ticket }.
+    const data = await upstream.json().catch(() => ({}));
+    if (!upstream.ok || data.status === 'rejected' || data.status === 'error') {
+      return res.status(upstream.ok ? 400 : upstream.status).json({
+        error: data.error || `Ticket service returned ${upstream.status}`,
+        validation_errors: data.validation_errors,
+      });
+    }
+    res.json(data.ticket || data);
+  } catch (err) {
+    console.warn('[tickets] create failed:', err.message);
+    res.status(502).json({ error: 'Ticket service unavailable', detail: err.message });
+  }
 });
 
 app.get('/api/guides', requireSliceUser, async (req, res, next) => {

@@ -38,6 +38,12 @@ export const moduleConfig = {
   ),
   authMode: (process.env.AUTH_MODE || 'dual').toLowerCase(),
   aiProxyPath: process.env.AI_PROXY_PATH || '/api/ai/proxy',
+  // Base URL where the hub's /api/ext/* lives (for outbound module calls — e.g.
+  // the ticket proxy). On the mini this is the slicedesk server on the docker
+  // network (same value as SLICEDESK_API_URL).
+  hubApiBase: trimSlash(process.env.HUB_URL || process.env.SLICEDESK_API_URL || state.hub_url || ''),
+  // Ticket module id for /api/ext/modules/<id>/api/module/... (default 101).
+  ticketModuleId: String(process.env.TICKET_MODULE_ID || '101'),
 };
 
 // Warn loudly at boot if we're in hub mode without the secrets we need, so a

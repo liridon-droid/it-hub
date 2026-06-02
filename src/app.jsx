@@ -2706,6 +2706,7 @@ function App() {
       .catch(() => {});
   }, []);
   const [filedTicket, setFiledTicket] = useState(null);
+  const [showNewTicket, setShowNewTicket] = useState(false);
   const [onbForm, setOnbForm] = useState(null);
   // null = modal closed. {} = open with empty drop-zone. { file, note } = open
   // pre-loaded so analysis kicks off automatically (the new "paperclip in the
@@ -2795,7 +2796,8 @@ function App() {
   return (
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
-      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} />
+      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} onNewTicket={() => setShowNewTicket(true)} />
+      {showNewTicket && <NewTicketModal onClose={() => setShowNewTicket(false)} />}
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -4756,7 +4758,7 @@ function useNotifications() {
   return { items, unreadCount, markRead, markAllRead, dismiss };
 }
 
-function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications }) {
+function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications, onNewTicket }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
   // Onboarding + Offboarding are hidden for now — those features are still WIP.
@@ -4845,6 +4847,18 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
       </div>
 
       <div style={{display: "flex", alignItems: "center", gap: 12}}>
+        {onNewTicket && (
+          <button onClick={onNewTicket} title="Create a support ticket"
+            style={{
+              height: 28, padding: "0 12px",
+              display: "inline-flex", alignItems: "center", gap: 6,
+              background: "#211E1E", color: "#FDC831",
+              borderRadius: 4, border: "1px solid #211E1E",
+              boxShadow: "1px 1px 0 #FDC831", cursor: "pointer",
+              fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
+              letterSpacing: "0.04em", textTransform: "uppercase",
+            }}>+ Ticket</button>
+        )}
         <NotificationsMenu onViewAll={onOpenNotifications} />
         <ItServicesButton />
         <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} />
@@ -8282,6 +8296,87 @@ const btnSecondary = {
   letterSpacing: "0.04em", textTransform: "uppercase",
   cursor: "pointer",
 };
+
+// Create-ticket modal — posts to the portal's /api/tickets, which proxies to
+// the ticket module (101) through the hub with the signed-in user as requester.
+function NewTicketModal({ onClose }) {
+  const [subject, setSubject] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const [type, setType] = React.useState("incident");
+  const [priority, setPriority] = React.useState("medium");
+  const [busy, setBusy] = React.useState(false);
+  const [result, setResult] = React.useState(null);
+  const [error, setError] = React.useState("");
+
+  const submit = async () => {
+    if (!subject.trim()) { setError("Please add a short subject."); return; }
+    setBusy(true); setError("");
+    try {
+      const r = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), type, priority }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || "Couldn't create the ticket.");
+      setResult(data);
+    } catch (e) {
+      setError(e.message || "Couldn't create the ticket.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const field = { width: "100%", padding: "9px 11px", border: "1px solid #211E1E", borderRadius: 6, fontSize: 14, fontFamily: "inherit", background: "#fff", color: "#211E1E", boxSizing: "border-box" };
+  const label = { display: "block", fontSize: 12, fontWeight: 700, color: "#55503F", marginBottom: 5, marginTop: 14 };
+
+  if (result) {
+    return (
+      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose}>
+        <p style={{ fontSize: 14, color: "#211E1E", margin: "0 0 16px" }}>
+          Your ticket <strong>{result.ticket_number || result.id}</strong> has been created with the IT Team — you'll get updates as it progresses.
+        </p>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button style={btnPrimary} onClick={onClose}>Done</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  return (
+    <ModalShell title="Create a ticket" kicker="IT Support" onClose={onClose}>
+      <label style={{ ...label, marginTop: 0 }}>Subject</label>
+      <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary of the issue" autoFocus />
+      <label style={label}>Description</label>
+      <textarea style={{ ...field, minHeight: 90, resize: "vertical" }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
+      <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <label style={label}>Type</label>
+          <select style={field} value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="incident">Something's broken</option>
+            <option value="service_request">I need something</option>
+          </select>
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={label}>Priority</label>
+          <select style={field} value={priority} onChange={(e) => setPriority(e.target.value)}>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+      </div>
+      {error && <p style={{ color: "#B92323", fontSize: 13, margin: "14px 0 0" }}>{error}</p>}
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
+        <button style={btnSecondary} onClick={onClose} disabled={busy}>Cancel</button>
+        <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }} onClick={submit} disabled={busy}>
+          {busy ? "Creating…" : "Create ticket"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
 
 // ============================================================================
 // EXPORT
