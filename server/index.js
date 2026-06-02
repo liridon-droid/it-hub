@@ -9,6 +9,7 @@ import {
 } from './middleware/auth.js'; // selector: AUTH_MODE=hub (hub_token) | slicedesk (cookie)
 import {
   bootstrapStatusServices,
+  ensureStatusServices,
   runStatusPollers,
   mountStatusRoutes,
 } from './status.js';
@@ -81,6 +82,7 @@ await initDb();
 // in-process on a 60s interval; bootstrapping doesn't block requests because
 // it's idempotent and finishes in tens of ms once the rows exist.
 await bootstrapStatusServices(pool);
+await ensureStatusServices(pool);
 runStatusPollers(pool);
 
 const app = express();

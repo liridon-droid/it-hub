@@ -40,7 +40,7 @@ const DEFAULT_GROUPS = [
       { name: 'Slack', vendor: 'Chat', domain: 'slack.com',
         source: 'statuspage', source_url: 'https://slack-status.com/api/v2.0.0/current' },
       { name: 'Zoom', vendor: 'Meetings', domain: 'zoom.us',
-        source: 'statuspage', source_url: 'https://status.zoom.us/api/v2/summary.json' },
+        source: 'statuspage', source_url: 'https://www.zoomstatus.com/api/v2/summary.json' },
     ],
   },
   {
@@ -53,6 +53,75 @@ const DEFAULT_GROUPS = [
     ],
   },
 ];
+
+// Apps monitored on /status in addition to the seeded catalog above. Added
+// idempotently at boot by ensureStatusServices (matched by name — never
+// duplicates or overwrites). Verified Statuspage.io feeds get live status; the
+// rest are 'manual' (visible, IT-toggled) until a per-vendor parser exists.
+const MONITORED_EXTRA = [
+  { name: 'Anthropic',    domain: 'anthropic.com', source: 'statuspage', source_url: 'https://status.claude.com/api/v2/summary.json' },
+  { name: 'Claude',       domain: 'claude.ai',     source: 'statuspage', source_url: 'https://status.claude.com/api/v2/summary.json' },
+  { name: 'Twilio',       domain: 'twilio.com',    source: 'statuspage', source_url: 'https://status.twilio.com/api/v2/summary.json' },
+  { name: 'Datadog',      domain: 'datadoghq.com', source: 'statuspage', source_url: 'https://status.datadoghq.com/api/v2/summary.json' },
+  { name: 'Atlassian',    domain: 'atlassian.com', source: 'statuspage', source_url: 'https://status.atlassian.com/api/v2/summary.json' },
+  { name: 'Segment',      domain: 'segment.com',   source: 'statuspage', source_url: 'https://status.segment.com/api/v2/summary.json' },
+  { name: 'SendGrid',     domain: 'sendgrid.com',  source: 'statuspage', source_url: 'https://status.sendgrid.com/api/v2/summary.json' },
+  { name: 'Stripe',       domain: 'stripe.com',    source: 'statuspage', source_url: 'https://www.stripestatus.com/api/v2/summary.json' },
+  { name: 'Jamf',         domain: 'jamf.com',      source: 'statuspage', source_url: 'https://status.jamf.com/api/v2/summary.json' },
+  { name: 'Mailgun',      domain: 'mailgun.com',   source: 'statuspage', source_url: 'https://status.mailgun.com/api/v2/summary.json' },
+  { name: 'GoDaddy',      domain: 'godaddy.com',   source: 'statuspage', source_url: 'https://status.godaddy.com/api/v2/summary.json' },
+  { name: 'ShareFile',    domain: 'sharefile.com', source: 'statuspage', source_url: 'https://status.sharefile.com/api/v2/summary.json' },
+  { name: 'Cisco Meraki', domain: 'meraki.com',    source: 'statuspage', source_url: 'https://status.meraki.net/api/v2/summary.json' },
+  // No clean machine-readable feed yet → manual (IT toggles). Real auto-status
+  // for these needs a per-vendor parser (AWS Health / Google / Apple formats).
+  { name: 'AWS',               domain: 'aws.amazon.com',      source: 'manual' },
+  { name: 'App Store Connect', domain: 'developer.apple.com', source: 'manual' },
+  { name: 'OneLogin EU',       domain: 'onelogin.com',        source: 'manual' },
+  { name: 'Adyen',             domain: 'adyen.com',           source: 'manual' },
+  { name: 'PayPal',            domain: 'paypal.com',          source: 'manual' },
+  { name: 'Chowly',            domain: 'chowly.com',          source: 'manual' },
+];
+
+// Idempotently add MONITORED_EXTRA to the live catalog (matched by name — never
+// duplicates or overwrites admin rows). New entries land in a "More services"
+// group. Also repoints Zoom to its current feed.
+export async function ensureStatusServices(pool) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    let gr = await client.query(`SELECT id FROM status_groups WHERE slug = 'more'`);
+    let groupId = gr.rows[0] && gr.rows[0].id;
+    if (!groupId) {
+      const ins = await client.query(
+        `INSERT INTO status_groups (slug, label, position) VALUES ('more', 'More services', 99) RETURNING id`,
+      );
+      groupId = ins.rows[0].id;
+    }
+    let added = 0;
+    for (const s of MONITORED_EXTRA) {
+      const ex = await client.query(`SELECT 1 FROM status_services WHERE lower(name) = lower($1) LIMIT 1`, [s.name]);
+      if (ex.rowCount) continue;
+      await client.query(
+        `INSERT INTO status_services (group_id, name, vendor, domain, source, source_url, position)
+         VALUES ($1, $2, NULL, $3, $4, $5, 0)`,
+        [groupId, s.name, s.domain || null, s.source || 'manual', s.source_url || null],
+      );
+      added++;
+    }
+    // Zoom moved its feed off status.zoom.us → repoint if a live row is stale.
+    await client.query(
+      `UPDATE status_services SET source_url = 'https://www.zoomstatus.com/api/v2/summary.json'
+        WHERE name = 'Zoom' AND source_url LIKE '%status.zoom.us%'`,
+    );
+    await client.query('COMMIT');
+    console.log(`[status] ensured monitored services (+${added} new)`);
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error('[status] ensure failed:', e.message);
+  } finally {
+    client.release();
+  }
+}
 
 export async function bootstrapStatusServices(pool) {
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM status_services');
