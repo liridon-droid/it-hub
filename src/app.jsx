@@ -2774,22 +2774,14 @@ function App() {
       const val = Array.isArray(a)
         ? a.map((id) => labelFor(q, id)).join(', ')
         : (q.type === 'text' ? String(a) : labelFor(q, a));
-      return val && String(val).trim() ? `• ${q.label} → ${String(val).trim()}` : null;
+      return val && String(val).trim() ? `${q.label} — ${String(val).trim()}` : null;
     }).filter(Boolean);
 
-    const guides = [...new Set(((searchResult && searchResult.citations) || [])
-      .map((c) => c.title).filter(Boolean))];
-
-    // Keep the ticket tight: issue + the clarifying details + a one-line note
-    // that the user already self-served (and which guides they saw). We omit
-    // the assistant's full step-by-step on purpose — the IT team knows the
-    // standard steps; the diagnostic context is what's useful.
-    const blocks = [`ISSUE\n${issue || '(not specified)'}`];
-    if (details.length) blocks.push(`DETAILS PROVIDED\n${details.join('\n')}`);
-    blocks.push(guides.length
-      ? `Already self-served in the IT Portal (guides seen: ${guides.slice(0, 3).join('; ')}) — still needs help.`
-      : `Raised from the IT Portal after self-service — still needs help.`);
-    blocks.push('— Filed from the IT Portal');
+    // Write it the way a person would: the issue in their own words, then the
+    // follow-up answers as plain lines — no headers, bullets, guides or meta.
+    const opener = issue ? (/[.!?]$/.test(issue) ? issue : issue + '.') : 'I need some help.';
+    const blocks = [opener];
+    if (details.length) blocks.push(details.join('\n'));
 
     setTicketDraft({
       subject: issue ? issue.slice(0, 140) : 'IT support request',
