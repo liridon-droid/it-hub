@@ -2777,20 +2777,18 @@ function App() {
       return val && String(val).trim() ? `• ${q.label} → ${String(val).trim()}` : null;
     }).filter(Boolean);
 
-    const aiAnswer = String((searchResult && searchResult.answer) || '')
-      .replace(/\n+\s*(?:>\s*)?_?Still stuck\?[\s\S]*$/i, '')   // drop the "Still stuck" trailer
-      .replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '')                 // drop [1] / [2, 3] citation markers
-      .replace(/\*\*(.+?)\*\*/g, '$1')                           // drop **bold** markers (shown raw)
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
     const guides = [...new Set(((searchResult && searchResult.citations) || [])
       .map((c) => c.title).filter(Boolean))];
 
+    // Keep the ticket tight: issue + the clarifying details + a one-line note
+    // that the user already self-served (and which guides they saw). We omit
+    // the assistant's full step-by-step on purpose — the IT team knows the
+    // standard steps; the diagnostic context is what's useful.
     const blocks = [`ISSUE\n${issue || '(not specified)'}`];
     if (details.length) blocks.push(`DETAILS PROVIDED\n${details.join('\n')}`);
-    if (aiAnswer) blocks.push(`WHAT THE IT ASSISTANT ALREADY SUGGESTED\n${aiAnswer}`);
-    if (guides.length) blocks.push(`GUIDES REFERENCED\n${guides.map((g) => `• ${g}`).join('\n')}`);
+    blocks.push(guides.length
+      ? `Already self-served in the IT Portal (guides seen: ${guides.slice(0, 3).join('; ')}) — still needs help.`
+      : `Raised from the IT Portal after self-service — still needs help.`);
     blocks.push('— Filed from the IT Portal');
 
     setTicketDraft({
