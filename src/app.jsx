@@ -1526,11 +1526,61 @@ function OnCallCard({ onSubmit }) {
         Urgent? Ping us on Slack. Everything else — drop a ticket.
       </div>
 
-      {/* Slack path — prominent. Direct deep-link to #it-support: macOS/Windows
-          Slack desktop registers as a handler for app.slack.com URLs, so this
-          opens the channel in Slack desktop without a browser detour. Falls
-          back to Slack web if desktop isn't installed. Same-tab nav rather
-          than target=_blank because the Slice Mac App swallows new-tab. */}
+      {/* Ticket path — now the primary/first option (most requests go here). */}
+      <button className="oncall-btn-secondary" onClick={() => setStage("form")}>
+        <div className="oncall-ticket-icon" style={{
+          width: 32, height: 32, borderRadius: 8,
+          background: "#FFF9E6",
+          border: "1px solid #211E1E",
+          display: "grid", placeItems: "center", flexShrink: 0,
+        }}>
+          {/* Real ticket icon — admit-ticket / coupon style with serrated edge */}
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2 2 0 0 0 0 4V15.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5z"
+              fill="#FDC831" stroke="#211E1E" strokeWidth="1.8" strokeLinejoin="round"/>
+            <path d="M14 7v10" stroke="#211E1E" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1.5 2.5"/>
+            <circle cx="9" cy="11" r="0.7" fill="#211E1E"/>
+            <circle cx="9" cy="13.5" r="0.7" fill="#211E1E"/>
+          </svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: "'Archivo', sans-serif",
+            fontSize: 13.5, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
+            marginBottom: 1,
+          }}>
+            Submit a ticket
+          </div>
+          <div style={{ fontSize: 11, color: "#78684C", fontWeight: 500 }}>
+            Non-urgent questions and requests
+          </div>
+        </div>
+        <span data-submit-arrow style={{
+          display: "inline-flex",
+          transition: "transform .25s cubic-bezier(.4, 1.4, .5, 1)",
+        }}>
+          <IconArrow size={14} stroke={2.5} />
+        </span>
+      </button>
+
+      {/* Divider */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        margin: "14px 0",
+        fontFamily: "'Archivo', sans-serif",
+        fontSize: 10, fontWeight: 800, letterSpacing: "0.1em",
+        color: "#78684C", textTransform: "uppercase",
+      }}>
+        <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
+        <span>or</span>
+        <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
+      </div>
+
+      {/* Slack path. Direct deep-link to #it-support: macOS/Windows Slack
+          desktop registers as a handler for app.slack.com URLs, so this opens
+          the channel in Slack desktop without a browser detour. Falls back to
+          Slack web if desktop isn't installed. Same-tab nav rather than
+          target=_blank because the Slice Mac App swallows new-tab. */}
       <a className="oncall-btn-primary"
          href="https://app.slack.com/client/T04HEPC7P/C9FPB2M1S"
          style={{ textDecoration: "none", color: "inherit" }}>
@@ -1574,56 +1624,6 @@ function OnCallCard({ onSubmit }) {
           fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
         }}>OPEN →</div>
       </a>
-
-      {/* Divider */}
-      <div style={{
-        display: "flex", alignItems: "center", gap: 10,
-        margin: "14px 0",
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 10, fontWeight: 800, letterSpacing: "0.1em",
-        color: "#78684C", textTransform: "uppercase",
-      }}>
-        <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
-        <span>or</span>
-        <div style={{ flex: 1, height: 1.5, background: "rgba(33,30,30,0.15)" }}/>
-      </div>
-
-      {/* Ticket path */}
-      <button className="oncall-btn-secondary" onClick={() => setStage("form")}>
-        <div className="oncall-ticket-icon" style={{
-          width: 32, height: 32, borderRadius: 8,
-          background: "#FFF9E6",
-          border: "1px solid #211E1E",
-          display: "grid", placeItems: "center", flexShrink: 0,
-        }}>
-          {/* Real ticket icon — admit-ticket / coupon style with serrated edge */}
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v1.5a2 2 0 0 0 0 4V15.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5z"
-              fill="#FDC831" stroke="#211E1E" strokeWidth="1.8" strokeLinejoin="round"/>
-            <path d="M14 7v10" stroke="#211E1E" strokeWidth="1.6" strokeLinecap="round" strokeDasharray="1.5 2.5"/>
-            <circle cx="9" cy="11" r="0.7" fill="#211E1E"/>
-            <circle cx="9" cy="13.5" r="0.7" fill="#211E1E"/>
-          </svg>
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 13.5, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
-            marginBottom: 1,
-          }}>
-            Submit a ticket
-          </div>
-          <div style={{ fontSize: 11, color: "#78684C", fontWeight: 500 }}>
-            Non-urgent questions and requests
-          </div>
-        </div>
-        <span data-submit-arrow style={{
-          display: "inline-flex",
-          transition: "transform .25s cubic-bezier(.4, 1.4, .5, 1)",
-        }}>
-          <IconArrow size={14} stroke={2.5} />
-        </span>
-      </button>
     </div>
   );
 }
