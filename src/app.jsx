@@ -23736,6 +23736,24 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
           transform: translate(1px, 1px);
           box-shadow: 1px 1px 0 #211E1E;
         }
+        .search-ticket-btn {
+          transition: transform .15s var(--ease, cubic-bezier(.22,.61,.36,1)),
+                      box-shadow .15s var(--ease, cubic-bezier(.22,.61,.36,1));
+        }
+        .search-ticket-btn:hover {
+          transform: translate(-2px, -2px);
+          box-shadow: 5px 5px 0 #211E1E;
+        }
+        .search-ticket-btn:active {
+          transform: translate(1px, 1px);
+          box-shadow: 2px 2px 0 #211E1E;
+        }
+        .search-ticket-btn svg {
+          transition: transform .2s var(--ease, cubic-bezier(.22,.61,.36,1));
+        }
+        .search-ticket-btn:hover svg {
+          transform: translateX(3px) rotate(-6deg);
+        }
       `}</style>
 
       <button className="search-back-btn" onClick={onBack} style={{
@@ -23850,14 +23868,15 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
                   Still stuck? We'll file a ticket with everything from this chat.
                 </span>
                 <button
+                  className="search-ticket-btn"
                   onClick={() => onFileTicket && onFileTicket({ source: 'answer' })}
                   style={{
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', gap: 8,
-                    padding: '10px 18px',
+                    padding: '11px 20px',
                     background: '#211E1E', color: '#FDC831',
                     border: '1px solid #211E1E', borderRadius: 8,
-                    boxShadow: '2px 2px 0 #211E1E', cursor: 'pointer',
+                    boxShadow: '3px 3px 0 #211E1E', cursor: 'pointer',
                     fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5,
                     letterSpacing: '0.02em',
                   }}>
