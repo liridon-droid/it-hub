@@ -4759,7 +4759,9 @@ function useNotifications() {
 function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
-  const links = ["Help", "Onboarding", "Offboarding", "Knowledge", "Status"];
+  // Onboarding + Offboarding are hidden for now — those features are still WIP.
+  // To restore: add "Onboarding", "Offboarding" back into this list.
+  const links = ["Help", "Knowledge", "Status"];
   return (
     <nav style={{
       position: "sticky", top: 0, zIndex: 50,
