@@ -20476,29 +20476,14 @@ function StatusPage({ onBack }) {
                 style={{ marginTop: 14, padding: "8px 16px" }}
               >Clear filters</button>
             </div>
-          ) : filteredGroups.map((group, gi) => (
-            <React.Fragment key={group.id || group.slug}>
-              <div style={{
-                padding: "10px 22px",
-                background: "#FFFDF5",
-                borderTop: gi === 0 ? "none" : "1.5px solid #E7E1D4",
-                borderBottom: "1px solid #E7E1D4",
-                fontFamily: "Archivo, sans-serif", fontSize: 10.5, fontWeight: 900,
-                letterSpacing: "0.08em", textTransform: "uppercase", color: "#8A6A14",
-              }}>{group.label}</div>
-              {group.services.map((s, i) => {
-                const isLast = gi === filteredGroups.length - 1 && i === group.services.length - 1;
-                return (
-                  <ServiceRow
-                    key={s.id}
-                    service={s}
-                    isLast={isLast}
-                    expanded={expandedSvc === s.id}
-                    onToggle={() => setExpandedSvc(expandedSvc === s.id ? null : s.id)}
-                  />
-                );
-              })}
-            </React.Fragment>
+          ) : filteredGroups.flatMap((g) => g.services).map((s, i, arr) => (
+            <ServiceRow
+              key={s.id}
+              service={s}
+              isLast={i === arr.length - 1}
+              expanded={expandedSvc === s.id}
+              onToggle={() => setExpandedSvc(expandedSvc === s.id ? null : s.id)}
+            />
           ))}
         </div>
 
@@ -20718,29 +20703,6 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.005em" }}>{service.name}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
-            <span style={{
-              display: "inline-block",
-              padding: "1px 8px",
-              background: "#F7F4EF", border: "1px solid #211E1E",
-              borderRadius: 999,
-              fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: "#4A3F2E",
-            }}>{service.vendor}</span>
-            <span title={`Status source: ${sourceMeta.label}`} style={{
-              display: "inline-flex", alignItems: "center", gap: 4,
-              padding: "1px 8px",
-              background: sourceMeta.bg, border: `1.5px solid ${sourceMeta.tone}`,
-              borderRadius: 999,
-              fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-              color: sourceMeta.tone,
-            }}>
-              <span style={{ width: 5, height: 5, borderRadius: "50%", background: sourceMeta.tone }}/>
-              {sourceMeta.label}
-            </span>
-          </div>
         </div>
         <div>
           <span style={{
