@@ -2706,6 +2706,7 @@ function App() {
       .catch(() => {});
   }, []);
   const [filedTicket, setFiledTicket] = useState(null);
+  const [ticketDraft, setTicketDraft] = useState(null);
   const [onbForm, setOnbForm] = useState(null);
   // null = modal closed. {} = open with empty drop-zone. { file, note } = open
   // pre-loaded so analysis kicks off automatically (the new "paperclip in the
@@ -2743,6 +2744,7 @@ function App() {
   };
 
   const onQuestionsDone = (outcome) => {
+    setOutcome(outcome);
     const parts = Object.values(outcome.answers || {})
       .map((v) => (Array.isArray(v) ? v.join(' ') : v))
       .filter((v) => typeof v === 'string' && v.trim().length > 0);
@@ -2751,6 +2753,30 @@ function App() {
   };
 
   const goHome = () => { setStage("landing"); setQuery(""); setOutcome(null); setSearchResult({ query: '', citations: [], loading: false }); };
+
+  // Assemble a pre-filled ticket from everything captured this session — the
+  // original question, the clarifying answers, and the assistant's suggestion
+  // + guides — so the user just reviews and submits (no re-typing).
+  const openTicket = (ctx = {}) => {
+    const issue = String(query || '').trim();
+    const provided = Object.values((outcome && outcome.answers) || {})
+      .map((v) => (Array.isArray(v) ? v.join(', ') : v))
+      .filter((v) => typeof v === 'string' && v.trim());
+    const aiAnswer = String((searchResult && searchResult.answer) || '')
+      .replace(/\n+\s*(?:>\s*)?_?Still stuck\?[\s\S]*$/i, '').trim();
+    const guides = ((searchResult && searchResult.citations) || []).map((c) => c.title).filter(Boolean);
+    const blocks = [`**Issue**\n${issue || '(not specified)'}`];
+    if (provided.length) blocks.push(`**Details I provided**\n${provided.map((a) => `- ${a}`).join('\n')}`);
+    if (aiAnswer) blocks.push(`**What the IT assistant suggested**\n${aiAnswer}`);
+    if (guides.length) blocks.push(`**Guides referenced**\n${guides.map((g) => `- ${g}`).join('\n')}`);
+    blocks.push(`_Filed from the IT Portal${ctx.source ? ` · ${ctx.source}` : ''}._`);
+    setTicketDraft({
+      subject: issue ? issue.slice(0, 140) : 'IT support request',
+      description: blocks.join('\n\n'),
+      type: 'incident',
+      priority: 'medium',
+    });
+  };
   // Scroll to top whenever we change pages — otherwise clicking nav while scrolled
   // leaves the new page offscreen and users think it didn't navigate.
   // The real scroll container is .page-scroll (html/body have overflow:hidden),
@@ -2796,6 +2822,7 @@ function App() {
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
       <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} />
+      {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} />}
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -2827,7 +2854,7 @@ function App() {
         loading={searchResult.loading}
         onBack={goHome}
         onOpenGuide={(g) => setGuide(g)}
-        onFileTicket={(ctx) => setFiledTicket({ team: ctx?.team || 'IT Team', source: ctx?.source || 'search' })} />
+        onFileTicket={() => openTicket({ source: 'answer' })} />
       }
 
       {stage === "onboarding" &&
@@ -8283,16 +8310,19 @@ const btnSecondary = {
   cursor: "pointer",
 };
 
-// Create-ticket modal — posts to the portal's /api/tickets, which proxies to
-// the ticket module (101) through the hub with the signed-in user as requester.
-function NewTicketModal({ onClose }) {
-  const [subject, setSubject] = React.useState("");
-  const [description, setDescription] = React.useState("");
-  const [type, setType] = React.useState("incident");
-  const [priority, setPriority] = React.useState("medium");
+// Review-and-submit ticket card. Pre-filled from the chat context (the issue,
+// the clarifying answers, the assistant's suggestion + guides) so the user just
+// reviews and sends — no re-typing. Posts to /api/tickets (→ hub proxy → ticket
+// module 101) with the signed-in user as requester.
+function NewTicketModal({ onClose, draft = {} }) {
+  const [subject, setSubject] = React.useState(draft.subject || "");
+  const [description, setDescription] = React.useState(draft.description || "");
+  const [type, setType] = React.useState(draft.type || "incident");
+  const [priority, setPriority] = React.useState(draft.priority || "medium");
   const [busy, setBusy] = React.useState(false);
   const [result, setResult] = React.useState(null);
   const [error, setError] = React.useState("");
+  const who = (typeof window !== "undefined" && window.PORTAL_CURRENT_USER) || "";
 
   const submit = async () => {
     if (!subject.trim()) { setError("Please add a short subject."); return; }
@@ -8330,11 +8360,11 @@ function NewTicketModal({ onClose }) {
   }
 
   return (
-    <ModalShell title="Create a ticket" kicker="IT Support" onClose={onClose}>
+    <ModalShell title="Review & submit your ticket" kicker="Pre-filled from your chat — edit anything, then send" onClose={onClose}>
       <label style={{ ...label, marginTop: 0 }}>Subject</label>
       <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary of the issue" autoFocus />
-      <label style={label}>Description</label>
-      <textarea style={{ ...field, minHeight: 90, resize: "vertical" }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
+      <label style={label}>Details for the IT Team</label>
+      <textarea style={{ ...field, minHeight: 180, resize: "vertical", lineHeight: 1.5 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
           <label style={label}>Type</label>
@@ -8354,11 +8384,14 @@ function NewTicketModal({ onClose }) {
         </div>
       </div>
       {error && <p style={{ color: "#B92323", fontSize: 13, margin: "14px 0 0" }}>{error}</p>}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-        <button style={btnSecondary} onClick={onClose} disabled={busy}>Cancel</button>
-        <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }} onClick={submit} disabled={busy}>
-          {busy ? "Creating…" : "Create ticket"}
-        </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 18 }}>
+        {who && <span style={{ fontSize: 12, color: "#78684C", fontWeight: 600 }}>Submitting as {who}</span>}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+          <button style={btnSecondary} onClick={onClose} disabled={busy}>Cancel</button>
+          <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }} onClick={submit} disabled={busy}>
+            {busy ? "Submitting…" : "Submit ticket"}
+          </button>
+        </div>
       </div>
     </ModalShell>
   );
@@ -23805,27 +23838,32 @@ function HubSearchResults({ query, citations, suggestions = [], answer, mode, ch
               <div style={{ fontSize: 14.5, lineHeight: 1.55, color: '#211E1E' }}>
                 {renderMarkdown(mainText, { stepStyle: 'cards' })}
               </div>
-              {hasTrailer && (
-                <div style={{
-                  marginTop: 10,
-                  textAlign: 'right',
-                  fontSize: 13, color: '#4A3F2E',
+              <div style={{
+                marginTop: 16, paddingTop: 16,
+                borderTop: '1px dashed rgba(33,30,30,0.20)',
+                display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+              }}>
+                <span style={{
+                  fontSize: 13, color: '#4A3F2E', fontWeight: 600,
                   fontFamily: "'Archivo', sans-serif",
                 }}>
-                  Still stuck?{' '}
-                  <a
-                    href="https://it.slicelife.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      color: '#211E1E', fontWeight: 700,
-                      textDecoration: 'underline', textUnderlineOffset: 3,
-                    }}
-                  >
-                    Submit a ticket
-                  </a>.
-                </div>
-              )}
+                  Still stuck? We'll file a ticket with everything from this chat.
+                </span>
+                <button
+                  onClick={() => onFileTicket && onFileTicket({ source: 'answer' })}
+                  style={{
+                    marginLeft: 'auto',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                    padding: '10px 18px',
+                    background: '#211E1E', color: '#FDC831',
+                    border: '1px solid #211E1E', borderRadius: 8,
+                    boxShadow: '2px 2px 0 #211E1E', cursor: 'pointer',
+                    fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 13.5,
+                    letterSpacing: '0.02em',
+                  }}>
+                  <IconTicket size={16} stroke={2} /> Submit a ticket
+                </button>
+              </div>
             </div>
           );
         })()}
