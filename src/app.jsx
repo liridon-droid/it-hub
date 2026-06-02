@@ -2754,22 +2754,45 @@ function App() {
 
   const goHome = () => { setStage("landing"); setQuery(""); setOutcome(null); setSearchResult({ query: '', citations: [], loading: false }); };
 
-  // Assemble a pre-filled ticket from everything captured this session — the
-  // original question, the clarifying answers, and the assistant's suggestion
-  // + guides — so the user just reviews and submits (no re-typing).
+  // Assemble a clean, plain-text ticket from everything captured this session:
+  // the question, the clarifying answers (mapped from option ids back to their
+  // human labels), and the assistant's suggestion + guides — so the user just
+  // reviews and submits, no re-typing. The ticket system renders the body as
+  // plain text, so we avoid markdown (no **, no [N] citations).
   const openTicket = (ctx = {}) => {
     const issue = String(query || '').trim();
-    const provided = Object.values((outcome && outcome.answers) || {})
-      .map((v) => (Array.isArray(v) ? v.join(', ') : v))
-      .filter((v) => typeof v === 'string' && v.trim());
+
+    const qs = (outcome && outcome.route && outcome.route.questions) || [];
+    const answers = (outcome && outcome.answers) || {};
+    const labelFor = (q, id) => {
+      const opt = (q.options || []).find((o) => o.id === id);
+      return opt ? opt.label : id;
+    };
+    const details = qs.map((q) => {
+      const a = answers[q.id];
+      if (a == null || a === '' || (Array.isArray(a) && a.length === 0)) return null;
+      const val = Array.isArray(a)
+        ? a.map((id) => labelFor(q, id)).join(', ')
+        : (q.type === 'text' ? String(a) : labelFor(q, a));
+      return val && String(val).trim() ? `• ${q.label} → ${String(val).trim()}` : null;
+    }).filter(Boolean);
+
     const aiAnswer = String((searchResult && searchResult.answer) || '')
-      .replace(/\n+\s*(?:>\s*)?_?Still stuck\?[\s\S]*$/i, '').trim();
-    const guides = ((searchResult && searchResult.citations) || []).map((c) => c.title).filter(Boolean);
-    const blocks = [`**Issue**\n${issue || '(not specified)'}`];
-    if (provided.length) blocks.push(`**Details I provided**\n${provided.map((a) => `- ${a}`).join('\n')}`);
-    if (aiAnswer) blocks.push(`**What the IT assistant suggested**\n${aiAnswer}`);
-    if (guides.length) blocks.push(`**Guides referenced**\n${guides.map((g) => `- ${g}`).join('\n')}`);
-    blocks.push(`_Filed from the IT Portal${ctx.source ? ` · ${ctx.source}` : ''}._`);
+      .replace(/\n+\s*(?:>\s*)?_?Still stuck\?[\s\S]*$/i, '')   // drop the "Still stuck" trailer
+      .replace(/\s*\[\d+(?:\s*,\s*\d+)*\]/g, '')                 // drop [1] / [2, 3] citation markers
+      .replace(/\*\*(.+?)\*\*/g, '$1')                           // drop **bold** markers (shown raw)
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    const guides = [...new Set(((searchResult && searchResult.citations) || [])
+      .map((c) => c.title).filter(Boolean))];
+
+    const blocks = [`ISSUE\n${issue || '(not specified)'}`];
+    if (details.length) blocks.push(`DETAILS PROVIDED\n${details.join('\n')}`);
+    if (aiAnswer) blocks.push(`WHAT THE IT ASSISTANT ALREADY SUGGESTED\n${aiAnswer}`);
+    if (guides.length) blocks.push(`GUIDES REFERENCED\n${guides.map((g) => `• ${g}`).join('\n')}`);
+    blocks.push('— Filed from the IT Portal');
+
     setTicketDraft({
       subject: issue ? issue.slice(0, 140) : 'IT support request',
       description: blocks.join('\n\n'),
@@ -8358,7 +8381,7 @@ function NewTicketModal({ onClose, draft = {} }) {
 
   if (result) {
     return (
-      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose} maxWidth={640}>
+      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose} maxWidth={760}>
         <style>{btnCss}</style>
         <p style={{ fontSize: 15, color: "#211E1E", margin: "0 0 22px", lineHeight: 1.5 }}>
           Your ticket <strong>{result.ticket_number || result.id}</strong> has been created with the IT Team — you'll get updates as it progresses.
@@ -8371,12 +8394,12 @@ function NewTicketModal({ onClose, draft = {} }) {
   }
 
   return (
-    <ModalShell title="Review & submit your ticket" kicker="Pre-filled from your chat — edit anything, then send" onClose={onClose} maxWidth={680}>
+    <ModalShell title="Review & submit your ticket" kicker="Pre-filled from your chat — edit anything, then send" onClose={onClose} maxWidth={880}>
       <style>{btnCss}</style>
       <label style={{ ...label, marginTop: 0 }}>Subject</label>
       <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary of the issue" autoFocus />
       <label style={label}>Details for the IT Team</label>
-      <textarea style={{ ...field, minHeight: 220, resize: "vertical", lineHeight: 1.55 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
+      <textarea style={{ ...field, minHeight: 300, resize: "vertical", lineHeight: 1.55 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
       <div style={{ display: "flex", gap: 14 }}>
         <div style={{ flex: 1 }}>
           <label style={label}>Type</label>
