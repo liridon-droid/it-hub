@@ -1,13 +1,13 @@
 # Multi-stage build for it-hub's React frontend.
 #
-# Stage 1: build with Vite — base path is /portal2/ so asset URLs in
-# the resulting index.html resolve correctly when slicedesk's nginx
-# proxies /portal2/ → this container.
+# Stage 1: build with Vite. Base path defaults to /portal/ (so asset URLs
+# resolve when slicedesk's outer nginx proxies /portal/ → this container).
+# For the STANDALONE module build (paired + iframe-embedded), pass
+# --build-arg VITE_BASE_PATH=/ so assets + API URLs resolve at the origin root.
 #
-# Stage 2: serve dist/ with nginx. Internal nginx is dumb: it just
-# serves files from /usr/share/nginx/html with an SPA fallback for
-# React Router-style URLs. Slicedesk's outer nginx handles routing
-# /portal2/api/* and /portal2/uploads/* to the server container.
+# Stage 2: serve dist/ with nginx. In standalone mode this nginx also
+# reverse-proxies /api + /uploads to the server (see nginx.client.conf);
+# behind slicedesk's outer nginx those are routed upstream instead.
 
 FROM node:20-alpine AS build
 WORKDIR /app
@@ -19,6 +19,8 @@ COPY index.html vite.config.js ./
 COPY src ./src
 COPY public ./public
 
+ARG VITE_BASE_PATH=/portal/
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 RUN npm run build
 
 FROM nginx:alpine

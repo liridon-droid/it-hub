@@ -6,7 +6,7 @@ import {
   attachSliceUser,
   requireSliceUser,
   requireSliceAdmin,
-} from './middleware/sliceAuth.js';
+} from './middleware/auth.js'; // selector: AUTH_MODE=hub (hub_token) | slicedesk (cookie)
 import {
   bootstrapStatusServices,
   runStatusPollers,

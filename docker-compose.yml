@@ -14,11 +14,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.client
+      args:
+        # Served behind slicedesk's nginx at /portal. (Use / for a standalone
+        # origin-root deploy + tunnel.)
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/portal/}
     container_name: it-hub-client
-    # Slicedesk's nginx proxies to this internally — no host port
-    # binding by default so it-hub-client isn't reachable from outside
-    # the docker network. Uncomment for direct access during dev.
-    # ports: ["8080:80"]
+    # Exposed so a tunnel (cloudflared/ngrok) can reach the module for iframe
+    # embedding. Not needed behind slicedesk's outer nginx.
+    ports:
+      - "${CLIENT_PORT:-8080}:80"
     depends_on:
       - it-hub-server
 
@@ -30,16 +34,24 @@ services:
     # ports: ["3001:3001"]
     volumes:
       - it_hub_uploads:/app/uploads
+      # Paired-module creds (apiKey / embedSecret / hub_url / moduleId) written
+      # by the pairing step. Read by module-config.js; mounted read-only so the
+      # secret isn't baked into the image.
+      - ./server/.module-state.json:/app/.module-state.json:ro
     environment:
       - DATABASE_URL=postgresql://portal2:portal2@it-hub-postgres:5432/portal2
       - CHAT_MODEL=${CHAT_MODEL:-claude-sonnet-4-5}
-      # Slicedesk session bridge — see server/middleware/sliceAuth.js.
-      # On the same docker network these are container DNS names.
-      - SLICEDESK_API_URL=${SLICEDESK_API_URL:-http://it-catalog-server:3001}
-      - SLICEDESK_LOGIN_URL=${SLICEDESK_LOGIN_URL:-/login}
-      # In prod the app is mounted under /portal/, so any URLs we
-      # hand back (image upload URLs etc.) need the prefix.
+      # Auth mode: 'dual' accepts the iframe hub_token when embedded AND the
+      # slicedesk cookie when /portal is opened directly — so /portal keeps
+      # working both ways. ('hub' = token only; 'slicedesk' = cookie only.)
+      # HUB_URL / apiKey / embedSecret / moduleId come from the mounted state file.
+      - AUTH_MODE=${AUTH_MODE:-dual}
+      # Served behind slicedesk's nginx at /portal, so upload URLs need the prefix.
       - URL_PREFIX=${URL_PREFIX:-/portal}
+      # Cookie fallback (dual/slicedesk): how this container reaches slicedesk's
+      # /api/me + /api/ai/proxy on the mini's docker network.
+      - SLICEDESK_API_URL=${SLICEDESK_API_URL:-http://it-catalog-server:3001}
+      - SLICEDESK_LOGIN_URL=${SLICEDESK_LOGIN_URL:-/portal/login}
     depends_on:
       it-hub-postgres:
         condition: service_healthy
