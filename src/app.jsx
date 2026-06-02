@@ -8258,7 +8258,7 @@ function ReturnToHRModal({ onCancel, onConfirm }) {
 // ============================================================================
 // SHARED MODAL SHELL + BUTTON STYLES
 // ============================================================================
-function ModalShell({ title, kicker, onClose, children }) {
+function ModalShell({ title, kicker, onClose, children, maxWidth = 540 }) {
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
@@ -8271,7 +8271,7 @@ function ModalShell({ title, kicker, onClose, children }) {
       display: "grid", placeItems: "center", padding: 20,
     }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{
-        width: "100%", maxWidth: 540,
+        width: "100%", maxWidth,
         background: "#FFFFFF",
         border: "1px solid #211E1E", borderRadius: 12,
         boxShadow: "3px 3px 0 #FDC831",
@@ -8343,29 +8343,41 @@ function NewTicketModal({ onClose, draft = {} }) {
     }
   };
 
-  const field = { width: "100%", padding: "9px 11px", border: "1px solid #211E1E", borderRadius: 6, fontSize: 14, fontFamily: "inherit", background: "#fff", color: "#211E1E", boxSizing: "border-box" };
-  const label = { display: "block", fontSize: 12, fontWeight: 700, color: "#55503F", marginBottom: 5, marginTop: 14 };
+  const field = { width: "100%", padding: "11px 13px", border: "1px solid #211E1E", borderRadius: 7, fontSize: 14.5, fontFamily: "inherit", background: "#fff", color: "#211E1E", boxSizing: "border-box" };
+  const label = { display: "block", fontSize: 12.5, fontWeight: 700, color: "#55503F", marginBottom: 6, marginTop: 16 };
+  const btnCss = `
+    .tkt-btn { padding: 12px 22px; border-radius: 7px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1); }
+    .tkt-btn.is-primary { background: #211E1E; color: #FDC831; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #FDC831; }
+    .tkt-btn.is-primary:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 #FDC831; }
+    .tkt-btn.is-primary:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 2px 2px 0 #FDC831; }
+    .tkt-btn.is-secondary { background: #FFFFFF; color: #211E1E; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #211E1E; }
+    .tkt-btn.is-secondary:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 #211E1E; }
+    .tkt-btn.is-secondary:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 2px 2px 0 #211E1E; }
+    .tkt-btn:disabled { opacity: .55; cursor: default; }
+  `;
 
   if (result) {
     return (
-      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose}>
-        <p style={{ fontSize: 14, color: "#211E1E", margin: "0 0 16px" }}>
+      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose} maxWidth={640}>
+        <style>{btnCss}</style>
+        <p style={{ fontSize: 15, color: "#211E1E", margin: "0 0 22px", lineHeight: 1.5 }}>
           Your ticket <strong>{result.ticket_number || result.id}</strong> has been created with the IT Team — you'll get updates as it progresses.
         </p>
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <button style={btnPrimary} onClick={onClose}>Done</button>
+          <button className="tkt-btn is-primary" onClick={onClose}>Done</button>
         </div>
       </ModalShell>
     );
   }
 
   return (
-    <ModalShell title="Review & submit your ticket" kicker="Pre-filled from your chat — edit anything, then send" onClose={onClose}>
+    <ModalShell title="Review & submit your ticket" kicker="Pre-filled from your chat — edit anything, then send" onClose={onClose} maxWidth={680}>
+      <style>{btnCss}</style>
       <label style={{ ...label, marginTop: 0 }}>Subject</label>
       <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary of the issue" autoFocus />
       <label style={label}>Details for the IT Team</label>
-      <textarea style={{ ...field, minHeight: 180, resize: "vertical", lineHeight: 1.5 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
-      <div style={{ display: "flex", gap: 12 }}>
+      <textarea style={{ ...field, minHeight: 220, resize: "vertical", lineHeight: 1.55 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
+      <div style={{ display: "flex", gap: 14 }}>
         <div style={{ flex: 1 }}>
           <label style={label}>Type</label>
           <select style={field} value={type} onChange={(e) => setType(e.target.value)}>
@@ -8383,12 +8395,12 @@ function NewTicketModal({ onClose, draft = {} }) {
           </select>
         </div>
       </div>
-      {error && <p style={{ color: "#B92323", fontSize: 13, margin: "14px 0 0" }}>{error}</p>}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 18 }}>
-        {who && <span style={{ fontSize: 12, color: "#78684C", fontWeight: 600 }}>Submitting as {who}</span>}
-        <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-          <button style={btnSecondary} onClick={onClose} disabled={busy}>Cancel</button>
-          <button style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }} onClick={submit} disabled={busy}>
+      {error && <p style={{ color: "#B92323", fontSize: 13.5, margin: "16px 0 0" }}>{error}</p>}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 24 }}>
+        {who && <span style={{ fontSize: 12.5, color: "#78684C", fontWeight: 600 }}>Submitting as {who}</span>}
+        <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
+          <button className="tkt-btn is-secondary" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="tkt-btn is-primary" onClick={submit} disabled={busy}>
             {busy ? "Submitting…" : "Submit ticket"}
           </button>
         </div>
