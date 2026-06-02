@@ -2706,7 +2706,6 @@ function App() {
       .catch(() => {});
   }, []);
   const [filedTicket, setFiledTicket] = useState(null);
-  const [showNewTicket, setShowNewTicket] = useState(false);
   const [onbForm, setOnbForm] = useState(null);
   // null = modal closed. {} = open with empty drop-zone. { file, note } = open
   // pre-loaded so analysis kicks off automatically (the new "paperclip in the
@@ -2796,8 +2795,7 @@ function App() {
   return (
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
-      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} onNewTicket={() => setShowNewTicket(true)} />
-      {showNewTicket && <NewTicketModal onClose={() => setShowNewTicket(false)} />}
+      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} />
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -4758,7 +4756,7 @@ function useNotifications() {
   return { items, unreadCount, markRead, markAllRead, dismiss };
 }
 
-function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications, onNewTicket }) {
+function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
   // Onboarding + Offboarding are hidden for now — those features are still WIP.
@@ -4847,18 +4845,6 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
       </div>
 
       <div style={{display: "flex", alignItems: "center", gap: 12}}>
-        {onNewTicket && (
-          <button onClick={onNewTicket} title="Create a support ticket"
-            style={{
-              height: 28, padding: "0 12px",
-              display: "inline-flex", alignItems: "center", gap: 6,
-              background: "#211E1E", color: "#FDC831",
-              borderRadius: 4, border: "1px solid #211E1E",
-              boxShadow: "1px 1px 0 #FDC831", cursor: "pointer",
-              fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11,
-              letterSpacing: "0.04em", textTransform: "uppercase",
-            }}>+ Ticket</button>
-        )}
         <NotificationsMenu onViewAll={onOpenNotifications} />
         <ItServicesButton />
         <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} />
