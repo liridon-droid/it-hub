@@ -2730,7 +2730,7 @@ function App() {
     try {
       const r = await fetch('/api/catalog', { credentials: 'include', cache: 'no-store' });
       const j = r.ok ? await r.json() : null;
-      const items = (j && Array.isArray(j.catalog)) ? j.catalog.filter((c) => c.is_active !== false) : [];
+      const items = catalogItemsFrom(j);
       catalogCacheRef.current = items;
       return items;
     } catch { return []; }
@@ -8582,6 +8582,41 @@ function fmtBytes(n) {
   return (n / 1024 / 1024).toFixed(1) + ' MB';
 }
 
+// Render plain text with clickable URLs. We keep ticket bodies as PLAIN TEXT
+// (that's what the ticketing system stores/renders), so this is display-only:
+// pasted links become <a>s in the portal's view; the stored text is untouched.
+// Returns an array of strings + <a> nodes (safe to drop into a pre-wrap block).
+function linkifyText(text) {
+  const s = String(text || '');
+  if (!s) return s;
+  const re = /(https?:\/\/[^\s<>()]+|www\.[^\s<>()]+)/gi;
+  const out = [];
+  let last = 0, m, key = 0;
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) out.push(s.slice(last, m.index));
+    let url = m[0];
+    let trail = '';
+    const tm = url.match(/[.,;:!?]+$/); // don't swallow trailing sentence punctuation
+    if (tm) { trail = tm[0]; url = url.slice(0, -trail.length); }
+    const href = url.startsWith('http') ? url : 'https://' + url;
+    out.push(<a key={'lk' + (key++)} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#B92323', textDecoration: 'underline', wordBreak: 'break-word' }}>{url}</a>);
+    if (trail) out.push(trail);
+    last = m.index + m[0].length;
+  }
+  if (last < s.length) out.push(s.slice(last));
+  return out;
+}
+
+// Pull the active catalog items out of the /api/catalog response, tolerant of
+// the array living under catalog / items / catalog_items (or being the body).
+function catalogItemsFrom(j) {
+  const arr = (j && (Array.isArray(j.catalog) ? j.catalog
+    : Array.isArray(j.items) ? j.items
+    : Array.isArray(j.catalog_items) ? j.catalog_items
+    : Array.isArray(j) ? j : [])) || [];
+  return arr.filter((c) => c && c.is_active !== false);
+}
+
 // Reusable file picker — a button + a chip list of staged files. Files aren't
 // uploaded here; the parent uploads them after the ticket/comment is created.
 function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' }) {
@@ -8927,9 +8962,11 @@ function TicketDetailView({ id, onBack }) {
   const comments = (t && Array.isArray(t.comments) ? t.comments : []).filter((c) => !c.is_internal);
   // Attachments on the ticket — uploaded from here OR added on the ticketing
   // system side. Field names vary, so read them defensively.
-  const attachments = (t && Array.isArray(t.attachments)) ? t.attachments : [];
-  const attName = (a) => a.file_name || a.name || a.filename || 'attachment';
-  const attUrl = (a) => { const u = a.url || a.download_url || a.file_url || a.href; return (typeof u === 'string' && /^https?:\/\//.test(u)) ? u : null; };
+  const attachments = (t && (Array.isArray(t.attachments) ? t.attachments : (Array.isArray(t.files) ? t.files : []))) || [];
+  const attName = (a) => a.file_name || a.name || a.filename || a.title || 'attachment';
+  // Cover local URLs and Google Drive link fields (the ticket module can store
+  // files in Drive, which exposes webViewLink / webContentLink).
+  const attUrl = (a) => { const u = a.url || a.download_url || a.file_url || a.href || a.webViewLink || a.web_view_link || a.webContentLink || a.drive_url || a.content_url || a.view_url; return (typeof u === 'string' && /^https?:\/\//.test(u)) ? u : null; };
   const attSize = (a) => (a.file_size != null ? a.file_size : (a.size != null ? a.size : a.bytes));
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
 
@@ -8953,7 +8990,7 @@ function TicketDetailView({ id, onBack }) {
               {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
             </div>
             {t.description && (
-              <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.description}</p>
+              <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
             )}
           </div>
 
@@ -8987,7 +9024,7 @@ function TicketDetailView({ id, onBack }) {
                     <span style={{ fontWeight: 800, fontSize: 12.5, color: '#211E1E' }}>{mine ? 'You' : (c.author_name || 'IT Team')}</span>
                     <span style={{ fontSize: 11, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
                   </div>
-                  <div style={{ fontSize: 13.5, color: '#3A352C', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{c.body}</div>
+                  <div style={{ fontSize: 13.5, color: '#3A352C', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{linkifyText(c.body)}</div>
                 </div>
               );
             })}
@@ -9232,7 +9269,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
     setCatalog(null); setCatErr('');
     return ticketsApiJson('GET', '/api/catalog')
       .then((j) => {
-        const items = (j.catalog || []).filter((c) => c.is_active !== false);
+        const items = catalogItemsFrom(j);
         setCatalog(items);
         if (initialItemId != null) {
           const match = items.find((c) => String(c.id) === String(initialItemId));

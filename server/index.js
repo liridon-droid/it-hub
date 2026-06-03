@@ -219,6 +219,21 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
     if (!isAdmin && data.requester_id != null && String(data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
+    // The ticket payload doesn't reliably inline attachments, so best-effort
+    // fetch the ticket's attachment list (the GET counterpart of the upload
+    // route) and merge it in — that's how files added here OR in the ticketing
+    // system (e.g. stored in Google Drive) show up in the portal. Tolerate the
+    // endpoint not existing.
+    if (!Array.isArray(data.attachments) || data.attachments.length === 0) {
+      try {
+        const att = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
+        if (att.ok) {
+          const list = Array.isArray(att.data) ? att.data
+            : (att.data && Array.isArray(att.data.attachments) ? att.data.attachments : null);
+          if (list && list.length) data.attachments = list;
+        }
+      } catch { /* no attachment-list endpoint — leave as-is */ }
+    }
     res.json(data);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.get');
