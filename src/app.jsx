@@ -1615,7 +1615,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           <div style={{
             fontSize: 11.5, color: "#5C4916", fontWeight: 600, lineHeight: 1.3,
           }}>
-            Urgent matters — fastest response
+            Urgent matters only
           </div>
         </div>
         <div style={{
@@ -8845,6 +8845,7 @@ function TicketsBackBar({ onBack, label }) {
 function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
   const [catalogOpen, setCatalogOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
   // Bumped after a create/approve so the visible view (and the tab badge) refetch.
   const [refreshKey, setRefreshKey] = React.useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
@@ -8877,7 +8878,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
               <button onClick={() => setCatalogOpen(true)} className="btn btn-primary">Request something</button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
             <style>{`
               .tkt-tab { padding:9px 18px; border-radius:8px; cursor:pointer; border:1px solid #211E1E;
                 font-family:'Archivo',sans-serif; font-weight:800; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase;
@@ -8894,6 +8895,19 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
             `}</style>
             <TicketsTab label="My tickets" active={tab === 'mine'} onClick={() => setTab('mine')} />
             <TicketsTab label="Approvals" active={tab === 'approvals'} onClick={() => setTab('approvals')} badge={pendingCount} />
+            {/* Search — filters the active tab's list. */}
+            <div style={{ marginLeft: 'auto', position: 'relative', minWidth: 200 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={tab === 'approvals' ? 'Search approvals…' : 'Search your tickets…'}
+                style={{ width: '100%', padding: '8px 30px 8px 33px', border: '1px solid #211E1E', borderRadius: 8, background: '#FFFFFF', fontSize: 13, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }}
+              />
+              {query && (
+                <button onClick={() => setQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9A8E78', fontWeight: 900, fontSize: 13, lineHeight: 1, padding: 2 }}>✕</button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -8901,8 +8915,8 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
       <div style={{ flex: 1, padding: '28px 32px 64px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           {tab === 'mine'
-            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={() => setCatalogOpen(true)} />
-            : <ApprovalsView refreshKey={refreshKey} onActed={refresh} />}
+            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={() => setCatalogOpen(true)} query={query} />
+            : <ApprovalsView refreshKey={refreshKey} onActed={refresh} query={query} />}
         </div>
       </div>
 
@@ -8923,7 +8937,7 @@ function TicketsTab({ label, active, onClick, badge }) {
 }
 
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
-function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
+function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
   const [selId, setSelId] = React.useState(null);
 
@@ -8960,17 +8974,28 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
     );
   }
 
+  const q = (query || '').trim().toLowerCase();
+  const shown = !q ? st.tickets : st.tickets.filter((t) => {
+    const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600 }}>{st.tickets.length} ticket{st.tickets.length === 1 ? '' : 's'}</div>
+        <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600 }}>
+          {q ? `${shown.length} of ${st.tickets.length} ticket${st.tickets.length === 1 ? '' : 's'}` : `${st.tickets.length} ticket${st.tickets.length === 1 ? '' : 's'}`}
+        </div>
         <button onClick={onRefresh}
           onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
           onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
           style={{ ...textActionBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>↻ Refresh</button>
       </div>
+      {shown.length === 0 ? (
+        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No tickets match “{query}”.</div>
+      ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {st.tickets.map((t) => (
+        {shown.map((t) => (
           <button key={t.id} onClick={() => setSelId(t.id)} {...ROW_HOVER} style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
             display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
@@ -8989,6 +9014,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
           </button>
         ))}
       </div>
+      )}
     </div>
   );
 }
@@ -9102,11 +9128,26 @@ function TicketDetailView({ id, onBack }) {
         catch (e) { setReplyErr('Reply sent, but an attachment didn’t upload: ' + (e.message || 'error') + '.'); }
       }
       setReply(''); setReplyFiles([]);
-      await load();
+      await load(); // picks up reopen-on-reply (server flips resolved/closed → open)
     } catch (e) {
       setReplyErr(e.message || 'Couldn’t send your reply.');
     } finally {
       setSending(false);
+    }
+  };
+
+  // Close / reopen — the lifecycle actions a requester gets. Both reversible.
+  const [statusBusy, setStatusBusy] = React.useState('');
+  const [statusErr, setStatusErr] = React.useState('');
+  const changeStatus = async (action) => {
+    setStatusBusy(action); setStatusErr('');
+    try {
+      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action });
+      await load();
+    } catch (e) {
+      setStatusErr(e.message || 'Couldn’t update the ticket.');
+    } finally {
+      setStatusBusy('');
     }
   };
 
@@ -9138,11 +9179,29 @@ function TicketDetailView({ id, onBack }) {
       {t && (
         <>
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <TicketTypeBadge type={t.type} />
-              <TicketStatusBadge status={t.status} type={t.type} />
-              <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <TicketTypeBadge type={t.type} />
+                <TicketStatusBadge status={t.status} type={t.type} />
+                <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
+              </div>
+              {/* Lifecycle actions — Close / Reopen, the only transitions a requester gets. */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(() => {
+                  const s = String(t.status || '').toLowerCase();
+                  const isResolved = s === 'resolved';
+                  const isClosed = s === 'closed';
+                  const isPendingApproval = ticketTypeMeta(t.type).kind === 'request' && s === 'pending';
+                  const sm = { padding: '7px 13px', fontSize: 11.5 };
+                  const reopenBtn = <button key="r" className="btn btn-primary" style={sm} disabled={!!statusBusy} onClick={() => changeStatus('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
+                  const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => changeStatus('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : (isResolved ? 'Close' : 'Close ticket'))}</button>;
+                  if (isClosed) return reopenBtn;
+                  if (isResolved) return [reopenBtn, closeBtn];
+                  return closeBtn;
+                })()}
+              </div>
             </div>
+            {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
             <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 8px' }}>{t.subject}</h2>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
               {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
@@ -9197,6 +9256,11 @@ function TicketDetailView({ id, onBack }) {
                 ticket in SliceDesk. */}
             <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
               <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
+              {['resolved', 'closed'].includes(String(t.status || '').toLowerCase()) && (
+                <div style={{ fontSize: 12, color: '#78684C', margin: '-2px 0 8px', fontWeight: 600 }}>
+                  This ticket is {String(t.status).toLowerCase()} — replying will reopen it.
+                </div>
+              )}
               <textarea
                 style={{ ...TK.field, minHeight: 84, resize: 'vertical', fontSize: 14.5, lineHeight: 1.5 }}
                 value={reply}
@@ -9220,7 +9284,7 @@ function TicketDetailView({ id, onBack }) {
 }
 
 // ── Approvals — requests waiting on the signed-in user (manager sign-off) ────
-function ApprovalsView({ refreshKey, onActed }) {
+function ApprovalsView({ refreshKey, onActed, query }) {
   const [st, setSt] = React.useState({ loading: true, pending: [], error: null });
   const [selId, setSelId] = React.useState(null);
 
@@ -9247,12 +9311,20 @@ function ApprovalsView({ refreshKey, onActed }) {
       body="When a request needs your sign-off, it’ll show up here. You can approve or reject it without leaving the hub." />;
   }
 
+  const q = (query || '').trim().toLowerCase();
+  const shown = !q ? st.pending : st.pending.filter((p) => {
+    const hay = [p.ticket_number, p.subject, p.requester_name, p.workflow_name, p.current_stage_name].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600, marginBottom: 2 }}>
-        {st.pending.length} request{st.pending.length === 1 ? '' : 's'} awaiting your approval
+        {q ? `${shown.length} of ${st.pending.length}` : st.pending.length} request{st.pending.length === 1 ? '' : 's'} awaiting your approval
       </div>
-      {st.pending.map((p) => (
+      {shown.length === 0 ? (
+        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No approvals match “{query}”.</div>
+      ) : shown.map((p) => (
         <button key={p.request_id} onClick={() => setSelId(p.request_id)} {...ROW_HOVER} style={{
           ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
           display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',

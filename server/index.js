@@ -250,9 +250,44 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
       is_internal: false,
     });
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    res.json(data);
+    // Reopen-on-reply: a reply to a resolved/closed ticket reopens it (standard
+    // helpdesk behaviour). Best-effort — never fail the reply over it.
+    let reopened = false;
+    const prev = String(look.data.status || '').toLowerCase();
+    if (prev === 'resolved' || prev === 'closed') {
+      try {
+        const pr = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: 'open' });
+        reopened = pr.ok;
+      } catch (e) { console.warn('[tickets.comment] reopen-on-reply failed:', e.message); }
+    }
+    res.json({ ...(data && typeof data === 'object' ? data : {}), reopened });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.comment');
+  }
+});
+
+// Change a ticket's lifecycle from the portal. The only transitions a requester
+// gets are Close and Reopen — agent states (in_progress, priority, assignment)
+// aren't user-settable. Both are reversible. Gated to the requester (or admin).
+app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  const action = req.body && req.body.action;
+  const target = action === 'close' ? 'closed' : action === 'reopen' ? 'open' : null;
+  if (!target) return res.status(400).json({ error: 'action must be "close" or "reopen".' });
+  try {
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
+    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: target });
+    if (!ok || data.status === 'rejected' || data.status === 'error') {
+      return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
+    }
+    res.json(data.ticket || data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.status');
   }
 });
 
