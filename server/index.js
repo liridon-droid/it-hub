@@ -744,10 +744,26 @@ function aiProxyHeaders(req) {
   return h;
 }
 
+// Call slicedesk's AI proxy with a fallback. Primary: the module-key path
+// (/api/ext/ai/proxy) which works for an embedded module. If it fails — e.g. that
+// endpoint isn't deployed on slicedesk yet — retry the legacy session path
+// (/api/ai/proxy) with the forwarded cookie, so AI keeps working whichever side
+// has shipped. Returns the upstream Response (the OK one, or the last failure so
+// callers' existing !ok handling still runs).
+async function aiProxyFetch(req, opts) {
+  const base = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
+  if (!base) throw new Error('SLICEDESK_API_URL not configured');
+  const primary = await fetch(`${base}${moduleConfig.aiProxyPath}`, opts);
+  if (primary.ok || moduleConfig.aiProxyPath === '/api/ai/proxy') return primary;
+  // The module-key endpoint isn't there (or rejected the key) — retry the legacy
+  // session path with the forwarded cookie so AI keeps working.
+  const legacyHeaders = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', Cookie: (req && req.headers && req.headers.cookie) || '' };
+  const fallback = await fetch(`${base}/api/ai/proxy`, { ...opts, headers: legacyHeaders });
+  return fallback.ok ? fallback : primary;
+}
+
 async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
-  const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
-  if (!SLICEDESK_API_URL) throw new Error('SLICEDESK_API_URL not configured');
-  const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
+  const upstream = await aiProxyFetch(req, {
     method: 'POST',
     headers: aiProxyHeaders(req),
     body: JSON.stringify({ model: CHAT_MODEL, max_tokens, system, messages }),
@@ -1019,7 +1035,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
         .map((r, i) => `[${i + 1}] from "${r.title}" (guide #${r.guide_id}, category: ${r.category ?? 'general'})\n${r.content}`)
         .join('\n\n---\n\n');
       try {
-        const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
+        const upstream = await aiProxyFetch(req, {
           method: 'POST',
           headers: aiProxyHeaders(req),
           body: JSON.stringify({
@@ -1099,7 +1115,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
         try {
           const allGuides = await pool.query(`SELECT title FROM guides WHERE deleted_at IS NULL ORDER BY title`);
           const titleList = allGuides.rows.map((g) => `- ${g.title}`).join('\n').slice(0, 5000);
-          const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
+          const upstream = await aiProxyFetch(req, {
             method: 'POST',
             headers: aiProxyHeaders(req),
             body: JSON.stringify({
@@ -1226,7 +1242,7 @@ app.get('/api/admin/insights/topics', requireSliceAdmin, async (req, res, next) 
     if (!SLICEDESK_API_URL) {
       return res.status(503).json({ error: 'SLICEDESK_API_URL not configured' });
     }
-    const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
+    const upstream = await aiProxyFetch(req, {
       method: 'POST',
       headers: aiProxyHeaders(req),
       body: JSON.stringify({
