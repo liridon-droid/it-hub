@@ -8521,6 +8521,17 @@ const TK = {
   field: { width: '100%', padding: '10px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
   label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 6, marginTop: 14 },
   card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '3px 3px 0 #211E1E' },
+  // Spread onto a TK.card row to make it feel clickable (lift on hover, press in).
+  rowTransition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
+};
+
+// Hover/press handlers for the clickable list rows (they carry an inline
+// box-shadow from TK.card, so :hover CSS would lose to it — drive it inline).
+const ROW_HOVER = {
+  onMouseEnter: (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; },
+  onMouseLeave: (e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; },
+  onMouseDown: (e) => { e.currentTarget.style.transform = 'translate(1px,1px)'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; },
+  onMouseUp: (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; },
 };
 
 // fetch + JSON + error-unwrap. The network shim in main.jsx already prefixes the
@@ -8660,12 +8671,18 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
     <div>
       <input ref={inputRef} type="file" multiple style={{ display: 'none' }}
         onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
-      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()} style={{
+      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()}
+        onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; } }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
+        onMouseDown={(e) => { if (!disabled) { e.currentTarget.style.transform = 'translate(1px,1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #211E1E'; } }}
+        onMouseUp={(e) => { if (!disabled) { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; } }}
+        style={{
         display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 13px',
         background: '#FFFFFF', color: '#211E1E', border: '1px solid #211E1E', borderRadius: 7,
         boxShadow: '2px 2px 0 #211E1E', cursor: disabled ? 'default' : 'pointer',
         fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: '0.03em', textTransform: 'uppercase',
         opacity: disabled ? 0.55 : 1,
+        transition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
       }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
         {label}
@@ -8792,13 +8809,14 @@ function TicketsNotice({ title, body, action, onAction }) {
   );
 }
 
-// Sticky back bar for the ticket/approval detail views — uses the standard
-// .kb-back-btn (same as Profile/Notifications) and stays pinned to the top of
-// the scroll area while you read down a long ticket, like the guides do.
-// The yellow band matches the page background so cards scroll cleanly behind it.
+// Sticky back control for the ticket/approval detail views — uses the standard
+// .kb-back-btn (same as Profile/Notifications). It's a FLOATING pill (the sticky
+// wrapper is only as wide as the button via fit-content), so there's no
+// full-width colour band scrolling over the cards — just the button stays pinned
+// top-left as you read down a long ticket, like the guides do.
 function TicketsBackBar({ onBack, label }) {
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 6, background: '#FDC831', padding: '8px 0 12px', marginBottom: 6 }}>
+    <div style={{ position: 'sticky', top: 10, zIndex: 8, width: 'fit-content', marginBottom: 16 }}>
       <button onClick={onBack} className="kb-back-btn">
         <span className="kb-back-arrow">←</span>
         {label}
@@ -8930,12 +8948,15 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
         <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600 }}>{st.tickets.length} ticket{st.tickets.length === 1 ? '' : 's'}</div>
-        <button onClick={onRefresh} style={textActionBtn}>↻ Refresh</button>
+        <button onClick={onRefresh}
+          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+          style={{ ...textActionBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>↻ Refresh</button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {st.tickets.map((t) => (
-          <button key={t.id} onClick={() => setSelId(t.id)} className="tkt-row" style={{
-            ...TK.card, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
+          <button key={t.id} onClick={() => setSelId(t.id)} {...ROW_HOVER} style={{
+            ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
             display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
           }}>
             <div style={{ minWidth: 0 }}>
@@ -9055,17 +9076,17 @@ function TicketDetailView({ id, onBack }) {
           <div style={{ ...TK.card, padding: '20px 24px' }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
             {comments.length === 0 && (
-              <div style={{ fontSize: 13, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
+              <div style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
             )}
             {comments.map((c, i) => {
               const mine = !!(me && c.author_name && c.author_name.trim() === me.trim());
               return (
                 <div key={c.id || i} style={{ borderLeft: '3px solid ' + (mine ? '#211E1E' : '#FDC831'), padding: '4px 0 4px 14px', margin: i ? '14px 0 0' : 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-                    <span style={{ fontWeight: 800, fontSize: 12.5, color: '#211E1E' }}>{mine ? 'You' : (c.author_name || 'IT Team')}</span>
-                    <span style={{ fontSize: 11, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontWeight: 800, fontSize: 13, color: '#211E1E' }}>{mine ? 'You' : (c.author_name || 'IT Team')}</span>
+                    <span style={{ fontSize: 11.5, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
                   </div>
-                  <div style={{ fontSize: 13.5, color: '#3A352C', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{linkifyText(c.body)}</div>
+                  <div style={{ fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(c.body)}</div>
                 </div>
               );
             })}
@@ -9075,7 +9096,7 @@ function TicketDetailView({ id, onBack }) {
             <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
               <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
               <textarea
-                style={{ ...TK.field, minHeight: 84, resize: 'vertical' }}
+                style={{ ...TK.field, minHeight: 84, resize: 'vertical', fontSize: 14.5, lineHeight: 1.5 }}
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
@@ -9130,8 +9151,8 @@ function ApprovalsView({ refreshKey, onActed }) {
         {st.pending.length} request{st.pending.length === 1 ? '' : 's'} awaiting your approval
       </div>
       {st.pending.map((p) => (
-        <button key={p.request_id} onClick={() => setSelId(p.request_id)} style={{
-          ...TK.card, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
+        <button key={p.request_id} onClick={() => setSelId(p.request_id)} {...ROW_HOVER} style={{
+          ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
           display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
         }}>
           <div style={{ minWidth: 0 }}>

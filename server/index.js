@@ -16,7 +16,7 @@ import {
 import { moduleConfig } from './module-config.js';
 
 const PORT = Number(process.env.PORT) || 3001;
-// Claude calls are proxied to slicedesk's /api/ai/proxy — it-hub never holds
+// Claude calls are proxied to slicedesk's /api/ext/ai/proxy — it-hub never holds
 // its own Anthropic key. CHAT_MODEL is sent in the proxy payload so the LLM
 // version can be tuned per-app without re-deploying slicedesk.
 const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-sonnet-4-5';
@@ -693,7 +693,7 @@ async function ftsSearch(query) {
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// AI editor + insights actions, all through slicedesk's /api/ai/proxy.
+// AI editor + insights actions, all through slicedesk's /api/ext/ai/proxy.
 //
 // Single endpoint with an `action` discriminator so the admin UI doesn't
 // need a dozen routes. Each action maps to a system prompt + a message
@@ -733,16 +733,23 @@ const AI_PROMPTS = {
   'ai-write-guide': "You're drafting an internal IT-support guide for Slice (the pizzeria platform). The user message is a single JSON object with the spec.\n\nSlice environment — assume these unless the spec says otherwise:\n- Devices: MacBooks (Apple Silicon) and Windows laptops/desktops are both common.\n- MDM: **Jamf** provisions MacBooks; **Microsoft Intune** provisions Windows. The IT Team uses these to push apps, policies, and updates.\n- Login on the laptop:\n  - **Windows (Intune)**: users sign in with their **OneLogin** credentials.\n  - **macOS (Jamf)**: users sign in with a **local password set at provisioning** (NOT OneLogin). Keychain may need refreshing after a OneLogin password change.\n- Email + productivity: **Gmail** and **Google Workspace** (Drive, Docs, Sheets, Calendar). Slice does **NOT** use Outlook or Microsoft 365 — never suggest those.\n- Shared / team passwords: **1Password** vaults. Never recommend pasting credentials in Slack or Google Docs.\n- Team chat: **Slack** is the company-wide chat.\n- Headphones: Jabra USB headsets (wired USB, not Bluetooth) are standard.\n- VPN: GlobalProtect on both macOS and Windows.\n- Customer-support agents also use Amazon Connect inside Salesforce — the soft-phone is the **CCP** (Contact Control Panel).\n- AI tooling: **Claude** (chat) and **Claude Code** (engineering CLI) are the company AI tools.\n- Internal IT team is just **the IT Team** — no sub-teams. When you mention escalation, always say 'the IT Team'.\n- Tickets are submitted in the IT Hub (a **Submit a ticket** button on the Help page) — not an external portal.\n\nHardware-failure rule: If the spec describes physical damage or hardware failure (cracked screen, water spill, dropped laptop, swollen / dead battery, broken hinge or keys, ports broken, won't power on, suspected motherboard / GPU failure), DO NOT write self-repair steps. The guide should be a short escalation guide that tells the reader to **stop using the device, save anything still accessible, and file a ticket with the IT Team from the IT Hub Help page** so a technician can inspect or swap it. Never write steps like 'open the back', 'reseat the battery', 'replace the keyboard', 'run Apple Diagnostics to fix it' — the IT Team owns all hardware repairs and swaps.\n\nWriting rules:\n- Match the requested type (howto / troubleshoot / runbook / faq / announcement / incident) and tone (friendly / professional / concise / detailed) and length (short ~150w / medium ~400w / long ~800w).\n- Use ## sub-headings, numbered steps for sequences, and **bold** for UI labels and shortcuts.\n- Each step starts with an imperative verb (Open, Click, Enter, Verify…), one action per step.\n- Include a `> Before you start:` line above the first list when prerequisites apply (signed in, on VPN, etc.).\n- Add `If this fails…` sub-bullets under steps that commonly break.\n- Reference specific Slice tools when relevant (GlobalProtect, Jabra USB, CCP in Salesforce, Slack).\n- End with a short troubleshooting / escalation section that tells the reader to file a ticket with **the IT Team** from the IT Hub's Help page (the Submit a ticket button) — never link an external portal.\n- Don't include the leading `# Title` — title is stored separately.\n\nOutput ONE JSON object on one line, no markdown fence:\n  {\"title\":\"...\",\"category\":\"...\",\"tags\":[\"...\",\"...\"],\"sourceType\":\"guide|runbook|faq|announcement\",\"body\":\"... markdown ...\"}\nThe body uses real newlines (\\n). Keep tags lowercase, 3–6 of them.",
 };
 
+// Headers for slicedesk's AI proxy. As an embedded module we have no slicedesk
+// session cookie, so we authenticate with our module API key against the
+// module-key-authed /api/ext/ai/proxy. The session Cookie is still forwarded for
+// the legacy path (if AI_PROXY_PATH is pointed back at /api/ai/proxy).
+function aiProxyHeaders(req) {
+  const h = { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' };
+  if (moduleConfig.apiKey) h.Authorization = `Bearer ${moduleConfig.apiKey}`;
+  if (req && req.headers && req.headers.cookie) h.Cookie = req.headers.cookie;
+  return h;
+}
+
 async function callClaudeProxy(req, { system, messages, max_tokens = 1024 }) {
   const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
   if (!SLICEDESK_API_URL) throw new Error('SLICEDESK_API_URL not configured');
-  const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+  const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'no-store',
-      Cookie: req.headers.cookie || '',
-    },
+    headers: aiProxyHeaders(req),
     body: JSON.stringify({ model: CHAT_MODEL, max_tokens, system, messages }),
   });
   if (!upstream.ok) {
@@ -1002,7 +1009,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
     let usage = null;
     let mode = 'retrieval';
 
-    // Claude calls go through slicedesk's /api/ai/proxy — that endpoint
+    // Claude calls go through slicedesk's /api/ext/ai/proxy — that endpoint
     // owns the Anthropic API key, billing, and audit logs. We just POST
     // the messages payload and forward the user's session cookie so
     // slicedesk can authenticate the call.
@@ -1012,15 +1019,9 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
         .map((r, i) => `[${i + 1}] from "${r.title}" (guide #${r.guide_id}, category: ${r.category ?? 'general'})\n${r.content}`)
         .join('\n\n---\n\n');
       try {
-        const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+        const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Cache-Control': 'no-store',
-            // Forward the caller's slicedesk session cookie so the
-            // proxy's requireAuth middleware lets us through.
-            Cookie: req.headers.cookie || '',
-          },
+          headers: aiProxyHeaders(req),
           body: JSON.stringify({
             model: CHAT_MODEL,
             max_tokens: 1024,
@@ -1098,9 +1099,9 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
         try {
           const allGuides = await pool.query(`SELECT title FROM guides WHERE deleted_at IS NULL ORDER BY title`);
           const titleList = allGuides.rows.map((g) => `- ${g.title}`).join('\n').slice(0, 5000);
-          const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+          const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Cookie: req.headers.cookie || '' },
+            headers: aiProxyHeaders(req),
             body: JSON.stringify({
               model: CHAT_MODEL,
               max_tokens: 600,
@@ -1225,9 +1226,9 @@ app.get('/api/admin/insights/topics', requireSliceAdmin, async (req, res, next) 
     if (!SLICEDESK_API_URL) {
       return res.status(503).json({ error: 'SLICEDESK_API_URL not configured' });
     }
-    const upstream = await fetch(`${SLICEDESK_API_URL}/api/ai/proxy`, {
+    const upstream = await fetch(`${SLICEDESK_API_URL}${moduleConfig.aiProxyPath}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Cookie: req.headers.cookie || '' },
+      headers: aiProxyHeaders(req),
       body: JSON.stringify({
         model: CHAT_MODEL,
         max_tokens: 1500,

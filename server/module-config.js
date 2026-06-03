@@ -37,7 +37,9 @@ export const moduleConfig = {
     process.env.MODULE_ID || (state.module && state.module.id) || state.module_id || '',
   ),
   authMode: (process.env.AUTH_MODE || 'dual').toLowerCase(),
-  aiProxyPath: process.env.AI_PROXY_PATH || '/api/ai/proxy',
+  // Embedded modules have no slicedesk session cookie, so Claude calls go through
+  // the module-key-authed /api/ext/ai/proxy (not the session-authed /api/ai/proxy).
+  aiProxyPath: process.env.AI_PROXY_PATH || '/api/ext/ai/proxy',
   // Base URL where the hub's /api/ext/* lives (for outbound module calls — e.g.
   // the ticket proxy). On the mini this is the slicedesk server on the docker
   // network (same value as SLICEDESK_API_URL).
