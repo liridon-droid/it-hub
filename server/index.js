@@ -123,47 +123,205 @@ app.get('/api/me', requireSliceUser, (req, res) => {
   });
 });
 
-// ── Create a ticket in the ticket module, via the hub's inter-module proxy ──
-// The portal never talks to the ticket system directly: it POSTs through the
-// hub (/api/ext/modules/<ticketModuleId>/api/module/tickets) with our module
-// API key; the hub signs an X-Hub-Forward-Token the ticket module trusts. The
-// ticket is attributed to the signed-in user (from the verified hub_token).
+// ── Ticket module, via the hub's inter-module proxy ─────────────────────────
+// The portal never talks to the ticket system directly. Every call goes through
+// the hub (/api/ext/modules/<ticketModuleId>/api/module/...) carrying our module
+// API key; the hub signs an X-Hub-Forward-Token the ticket module trusts. Work
+// is always attributed to the signed-in user (from the verified hub_token) — the
+// client never gets to say who it is.
+//
+// One helper does the round-trip; every route below is a thin wrapper that maps
+// the signed-in user onto the ticket system's requester/approver fields and
+// hands the envelope back. `body === undefined` means a GET (no body, no
+// Content-Type). Throws with .statusCode = 503 when we aren't paired yet.
+async function ticketModuleFetch(method, subPath, body) {
+  if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
+    const err = new Error('Module is not configured to reach the hub.');
+    err.statusCode = 503;
+    throw err;
+  }
+  const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module${subPath}`;
+  const opts = { method, headers: { Authorization: `Bearer ${moduleConfig.apiKey}` } };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const upstream = await fetch(url, opts);
+  const data = await upstream.json().catch(() => ({}));
+  return { ok: upstream.ok, status: upstream.status, data };
+}
+
+// Map a thrown helper/network error onto a response: 503 when we're not paired,
+// 502 for anything else (ticket module unreachable / returned non-JSON).
+function ticketProxyError(res, err, label) {
+  const code = err.statusCode || 502;
+  if (code !== 503) console.warn(`[${label}] proxy failed:`, err.message);
+  res.status(code).json(
+    code === 503
+      ? { error: err.message }
+      : { error: 'Ticket service unavailable', detail: err.message },
+  );
+}
+
+// Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
   const { subject, description, type, priority } = req.body ?? {};
   if (!subject || !String(subject).trim()) {
     return res.status(400).json({ error: 'A subject is required.' });
   }
-  if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
-    return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
-  }
-  const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module/tickets`;
   try {
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${moduleConfig.apiKey}` },
-      body: JSON.stringify({
-        subject: String(subject).slice(0, 300),
-        description: String(description || '').slice(0, 8000),
-        type: type || 'incident',
-        priority: priority || 'medium',
-        requester_id: u.id,
-        requester_name: u.name,
-        requester_email: u.email,
-      }),
+    const { ok, status, data } = await ticketModuleFetch('POST', '/tickets', {
+      subject: String(subject).slice(0, 300),
+      description: String(description || '').slice(0, 8000),
+      type: type || 'incident',
+      priority: priority || 'medium',
+      requester_id: u.id,
+      requester_name: u.name,
+      requester_email: u.email,
     });
     // The ticket module returns an envelope: { status, message, ticket }.
-    const data = await upstream.json().catch(() => ({}));
-    if (!upstream.ok || data.status === 'rejected' || data.status === 'error') {
-      return res.status(upstream.ok ? 400 : upstream.status).json({
-        error: data.error || `Ticket service returned ${upstream.status}`,
+    if (!ok || data.status === 'rejected' || data.status === 'error') {
+      return res.status(ok ? 400 : status).json({
+        error: data.error || `Ticket service returned ${status}`,
         validation_errors: data.validation_errors,
       });
     }
     res.json(data.ticket || data);
   } catch (err) {
-    console.warn('[tickets] create failed:', err.message);
-    res.status(502).json({ error: 'Ticket service unavailable', detail: err.message });
+    ticketProxyError(res, err, 'tickets.create');
+  }
+});
+
+// List the signed-in user's own tickets (newest first; optional status filter).
+app.get('/api/tickets', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const params = new URLSearchParams({ requester_id: u.id, per_page: '50' });
+  if (req.query.status) params.set('status', String(req.query.status));
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets?${params}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.list');
+  }
+});
+
+// One ticket in full (comments, activity). Guarded so a user can only read their
+// own ticket — the proxy itself has module-wide access, so without this check a
+// user could enumerate ticket ids and read anyone's. Admins can read any ticket.
+app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    if (!isAdmin && data.requester_id != null && String(data.requester_id) !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.get');
+  }
+});
+
+// Service catalog — the "request something" path (access to an app / service).
+app.get('/api/catalog', requireSliceUser, async (req, res) => {
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', '/catalog');
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'catalog.list');
+  }
+});
+
+// One catalog item, including its request-form definition (drives the form UI).
+app.get('/api/catalog/:id', requireSliceUser, async (req, res) => {
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/catalog/${encodeURIComponent(req.params.id)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'catalog.get');
+  }
+});
+
+// Submit a catalog request → creates a service_request (starts pending if the
+// item needs approval). Requester is always the signed-in user.
+app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const { justification, urgency, form_responses } = req.body ?? {};
+  try {
+    const { ok, status, data } = await ticketModuleFetch('POST', `/catalog/${encodeURIComponent(req.params.id)}/request`, {
+      requester_id: u.id,
+      requester_name: u.name,
+      requester_email: u.email,
+      justification: String(justification || '').slice(0, 4000),
+      urgency: urgency || 'medium',
+      form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},
+    });
+    if (!ok || data.status === 'rejected' || data.status === 'error') {
+      return res.status(ok ? 400 : status).json({
+        error: data.error || `Ticket service returned ${status}`,
+        validation_errors: data.validation_errors,
+      });
+    }
+    res.json(data.ticket || data);
+  } catch (err) {
+    ticketProxyError(res, err, 'catalog.request');
+  }
+});
+
+// Approvals the signed-in user is being asked to act on. `pending` is registered
+// before `/:id` so Express doesn't capture "pending" as an id.
+app.get('/api/approvals/pending', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/approvals/pending?hub_user_id=${encodeURIComponent(u.id)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'approvals.pending');
+  }
+});
+
+// Full detail for one approval (workflow stages, actions so far, the ticket).
+// `can_act` in the response tells the UI whether to enable the action buttons.
+app.get('/api/approvals/:id', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/approvals/${encodeURIComponent(req.params.id)}?hub_user_id=${encodeURIComponent(u.id)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'approvals.get');
+  }
+});
+
+// Approve or reject. The ticket module authorises server-side against the
+// workflow definition (returns 403 if this user can't act at the current stage),
+// so we just forward the signed-in user as the actor.
+app.post('/api/approvals/:id/respond', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const { action, comment } = req.body ?? {};
+  if (action !== 'approve' && action !== 'reject') {
+    return res.status(400).json({ error: 'action must be "approve" or "reject".' });
+  }
+  try {
+    const { ok, status, data } = await ticketModuleFetch('POST', `/approvals/${encodeURIComponent(req.params.id)}/respond`, {
+      hub_user_id: u.id,
+      hub_user_name: u.name,
+      hub_user_email: u.email,
+      action,
+      comment: String(comment || '').slice(0, 2000),
+    });
+    if (!ok || data.status === 'rejected' || data.status === 'error') {
+      return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
+    }
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'approvals.respond');
   }
 });
 

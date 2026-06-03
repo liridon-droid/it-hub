@@ -531,7 +531,7 @@ function useLiveStatus(intervalMs = 30000) {
   return { services, lastCheck, error };
 }
 
-function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot }) {
+function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets }) {
   const [q, setQ] = useState("");
   // Staged screenshot for the in-input upload flow. When set, hitting Enter
   // (or Send) jumps straight to the screenshot analyzer with `q` as the note,
@@ -927,8 +927,17 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           gap: 16,
         }}>
           <PhishingCard onSubmit={submit} />
-          <OnCallCard onSubmit={submit} />
+          <OnCallCard onSubmit={submit} onOpenTickets={onOpenTickets} />
         </div>
+      </div>
+
+      {/* Your tickets — recent issues & requests raised from the hub, with a
+          jump into the full Tickets page (My Tickets + Approvals). */}
+      <div style={{
+        maxWidth: 1120, margin: "24px auto 0",
+        animation: "fadeUp .8s .32s var(--ease) both",
+      }}>
+        <MyTicketsStrip onOpen={onOpenTickets} />
       </div>
 
       {/* Below fold: quick-access grid */}
@@ -1325,7 +1334,7 @@ function PhishingCard({ onSubmit }) {
 // a ticket form. No roster table, no pager gymnastics. The form has the same
 // shape as a regular ticket submission so the triage flow downstream is
 // unchanged.
-function OnCallCard({ onSubmit }) {
+function OnCallCard({ onSubmit, onOpenTickets }) {
   const [stage, setStage] = React.useState("idle"); // idle | form | sent
   const [subject, setSubject] = React.useState("");
   const [detail, setDetail] = React.useState("");
@@ -1624,6 +1633,28 @@ function OnCallCard({ onSubmit }) {
           fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
         }}>OPEN →</div>
       </a>
+
+      {/* Footer link into the full Tickets page (My Tickets + Approvals). */}
+      {onOpenTickets && (
+        <button
+          type="button"
+          onClick={onOpenTickets}
+          className="oncall-mytickets"
+          style={{
+            marginTop: 14, width: "100%",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+            padding: "8px 12px",
+            background: "transparent",
+            border: "none", borderTop: "1.5px dashed rgba(33,30,30,0.18)", borderRadius: 0,
+            color: "#211E1E", cursor: "pointer",
+            fontFamily: "'Archivo', sans-serif",
+            fontSize: 11.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
+          }}>
+          <IconTicket size={13} stroke={2.2} />
+          View my tickets &amp; approvals
+          <span aria-hidden="true" style={{ transition: "transform .2s ease" }}>→</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -2630,6 +2661,7 @@ const STAGE_TO_PATH = {
   "search-results": "/help",
   knowledge: "/knowledge",
   status: "/status",
+  tickets: "/tickets",
   onboarding: "/onboarding",
   "onboarding-filed": "/onboarding",
   offboarding: "/offboarding",
@@ -2641,6 +2673,7 @@ const PATH_TO_STAGE = {
   "/help": "landing",
   "/knowledge": "knowledge",
   "/status": "status",
+  "/tickets": "tickets",
   "/onboarding": "onboarding",
   "/offboarding": "offboarding",
   "/profile": "profile",
@@ -2707,6 +2740,13 @@ function App() {
   }, []);
   const [filedTicket, setFiledTicket] = useState(null);
   const [ticketDraft, setTicketDraft] = useState(null);
+  // Which tab the Tickets page opens on — "mine" (My Tickets) or "approvals".
+  // Set by the account-menu entries before navigating so each lands on its tab.
+  // The bumped nav counter keys the page so re-picking the same menu item (even
+  // while already on the page) remounts it onto the chosen tab with fresh data.
+  const [ticketsTab, setTicketsTab] = useState("mine");
+  const [ticketsNav, setTicketsNav] = useState(0);
+  const openTickets = (tab = "mine") => { setTicketsTab(tab); setTicketsNav((n) => n + 1); setStage("tickets"); };
   const [onbForm, setOnbForm] = useState(null);
   // null = modal closed. {} = open with empty drop-zone. { file, note } = open
   // pre-loaded so analysis kicks off automatically (the new "paperclip in the
@@ -2803,12 +2843,14 @@ function App() {
     : stage === "offboarding" ? "Offboarding"
     : stage === "knowledge" ? "Knowledge"
     : stage === "status" ? "Status"
+    : stage === "tickets" ? "Tickets"
     : "Help";
   const onNavigate = (label) => {
     if (label === "Onboarding") setStage("onboarding");
     else if (label === "Offboarding") setStage("offboarding");
     else if (label === "Knowledge") setStage("knowledge");
     else if (label === "Status") setStage("status");
+    else if (label === "Tickets") setStage("tickets");
     else if (label === "Help") goHome();
   };
 
@@ -2834,7 +2876,7 @@ function App() {
   return (
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
-      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} />
+      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
       {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} />}
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
@@ -2846,6 +2888,7 @@ function App() {
         onOpenStatus={() => setStage("status")}
         onOpenKnowledge={() => setStage("knowledge")}
         onOpenGuide={(g) => setGuide(g)}
+        onOpenTickets={() => openTickets("mine")}
         onOpenScreenshot={(init) => openScreenshot(init)} />
       }
 
@@ -2892,6 +2935,14 @@ function App() {
 
       {stage === "status" &&
       <StatusPage onBack={goHome} />
+      }
+
+      {stage === "tickets" &&
+      <TicketsPage
+        key={ticketsNav}
+        initialTab={ticketsTab}
+        onBack={goHome}
+        onReportIssue={() => setTicketDraft({ subject: "", description: "", type: "incident", priority: "medium" })} />
       }
 
       {stage === "profile" &&
@@ -4796,11 +4847,13 @@ function useNotifications() {
   return { items, unreadCount, markRead, markAllRead, dismiss };
 }
 
-function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications }) {
+function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
   // Onboarding + Offboarding are hidden for now — those features are still WIP.
   // To restore: add "Onboarding", "Offboarding" back into this list.
+  // Tickets/Approvals live in the account menu (UserMenu) + the Help page's IT
+  // Support card, not here — keeps the top nav to the three marketing surfaces.
   const links = ["Help", "Knowledge", "Status"];
   return (
     <nav style={{
@@ -4887,7 +4940,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
       <div style={{display: "flex", alignItems: "center", gap: 12}}>
         <NotificationsMenu onViewAll={onOpenNotifications} />
         <ItServicesButton />
-        <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} />
+        <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} onOpenTickets={onOpenTickets} onOpenApprovals={onOpenApprovals} />
       </div>
     </nav>
   );
@@ -5180,7 +5233,7 @@ function NotificationsMenu({ onViewAll }) {
 // presence dot, and a tiny caret. Clicking opens a small menu with typical
 // account actions (profile, tickets, prefs, sign out). Click-outside and Esc
 // both close it.
-function UserMenu({ onOpenProfile, onOpenNotifications }) {
+function UserMenu({ onOpenProfile, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [open, setOpen] = React.useState(false);
   // __PORTAL2_USERMENU_HELPERS__
   const _userName = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
@@ -5209,6 +5262,12 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
     )},
     { label: "Notifications",  hint: "Updates & alerts",        action: "notifications", icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+    )},
+    { label: "My tickets",     hint: "Issues & requests you raised", action: "tickets", icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2V10a2 2 0 0 0 0 4v1.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V14a2 2 0 0 0 0-4V8.5Z"/><path d="M14 7v10" strokeDasharray="1.5 2.5"/></svg>
+    )},
+    { label: "Approvals",      hint: "Requests awaiting your sign-off", action: "approvals", icon: (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     )},
     { label: "Admin",          hint: "Manage guides & content", action: "admin",   icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
@@ -5349,6 +5408,8 @@ function UserMenu({ onOpenProfile, onOpenNotifications }) {
                   setOpen(false);
                   if (it.action === "profile" && onOpenProfile) onOpenProfile();
                   else if (it.action === "notifications" && onOpenNotifications) onOpenNotifications();
+                  else if (it.action === "tickets" && onOpenTickets) onOpenTickets();
+                  else if (it.action === "approvals" && onOpenApprovals) onOpenApprovals();
                   else if (it.action === "admin") window.location.href = withBase("/admin.html");
                 }}
                 style={{
@@ -8421,6 +8482,787 @@ function NewTicketModal({ onClose, draft = {} }) {
     </ModalShell>
   );
 }
+
+// ============================================================================
+// TICKETS — My Tickets, Approvals, and the request (catalog) flow.
+// All data comes from the SliceDesk ticket module through our server's hub
+// proxy (/api/tickets, /api/catalog, /api/approvals). The two "logics" the
+// ticket system splits on are surfaced directly:
+//   • Issue   → an incident ticket (POST /api/tickets, type=incident)
+//   • Request → a service_request raised from the catalog (access to an app /
+//               service), which may need manager approval before fulfilment.
+// ============================================================================
+
+// Shared tokens so every ticket surface looks the same.
+const TK = {
+  ink: '#211E1E', cheese: '#FDC831', cream: '#FFFDF4', muted: '#78684C', red: '#B92323',
+  field: { width: '100%', padding: '10px 12px', border: '1px solid #211E1E', borderRadius: 7, fontSize: 14, fontFamily: 'inherit', background: '#fff', color: '#211E1E', boxSizing: 'border-box' },
+  label: { display: 'block', fontSize: 12, fontWeight: 700, color: '#55503F', marginBottom: 6, marginTop: 14 },
+  card: { background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12, boxShadow: '3px 3px 0 #211E1E' },
+};
+
+// fetch + JSON + error-unwrap. The network shim in main.jsx already prefixes the
+// deploy base and attaches the hub_token, so callers pass bare /api/... paths.
+// On a non-2xx the thrown error carries .status and .data (so callers can read
+// validation_errors).
+async function ticketsApiJson(method, path, body) {
+  const opts = { method, headers: {}, credentials: 'include', cache: 'no-store' };
+  if (body !== undefined) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, opts);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(data.error || ('Request failed (' + r.status + ')'));
+    e.status = r.status;
+    e.data = data;
+    throw e;
+  }
+  return data;
+}
+
+// open / pending / resolved … → label + colours.
+function ticketStatusMeta(status) {
+  const s = String(status || '').toLowerCase();
+  const map = {
+    open:        { label: 'Open',        bg: '#E8F3EC', fg: '#0A6B33' },
+    new:         { label: 'New',         bg: '#E8F3EC', fg: '#0A6B33' },
+    in_progress: { label: 'In progress', bg: '#FFF3D6', fg: '#7A5A00' },
+    pending:     { label: 'Pending',     bg: '#FFEFDD', fg: '#9A4A00' },
+    waiting:     { label: 'Waiting',     bg: '#FFEFDD', fg: '#9A4A00' },
+    on_hold:     { label: 'On hold',     bg: '#FFEFDD', fg: '#9A4A00' },
+    resolved:    { label: 'Resolved',    bg: '#E3EEFB', fg: '#1A4E8A' },
+    closed:      { label: 'Closed',      bg: '#EFEDEA', fg: '#5C564C' },
+    approved:    { label: 'Approved',    bg: '#E8F3EC', fg: '#0A6B33' },
+    rejected:    { label: 'Rejected',    bg: '#FBE7E7', fg: '#992222' },
+    cancelled:   { label: 'Cancelled',   bg: '#EFEDEA', fg: '#5C564C' },
+  };
+  return map[s] || { label: status || 'Unknown', bg: '#EFEDEA', fg: '#5C564C' };
+}
+
+// The "two logics", as a label: incident → Issue, service_request → Request.
+function ticketTypeMeta(type) {
+  const t = String(type || '').toLowerCase();
+  if (t === 'service_request' || t === 'request') return { label: 'Request', kind: 'request' };
+  if (t === 'change')  return { label: 'Change',  kind: 'change' };
+  if (t === 'problem') return { label: 'Problem', kind: 'problem' };
+  return { label: 'Issue', kind: 'incident' };
+}
+
+function TicketStatusBadge({ status, small }) {
+  const m = ticketStatusMeta(status);
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: small ? '2px 8px' : '3px 10px',
+      background: m.bg, color: m.fg, border: '1px solid ' + m.fg,
+      borderRadius: 999, fontSize: small ? 10 : 11, fontWeight: 800,
+      fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
+      textTransform: 'uppercase', whiteSpace: 'nowrap',
+    }}>{m.label}</span>
+  );
+}
+
+function TicketTypeBadge({ type }) {
+  const m = ticketTypeMeta(type);
+  const filled = m.kind === 'request';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '2px 8px',
+      background: filled ? '#211E1E' : '#FFFFFF',
+      color: filled ? '#FDC831' : '#211E1E',
+      border: '1px solid #211E1E', borderRadius: 4,
+      fontSize: 10, fontWeight: 800, fontFamily: "'Archivo', sans-serif",
+      letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+    }}>{m.label}</span>
+  );
+}
+
+// A muted state panel (loading / empty / error) used across the ticket views.
+function TicketsNotice({ title, body, action, onAction }) {
+  return (
+    <div style={{ ...TK.card, padding: '32px 26px', textAlign: 'center' }}>
+      <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 16, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>{title}</div>
+      {body && <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, maxWidth: 460, margin: '0 auto' }}>{body}</div>}
+      {action && <button onClick={onAction} className="btn btn-primary" style={{ marginTop: 18 }}>{action}</button>}
+    </div>
+  );
+}
+
+// ── Landing strip — recent tickets + a jump into the full page ───────────────
+function MyTicketsStrip({ onOpen }) {
+  const [st, setSt] = React.useState({ loading: true, tickets: null, error: null });
+  React.useEffect(() => {
+    let off = false;
+    ticketsApiJson('GET', '/api/tickets')
+      .then((j) => { if (!off) setSt({ loading: false, tickets: j.tickets || [], error: null }); })
+      .catch((e) => { if (!off) setSt({ loading: false, tickets: null, error: e.message }); });
+    return () => { off = true; };
+  }, []);
+
+  const all = st.tickets || [];
+  const list = all.slice(0, 4);
+  const open = all.filter((t) => !['resolved', 'closed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length;
+  const subtitle = st.loading ? 'Loading…'
+    : (!st.error && all.length) ? (open + ' open · ' + all.length + ' total')
+    : 'Issues & requests you’ve raised';
+
+  return (
+    <div style={{ ...TK.card, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderBottom: '1px solid #211E1E', background: '#FFFDF4' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 8, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+            <IconTicket size={16} stroke={2.2} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 14, color: '#211E1E', letterSpacing: '-0.01em' }}>Your tickets</div>
+            <div style={{ fontSize: 11.5, color: '#78684C', fontWeight: 600 }}>{subtitle}</div>
+          </div>
+        </div>
+        <button onClick={onOpen} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>Open my tickets →</button>
+      </div>
+
+      {st.loading && <div style={{ padding: '18px', color: '#78684C', fontSize: 13 }}>Loading your tickets…</div>}
+
+      {!st.loading && st.error && (
+        <div style={{ padding: '16px 18px', color: '#78684C', fontSize: 13, lineHeight: 1.5 }}>
+          We couldn’t load your tickets here. Open the tickets page to try again.
+        </div>
+      )}
+
+      {!st.loading && !st.error && list.length === 0 && (
+        <div style={{ padding: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 13, color: '#55503F', lineHeight: 1.5 }}>No tickets yet — report an issue, or request access to an app or service.</div>
+          <button onClick={onOpen} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>Get started</button>
+        </div>
+      )}
+
+      {!st.loading && !st.error && list.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <tbody>
+            {list.map((t, i) => (
+              <tr key={t.id}
+                  onClick={onOpen}
+                  style={{ cursor: 'pointer', borderTop: i ? '1px solid #EFEAE0' : 'none' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FFFBEF'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
+                <td style={{ padding: '11px 18px', whiteSpace: 'nowrap', color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 }}>{t.ticket_number}</td>
+                <td style={{ padding: '11px 8px', fontWeight: 600, color: '#211E1E', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</td>
+                <td style={{ padding: '11px 8px', whiteSpace: 'nowrap' }}><TicketTypeBadge type={t.type} /></td>
+                <td style={{ padding: '11px 8px', whiteSpace: 'nowrap' }}><TicketStatusBadge status={t.status} small /></td>
+                <td style={{ padding: '11px 18px', whiteSpace: 'nowrap', color: '#9A8E78', fontSize: 11.5, textAlign: 'right' }}>{relativeTime(t.updated_at || t.created_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
+// ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
+function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
+  const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
+  const [catalogOpen, setCatalogOpen] = React.useState(false);
+  // Bumped after a create/approve so the visible view (and the tab badge) refetch.
+  const [refreshKey, setRefreshKey] = React.useState(0);
+  const refresh = () => setRefreshKey((k) => k + 1);
+
+  // Light count fetch just for the Approvals tab badge.
+  const [pendingCount, setPendingCount] = React.useState(null);
+  React.useEffect(() => {
+    let off = false;
+    ticketsApiJson('GET', '/api/approvals/pending')
+      .then((j) => { if (!off) setPendingCount((j.pending || []).length); })
+      .catch(() => { if (!off) setPendingCount(null); });
+    return () => { off = true; };
+  }, [refreshKey]);
+
+  return (
+    <div className="page" style={{ background: '#FDC831', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: '#F7F4EF', borderBottom: '1px solid #211E1E', padding: '34px 32px' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+            <div style={{ minWidth: 0 }}>
+              <div className="eyebrow" style={{ color: '#78684C', fontSize: 10, marginBottom: 8 }}>IT Support</div>
+              <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Your tickets</h1>
+              <div style={{ fontSize: 14, color: '#4A3F2E', marginTop: 10, fontWeight: 600, maxWidth: 580, lineHeight: 1.45 }}>
+                Track what you’ve raised, act on requests waiting for your approval, and start something new.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button onClick={onBack} className="btn btn-outline">← Back</button>
+              <button onClick={() => onReportIssue && onReportIssue()} className="btn btn-outline">Report an issue</button>
+              <button onClick={() => setCatalogOpen(true)} className="btn btn-primary">Request something</button>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
+            <TicketsTab label="My tickets" active={tab === 'mine'} onClick={() => setTab('mine')} />
+            <TicketsTab label="Approvals" active={tab === 'approvals'} onClick={() => setTab('approvals')} badge={pendingCount} />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, padding: '28px 32px 64px' }}>
+        <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+          {tab === 'mine'
+            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={() => setCatalogOpen(true)} />
+            : <ApprovalsView refreshKey={refreshKey} onActed={refresh} />}
+        </div>
+      </div>
+
+      {catalogOpen && <CatalogRequestModal onClose={() => setCatalogOpen(false)} onCreated={refresh} />}
+    </div>
+  );
+}
+
+function TicketsTab({ label, active, onClick, badge }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
+      fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12.5, letterSpacing: '0.03em', textTransform: 'uppercase',
+      background: active ? '#211E1E' : '#FFFFFF', color: active ? '#FDC831' : '#211E1E',
+      border: '1px solid #211E1E', boxShadow: active ? '2px 2px 0 #211E1E' : 'none',
+      display: 'inline-flex', alignItems: 'center', gap: 7,
+      transition: 'transform .12s ease, box-shadow .12s ease',
+    }}>
+      {label}
+      {badge != null && badge > 0 && (
+        <span style={{ minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center', background: active ? '#FDC831' : '#B92323', color: active ? '#211E1E' : '#FFFFFF', borderRadius: 999, fontSize: 10, fontWeight: 900 }}>{badge}</span>
+      )}
+    </button>
+  );
+}
+
+// ── My Tickets — list of the signed-in user's tickets + inline detail ────────
+function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
+  const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
+  const [selId, setSelId] = React.useState(null);
+
+  React.useEffect(() => {
+    let off = false;
+    setSt((s) => ({ ...s, loading: true }));
+    ticketsApiJson('GET', '/api/tickets')
+      .then((j) => { if (!off) setSt({ loading: false, tickets: j.tickets || [], error: null }); })
+      .catch((e) => { if (!off) setSt({ loading: false, tickets: [], error: e.message }); });
+    return () => { off = true; };
+  }, [refreshKey]);
+
+  if (selId != null) return <TicketDetailView id={selId} onBack={() => setSelId(null)} />;
+
+  if (st.loading) return <TicketsNotice title="Loading your tickets…" />;
+  if (st.error) {
+    return <TicketsNotice
+      title="Couldn’t load your tickets"
+      body={'The ticket service didn’t respond (' + st.error + '). Live ticket data loads when the hub is reachable — try again in a moment.'}
+      action="Try again" onAction={onRefresh} />;
+  }
+  if (st.tickets.length === 0) {
+    return (
+      <div style={{ ...TK.card, padding: '34px 28px', textAlign: 'center' }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 18, fontWeight: 800, color: '#211E1E', marginBottom: 6 }}>No tickets yet</div>
+        <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, maxWidth: 480, margin: '0 auto 20px' }}>
+          When something’s broken, report an issue. When you need access to an app or service, raise a request — it’ll go for approval if it needs one.
+        </div>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <button onClick={() => onReportIssue && onReportIssue()} className="btn btn-outline">Report an issue</button>
+          <button onClick={() => onRequest && onRequest()} className="btn btn-primary">Request something</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600 }}>{st.tickets.length} ticket{st.tickets.length === 1 ? '' : 's'}</div>
+        <button onClick={onRefresh} style={textActionBtn}>↻ Refresh</button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {st.tickets.map((t) => (
+          <button key={t.id} onClick={() => setSelId(t.id)} className="tkt-row" style={{
+            ...TK.card, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
+            display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+                <TicketTypeBadge type={t.type} />
+                <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 }}>{t.ticket_number}</span>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
+              <TicketStatusBadge status={t.status} />
+              <span style={{ color: '#9A8E78', fontSize: 12 }}>{relativeTime(t.updated_at || t.created_at)}</span>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TicketDetailView({ id, onBack }) {
+  const [st, setSt] = React.useState({ loading: true, ticket: null, error: null });
+  React.useEffect(() => {
+    let off = false;
+    setSt({ loading: true, ticket: null, error: null });
+    ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
+      .then((j) => { if (!off) setSt({ loading: false, ticket: j, error: null }); })
+      .catch((e) => { if (!off) setSt({ loading: false, ticket: null, error: e.message }); });
+    return () => { off = true; };
+  }, [id]);
+
+  const t = st.ticket;
+  // Internal agent notes aren't for the requester — mirror the ticket system's
+  // is_internal contract and hide them here.
+  const comments = (t && Array.isArray(t.comments) ? t.comments : []).filter((c) => !c.is_internal);
+
+  return (
+    <div>
+      <button onClick={onBack} style={backLink}>← Back to my tickets</button>
+      {st.loading && <TicketsNotice title="Loading ticket…" />}
+      {st.error && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
+      {t && (
+        <>
+          <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <TicketTypeBadge type={t.type} />
+              <TicketStatusBadge status={t.status} />
+              <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
+            </div>
+            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 8px' }}>{t.subject}</h2>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+              {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
+              {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
+              {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
+            </div>
+            {t.description && (
+              <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{t.description}</p>
+            )}
+          </div>
+
+          <div style={{ ...TK.card, padding: '20px 24px' }}>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Activity</div>
+            {comments.length === 0 && <div style={{ fontSize: 13, color: '#9A8E78' }}>No updates from IT yet. You’ll see replies here as your ticket progresses.</div>}
+            {comments.map((c, i) => (
+              <div key={c.id || i} style={{ borderLeft: '3px solid #FDC831', padding: '4px 0 4px 14px', margin: i ? '14px 0 0' : 0 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                  <span style={{ fontWeight: 800, fontSize: 12.5, color: '#211E1E' }}>{c.author_name || 'IT Team'}</span>
+                  <span style={{ fontSize: 11, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
+                </div>
+                <div style={{ fontSize: 13.5, color: '#3A352C', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{c.body}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Approvals — requests waiting on the signed-in user (manager sign-off) ────
+function ApprovalsView({ refreshKey, onActed }) {
+  const [st, setSt] = React.useState({ loading: true, pending: [], error: null });
+  const [selId, setSelId] = React.useState(null);
+
+  React.useEffect(() => {
+    let off = false;
+    setSt((s) => ({ ...s, loading: true }));
+    ticketsApiJson('GET', '/api/approvals/pending')
+      .then((j) => { if (!off) setSt({ loading: false, pending: j.pending || [], error: null }); })
+      .catch((e) => { if (!off) setSt({ loading: false, pending: [], error: e.message }); });
+    return () => { off = true; };
+  }, [refreshKey]);
+
+  if (selId != null) {
+    return <ApprovalDetailView id={selId} onBack={() => setSelId(null)} onActed={() => { setSelId(null); onActed && onActed(); }} />;
+  }
+
+  if (st.loading) return <TicketsNotice title="Loading approvals…" />;
+  if (st.error) {
+    return <TicketsNotice title="Couldn’t load approvals" body={'The ticket service didn’t respond (' + st.error + ').'} />;
+  }
+  if (st.pending.length === 0) {
+    return <TicketsNotice
+      title="Nothing waiting for you"
+      body="When a request needs your sign-off, it’ll show up here. You can approve or reject it without leaving the hub." />;
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600, marginBottom: 2 }}>
+        {st.pending.length} request{st.pending.length === 1 ? '' : 's'} awaiting your approval
+      </div>
+      {st.pending.map((p) => (
+        <button key={p.request_id} onClick={() => setSelId(p.request_id)} style={{
+          ...TK.card, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
+          display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
+              <TicketTypeBadge type="service_request" />
+              <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 }}>{p.ticket_number}</span>
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.subject}</div>
+            <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3 }}>
+              {p.requester_name || 'Someone'} · {p.current_stage_name || p.workflow_name || 'Approval'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
+            <span style={{ color: '#9A8E78', fontSize: 12 }}>{relativeTime(p.requested_at)}</span>
+            <span aria-hidden="true" style={{ color: '#211E1E', fontWeight: 800 }}>→</span>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ApprovalDetailView({ id, onBack, onActed }) {
+  const [st, setSt] = React.useState({ loading: true, data: null, error: null });
+  const [comment, setComment] = React.useState('');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+
+  React.useEffect(() => {
+    let off = false;
+    setSt({ loading: true, data: null, error: null });
+    ticketsApiJson('GET', '/api/approvals/' + encodeURIComponent(id))
+      .then((j) => { if (!off) setSt({ loading: false, data: j, error: null }); })
+      .catch((e) => { if (!off) setSt({ loading: false, data: null, error: e.message }); });
+    return () => { off = true; };
+  }, [id]);
+
+  const respond = async (action) => {
+    setBusy(true); setErr('');
+    try {
+      await ticketsApiJson('POST', '/api/approvals/' + encodeURIComponent(id) + '/respond', { action, comment: comment.trim() });
+      onActed && onActed();
+    } catch (e) {
+      setErr(e.message || 'Couldn’t record your decision.');
+      setBusy(false);
+    }
+  };
+
+  const d = st.data;
+  const stages = (d && d.workflow && Array.isArray(d.workflow.stages)) ? d.workflow.stages : [];
+  const actions = (d && Array.isArray(d.actions)) ? d.actions : [];
+
+  return (
+    <div>
+      <button onClick={onBack} style={backLink}>← Back to approvals</button>
+      {st.loading && <TicketsNotice title="Loading request…" />}
+      {st.error && <TicketsNotice title="Couldn’t load this request" body={st.error} />}
+      {d && (
+        <>
+          <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <TicketTypeBadge type="service_request" />
+              {d.ticket && <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{d.ticket.ticket_number}</span>}
+            </div>
+            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 10px' }}>
+              {(d.ticket && d.ticket.subject) || (d.catalog_item && ('Request: ' + d.catalog_item.name)) || 'Request'}
+            </h2>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+              {d.ticket && <span>Requested by <b style={{ color: '#55503F' }}>{d.ticket.requester_name || 'Unknown'}</b></span>}
+              {d.current_stage && <span>Stage: <b style={{ color: '#55503F' }}>{d.current_stage.name}</b></span>}
+              {d.request && d.request.requested_at && <span>{relativeTime(d.request.requested_at)}</span>}
+            </div>
+            {d.catalog_item && d.catalog_item.description && (
+              <p style={{ marginTop: 14, fontSize: 14, color: '#211E1E', lineHeight: 1.55 }}>{d.catalog_item.description}</p>
+            )}
+          </div>
+
+          {stages.length > 0 && (
+            <div style={{ ...TK.card, padding: '16px 20px', marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Approval steps</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {stages.map((s, i) => {
+                  const cur = d.current_stage && (s.order === d.current_stage.order);
+                  return (
+                    <span key={i} style={{
+                      padding: '4px 10px', borderRadius: 999, fontSize: 11.5, fontWeight: 700,
+                      border: '1px solid #211E1E',
+                      background: cur ? '#FDC831' : '#FFFFFF', color: '#211E1E',
+                    }}>{i + 1}. {s.name}{s.type ? ' (' + s.type + ')' : ''}</span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {actions.length > 0 && (
+            <div style={{ ...TK.card, padding: '16px 20px', marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>History</div>
+              {actions.map((a, i) => (
+                <div key={i} style={{ fontSize: 13, color: '#3A352C', marginTop: i ? 8 : 0 }}>
+                  <b style={{ textTransform: 'capitalize' }}>{a.action || 'note'}</b>
+                  {(a.actor_name || a.hub_user_name || a.by) ? ' by ' + (a.actor_name || a.hub_user_name || a.by) : ''}
+                  {(a.created_at || a.at) ? ' · ' + relativeTime(a.created_at || a.at) : ''}
+                  {a.comment ? ' — ' + a.comment : ''}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ ...TK.card, padding: '20px 24px' }}>
+            {d.can_act ? (
+              <>
+                <label style={{ ...TK.label, marginTop: 0 }}>Comment (optional)</label>
+                <textarea style={{ ...TK.field, minHeight: 80, resize: 'vertical' }} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a note for the requester or the audit trail…" />
+                {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '12px 0 0' }}>{err}</p>}
+                <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'flex-end' }}>
+                  <button onClick={() => respond('reject')} disabled={busy} className="btn btn-outline" style={{ borderColor: '#B92323', color: '#B92323', boxShadow: '2px 2px 0 #B92323' }}>
+                    {busy ? '…' : 'Reject'}
+                  </button>
+                  <button onClick={() => respond('approve')} disabled={busy} className="btn btn-primary">
+                    {busy ? 'Saving…' : 'Approve'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5 }}>
+                You can’t act on this request right now — it may be on a different approval stage, already decided, or assigned to someone else.
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Request flow — browse the service catalog, fill the item's form, submit ──
+// Falls back to a freeform service_request when the catalog is empty/unreachable.
+function CatalogRequestModal({ onClose, onCreated }) {
+  const [view, setView] = React.useState('list'); // list | form | done | freeform
+  const [catalog, setCatalog] = React.useState(null); // null = loading
+  const [item, setItem] = React.useState(null);
+  const [itemBusy, setItemBusy] = React.useState(false);
+  const [responses, setResponses] = React.useState({});
+  const [justification, setJustification] = React.useState('');
+  const [urgency, setUrgency] = React.useState('medium');
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const [result, setResult] = React.useState(null);
+  const [ffSubject, setFfSubject] = React.useState('');
+  const [ffDesc, setFfDesc] = React.useState('');
+
+  React.useEffect(() => {
+    let off = false;
+    ticketsApiJson('GET', '/api/catalog')
+      .then((j) => {
+        if (off) return;
+        const items = (j.catalog || []).filter((c) => c.is_active !== false);
+        setCatalog(items);
+        if (items.length === 0) setView('freeform');
+      })
+      .catch(() => { if (!off) { setCatalog([]); setView('freeform'); } });
+    return () => { off = true; };
+  }, []);
+
+  const pickItem = async (it) => {
+    setItemBusy(true); setErr('');
+    try {
+      const j = await ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(it.id));
+      setItem(j.catalog_item || j);
+      setResponses({});
+      setJustification('');
+      setUrgency('medium');
+      setView('form');
+    } catch (e) {
+      setErr(e.message || 'Couldn’t open that item.');
+    } finally {
+      setItemBusy(false);
+    }
+  };
+
+  const fields = (item && Array.isArray(item.request_form_fields)) ? item.request_form_fields : [];
+
+  const submitCatalog = async () => {
+    for (const f of fields) {
+      const v = responses[f.key];
+      if (f.required && (v == null || String(v).trim() === '')) {
+        setErr('Please fill in “' + (f.label || f.key) + '”.');
+        return;
+      }
+    }
+    setBusy(true); setErr('');
+    try {
+      const t = await ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
+        justification, urgency, form_responses: responses,
+      });
+      setResult(t); setView('done'); onCreated && onCreated();
+    } catch (e) {
+      const ve = e.data && e.data.validation_errors;
+      setErr(ve && ve.length ? ve.map((x) => x.message || (x.field + ': ' + x.error)).join(' ') : (e.message || 'Couldn’t submit your request.'));
+      setBusy(false);
+    }
+  };
+
+  const submitFreeform = async () => {
+    if (!ffSubject.trim()) { setErr('Please add a short summary of what you need.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const t = await ticketsApiJson('POST', '/api/tickets', {
+        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
+      });
+      setResult(t); setView('done'); onCreated && onCreated();
+    } catch (e) {
+      setErr(e.message || 'Couldn’t submit your request.');
+      setBusy(false);
+    }
+  };
+
+  const setResp = (key, val) => setResponses((r) => ({ ...r, [key]: val }));
+
+  // Success
+  if (view === 'done') {
+    const pending = result && String(result.status || '').toLowerCase() === 'pending';
+    return (
+      <ModalShell title="Request submitted" kicker="Service request" onClose={onClose} maxWidth={620}>
+        <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 8px', lineHeight: 1.55 }}>
+          Your request <strong>{result && (result.ticket_number || result.id)}</strong> is in.
+        </p>
+        <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 22px', lineHeight: 1.55 }}>
+          {pending
+            ? 'It needs an approval before it can be fulfilled — you’ll be notified once it’s decided, and you can track it under My Tickets.'
+            : 'You can track its progress any time under My Tickets.'}
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-primary" onClick={onClose}>Done</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  // Freeform fallback
+  if (view === 'freeform') {
+    return (
+      <ModalShell title="Request something" kicker={catalog && catalog.length ? 'Custom request' : 'Service request'} onClose={onClose} maxWidth={620}>
+        <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 4px', lineHeight: 1.5 }}>
+          Tell us what you need access to — an app, a service, hardware, or anything else. IT will pick it up.
+        </p>
+        <label style={TK.label}>What do you need?</label>
+        <input style={TK.field} value={ffSubject} onChange={(e) => setFfSubject(e.target.value)} placeholder="e.g. Access to Figma" autoFocus />
+        <label style={TK.label}>Any details? (optional)</label>
+        <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
+        {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
+          {catalog && catalog.length > 0 && <button className="btn btn-outline" onClick={() => { setErr(''); setView('list'); }} disabled={busy}>← Catalog</button>}
+          <button className="btn btn-primary" onClick={submitFreeform} disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  // Item form
+  if (view === 'form' && item) {
+    return (
+      <ModalShell title={item.name} kicker="Service request" onClose={onClose} maxWidth={680}>
+        <button onClick={() => { setErr(''); setView('list'); }} style={{ ...backLink, marginTop: 0 }}>← All items</button>
+        {item.description && <p style={{ fontSize: 13.5, color: '#55503F', margin: '0 0 6px', lineHeight: 1.5 }}>{item.description}</p>}
+        {item.approval_required && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px', background: '#FFEFDD', color: '#9A4A00', border: '1px solid #9A4A00', borderRadius: 999, fontSize: 11, fontWeight: 800, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 4 }}>
+            Needs approval
+          </div>
+        )}
+        {fields.map((f) => (
+          <div key={f.key}>
+            <label style={TK.label}>{f.label || f.key}{f.required ? ' *' : ''}</label>
+            <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} />
+          </div>
+        ))}
+        <label style={TK.label}>Justification (optional)</label>
+        <textarea style={{ ...TK.field, minHeight: 70, resize: 'vertical' }} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="Why you need this…" />
+        <label style={TK.label}>Urgency</label>
+        <select style={TK.field} value={urgency} onChange={(e) => setUrgency(e.target.value)}>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+        {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
+        <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
+          <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn btn-primary" onClick={submitCatalog} disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  // Catalog list
+  return (
+    <ModalShell title="Request something" kicker="Service catalog — access to apps & services" onClose={onClose} maxWidth={760}>
+      {catalog === null && <div style={{ padding: '24px 4px', color: '#78684C', fontSize: 14 }}>Loading the catalog…</div>}
+      {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
+      {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '0 0 12px' }}>{err}</p>}
+      {catalog && catalog.length > 0 && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+            {catalog.map((it) => (
+              <button key={it.id} onClick={() => pickItem(it)} disabled={itemBusy} style={{
+                ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '14px 16px',
+                display: 'flex', flexDirection: 'column', gap: 6, minHeight: 96,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                  {it.icon_url
+                    ? <img src={it.icon_url} alt="" width="26" height="26" style={{ borderRadius: 6, objectFit: 'contain' }} />
+                    : <span style={{ width: 26, height: 26, borderRadius: 6, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif", fontSize: 13 }}>{String(it.name || '?').charAt(0)}</span>}
+                  <span style={{ fontWeight: 800, fontSize: 14, color: '#211E1E', letterSpacing: '-0.01em' }}>{it.name}</span>
+                </div>
+                {it.description && <span style={{ fontSize: 12, color: '#78684C', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{it.description}</span>}
+                <span style={{ marginTop: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  {it.category_name && <span style={{ fontSize: 10.5, color: '#9A8E78', fontWeight: 600 }}>{it.category_name}</span>}
+                  {it.approval_required && <span style={{ fontSize: 9.5, color: '#9A4A00', fontWeight: 800, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>· Needs approval</span>}
+                </span>
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: 16, fontSize: 12.5, color: '#78684C' }}>
+            Don’t see what you need? <button onClick={() => { setErr(''); setView('freeform'); }} style={textActionBtn}>Make a custom request →</button>
+          </div>
+        </>
+      )}
+    </ModalShell>
+  );
+}
+
+// One catalog form field → the right input for its declared type.
+function CatalogField({ field, value, onChange }) {
+  const type = String(field.type || 'text').toLowerCase();
+  if (type === 'select') {
+    return (
+      <select style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Choose…</option>
+        {(field.options || []).map((o) => {
+          const v = typeof o === 'string' ? o : (o.value != null ? o.value : o.label);
+          const l = typeof o === 'string' ? o : (o.label != null ? o.label : o.value);
+          return <option key={String(v)} value={v}>{l}</option>;
+        })}
+      </select>
+    );
+  }
+  if (type === 'textarea') {
+    return <textarea style={{ ...TK.field, minHeight: 80, resize: 'vertical' }} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
+  }
+  if (type === 'boolean' || type === 'checkbox') {
+    return (
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#211E1E', cursor: 'pointer' }}>
+        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} style={{ width: 16, height: 16 }} />
+        Yes
+      </label>
+    );
+  }
+  const inputType = type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
+  return <input type={inputType} style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
+}
+
+// Small shared button styles for the ticket surfaces.
+const backLink = { background: 'none', border: 'none', padding: 0, marginBottom: 16, color: '#B92323', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-block' };
+const textActionBtn = { background: 'none', border: 'none', padding: 0, color: '#B92323', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' };
 
 // ============================================================================
 // EXPORT
