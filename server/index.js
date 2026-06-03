@@ -219,21 +219,40 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
     if (!isAdmin && data.requester_id != null && String(data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
-    // The ticket payload doesn't reliably inline attachments, so best-effort
-    // fetch the ticket's attachment list (the GET counterpart of the upload
-    // route) and merge it in — that's how files added here OR in the ticketing
-    // system (e.g. stored in Google Drive) show up in the portal. Tolerate the
-    // endpoint not existing.
-    if (!Array.isArray(data.attachments) || data.attachments.length === 0) {
-      try {
-        const att = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
-        if (att.ok) {
-          const list = Array.isArray(att.data) ? att.data
-            : (att.data && Array.isArray(att.data.attachments) ? att.data.attachments : null);
-          if (list && list.length) data.attachments = list;
-        }
-      } catch { /* no attachment-list endpoint — leave as-is */ }
+    // Attachments aren't reliably inlined on the ticket payload (the module API
+    // docs don't specify a read shape). Best-effort probe the attachment-list
+    // endpoint (GET counterpart of the upload route) and merge it in — that's how
+    // files added here OR in the ticketing system (e.g. Google Drive) reach the
+    // portal. Also attach a compact, sanitized _attDebug so we can see exactly
+    // what the module exposes and finalise the preview mapping. (Temporary.)
+    let probe = null;
+    try {
+      const att = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
+      const list = Array.isArray(att.data) ? att.data
+        : (att.data && Array.isArray(att.data.attachments) ? att.data.attachments : null);
+      probe = { status: att.status, isArray: Array.isArray(att.data), len: list ? list.length : null };
+      if (list && list.length && (!Array.isArray(data.attachments) || !data.attachments.length)) {
+        data.attachments = list;
+      }
+    } catch (e) {
+      probe = { error: e.message };
     }
+    const sanitize = (o) => {
+      if (!o || typeof o !== 'object') return o;
+      const c = {};
+      for (const k of Object.keys(o)) {
+        if (/base64|content|bytes|payload/i.test(k)) { c[k] = '[omitted]'; continue; }
+        const v = o[k];
+        c[k] = (typeof v === 'string' && v.length > 160) ? v.slice(0, 160) + '…' : v;
+      }
+      return c;
+    };
+    const firstAtt = Array.isArray(data.attachments) ? data.attachments[0] : null;
+    data._attDebug = {
+      inlineKeys: Object.keys(data).filter((k) => /attach|file|upload/i.test(k)),
+      probe,
+      sample: sanitize(firstAtt),
+    };
     res.json(data);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.get');

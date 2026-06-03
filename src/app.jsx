@@ -8617,6 +8617,33 @@ function catalogItemsFrom(j) {
   return arr.filter((c) => c && c.is_active !== false);
 }
 
+function isImageAttachment(a, name) {
+  const mt = String((a && (a.mime_type || a.content_type || a.type)) || '').toLowerCase();
+  if (mt.startsWith('image/')) return true;
+  return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)$/i.test(String(name || ''));
+}
+
+// One attachment — an inline image preview that opens full on click, or a
+// download/open chip for non-images. If the image URL can't render (cross-origin
+// or not a direct image, e.g. a Drive viewer link), it falls back to the chip.
+function AttachmentItem({ name, url, size, isImage }) {
+  const [imgErr, setImgErr] = React.useState(false);
+  const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
+  if (isImage && url && !imgErr) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer" title={name} style={{ display: 'inline-block', border: '1px solid #211E1E', borderRadius: 8, overflow: 'hidden', background: '#FFFDF4', boxShadow: '2px 2px 0 #211E1E', maxWidth: 260 }}>
+        <img src={url} alt={name} onError={() => setImgErr(true)} style={{ display: 'block', maxWidth: 260, maxHeight: 200, objectFit: 'cover' }} />
+        <span style={{ display: 'block', padding: '5px 9px', fontSize: 11.5, color: '#211E1E', borderTop: '1px solid #211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      </a>
+    );
+  }
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 11px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none', boxShadow: '2px 2px 0 #211E1E' };
+  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{size != null && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#B92323', fontWeight: 800, fontSize: 11 }}>OPEN →</span>}</>;
+  return url
+    ? <a href={url} target="_blank" rel="noopener noreferrer" style={chip}>{inner}</a>
+    : <span style={chip} title="Open this attachment from the ticket in SliceDesk">{inner}</span>;
+}
+
 // Reusable file picker — a button + a chip list of staged files. Files aren't
 // uploaded here; the parent uploads them after the ticket/comment is created.
 function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' }) {
@@ -8994,20 +9021,26 @@ function TicketDetailView({ id, onBack }) {
             )}
           </div>
 
-          {/* Attachments on the ticket — from the portal or the ticketing system. */}
+          {/* Attachments on the ticket — image previews + download chips, from
+              the portal or the ticketing system. */}
           {attachments.length > 0 && (
             <div style={{ ...TK.card, padding: '18px 24px', marginBottom: 14 }}>
               <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Attachments ({attachments.length})</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' }}>
                 {attachments.map((a, i) => {
-                  const url = attUrl(a); const name = attName(a); const size = attSize(a);
-                  const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none' };
-                  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{size != null && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}</>;
-                  return url
-                    ? <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={chip}>{inner}</a>
-                    : <span key={i} style={chip} title="Open this attachment from the ticket in SliceDesk">{inner}</span>;
+                  const name = attName(a);
+                  return <AttachmentItem key={i} name={name} url={attUrl(a)} size={attSize(a)} isImage={isImageAttachment(a, name)} />;
                 })}
               </div>
+            </div>
+          )}
+
+          {/* Temporary diagnostics — only when nothing previewed — so we can map
+              the ticket module's (undocumented) attachment read shape exactly. */}
+          {t._attDebug && (attachments.length === 0 || !attachments.some((a) => attUrl(a))) && (
+            <div style={{ ...TK.card, padding: '12px 16px', marginBottom: 14 }}>
+              <div style={{ fontSize: 11.5, color: '#9A4A00', fontWeight: 800, marginBottom: 4 }}>Attachment diagnostics (temporary)</div>
+              <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11, color: '#55503F', wordBreak: 'break-all', display: 'block', lineHeight: 1.5 }}>{JSON.stringify(t._attDebug)}</code>
             </div>
           )}
 
