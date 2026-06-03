@@ -256,6 +256,39 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
   }
 });
 
+// Attach a file to a ticket (a screenshot, a doc — used by the issue, service
+// request, and reply flows). The browser sends the file base64-encoded; we
+// forward it to the ticketing system, attributed to the signed-in user. Gated to
+// the ticket's requester (or admin), same as replies. The JSON body limit
+// (20mb) caps a single file at ~14MB after base64; the client keeps files under
+// that.
+app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  const { file_name, mime_type, content_base64 } = req.body ?? {};
+  if (!file_name || !content_base64) {
+    return res.status(400).json({ error: 'file_name and content_base64 are required.' });
+  }
+  try {
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
+    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/attachments`, {
+      file_name: String(file_name).slice(0, 255),
+      mime_type: mime_type || 'application/octet-stream',
+      content_base64,
+      uploaded_by: u.id,
+      uploaded_by_name: u.name,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.attachment');
+  }
+});
+
 // Service catalog — the "request something" path (access to an app / service).
 app.get('/api/catalog', requireSliceUser, async (req, res) => {
   try {

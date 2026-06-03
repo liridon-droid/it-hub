@@ -931,15 +931,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         </div>
       </div>
 
-      {/* Your tickets — recent issues & requests raised from the hub, with a
-          jump into the full Tickets page (My Tickets + Approvals). */}
-      <div style={{
-        maxWidth: 1120, margin: "24px auto 0",
-        animation: "fadeUp .8s .32s var(--ease) both",
-      }}>
-        <MyTicketsStrip onOpen={onOpenTickets} />
-      </div>
-
       {/* Below fold: quick-access grid */}
       <div style={{
         maxWidth: 1120, margin: "96px auto 0",
@@ -2866,14 +2857,14 @@ function App() {
     : stage === "offboarding" ? "Offboarding"
     : stage === "knowledge" ? "Knowledge"
     : stage === "status" ? "Status"
-    : stage === "tickets" ? "Tickets"
+    : stage === "tickets" ? "My Tickets"
     : "Help";
   const onNavigate = (label) => {
     if (label === "Onboarding") setStage("onboarding");
     else if (label === "Offboarding") setStage("offboarding");
     else if (label === "Knowledge") setStage("knowledge");
     else if (label === "Status") setStage("status");
-    else if (label === "Tickets") setStage("tickets");
+    else if (label === "My Tickets") openTickets("mine");
     else if (label === "Help") goHome();
   };
 
@@ -4876,9 +4867,9 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
   const active = activeProp || activeLocal;
   // Onboarding + Offboarding are hidden for now — those features are still WIP.
   // To restore: add "Onboarding", "Offboarding" back into this list.
-  // Tickets/Approvals live in the account menu (UserMenu) + the Help page's IT
-  // Support card, not here — keeps the top nav to the three marketing surfaces.
-  const links = ["Help", "Knowledge", "Status"];
+  // "My Tickets" jumps to the tickets page; Approvals also lives in the account
+  // menu (UserMenu).
+  const links = ["Help", "Knowledge", "Status", "My Tickets"];
   return (
     <nav style={{
       position: "sticky", top: 0, zIndex: 50,
@@ -8417,22 +8408,26 @@ function NewTicketModal({ onClose, draft = {} }) {
   const [description, setDescription] = React.useState(draft.description || "");
   const [type, setType] = React.useState(draft.type || "incident");
   const [priority, setPriority] = React.useState(draft.priority || "medium");
+  const [attachFiles, setAttachFiles] = React.useState([]);
   const [busy, setBusy] = React.useState(false);
+  const [busyLabel, setBusyLabel] = React.useState("Submitting…");
   const [result, setResult] = React.useState(null);
+  const [attachWarn, setAttachWarn] = React.useState("");
   const [error, setError] = React.useState("");
   const who = (typeof window !== "undefined" && window.PORTAL_CURRENT_USER) || "";
 
   const submit = async () => {
     if (!subject.trim()) { setError("Please add a short subject."); return; }
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setAttachWarn(""); setBusyLabel("Submitting…");
     try {
-      const r = await fetch("/api/tickets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: subject.trim(), description: description.trim(), type, priority }),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error || "Couldn't create the ticket.");
+      // Create the ticket first, then attach files to it (attachments need the
+      // ticket id). A failed upload doesn't lose the ticket — we just warn.
+      const data = await ticketsApiJson("POST", "/api/tickets", { subject: subject.trim(), description: description.trim(), type, priority });
+      if (attachFiles.length && (data.id || data.ticket_number)) {
+        setBusyLabel("Uploading attachments…");
+        try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
+        catch (e) { setAttachWarn("Your ticket was created, but an attachment didn’t upload: " + (e.message || "error") + ". You can re-add it from the ticket."); }
+      }
       setResult(data);
     } catch (e) {
       setError(e.message || "Couldn't create the ticket.");
@@ -8461,6 +8456,7 @@ function NewTicketModal({ onClose, draft = {} }) {
         <p style={{ fontSize: 15, color: "#211E1E", margin: "0 0 22px", lineHeight: 1.5 }}>
           Your ticket <strong>{result.ticket_number || result.id}</strong> has been created with the IT Team — you'll get updates as it progresses.
         </p>
+        {attachWarn && <p style={{ fontSize: 13, color: "#9A4A00", margin: "0 0 18px", lineHeight: 1.5 }}>{attachWarn}</p>}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
           <button className="tkt-btn is-primary" onClick={onClose}>Done</button>
         </div>
@@ -8493,13 +8489,15 @@ function NewTicketModal({ onClose, draft = {} }) {
           </select>
         </div>
       </div>
+      <label style={label}>Attachments <span style={{ fontWeight: 500, color: "#9A8E78" }}>(optional — screenshots, docs)</span></label>
+      <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
       {error && <p style={{ color: "#B92323", fontSize: 13.5, margin: "16px 0 0" }}>{error}</p>}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 24 }}>
         {who && <span style={{ fontSize: 12.5, color: "#78684C", fontWeight: 600 }}>Submitting as {who}</span>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <button className="tkt-btn is-secondary" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="tkt-btn is-primary" onClick={submit} disabled={busy}>
-            {busy ? "Submitting…" : "Submit ticket"}
+            {busy ? busyLabel : "Submit ticket"}
           </button>
         </div>
       </div>
@@ -8544,6 +8542,88 @@ async function ticketsApiJson(method, path, body) {
     throw e;
   }
   return data;
+}
+
+// Per-file cap. The server's JSON body limit is 20mb; base64 inflates ~4/3, so
+// we keep files under ~14MB. 12MB is a safe round number.
+const MAX_ATTACH_BYTES = 12 * 1024 * 1024;
+
+// Read a File into the ticket module's attachment shape (strips the data: URL
+// prefix so content_base64 is the bare base64 payload).
+function fileToAttachment(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const out = String(reader.result || '');
+      const comma = out.indexOf(',');
+      resolve({
+        file_name: file.name,
+        mime_type: file.type || 'application/octet-stream',
+        content_base64: comma >= 0 ? out.slice(comma + 1) : out,
+      });
+    };
+    reader.onerror = () => reject(new Error('Couldn’t read ' + file.name));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Upload a list of Files to a ticket, one at a time (the API takes one per call).
+async function uploadAttachments(ticketId, files) {
+  for (const f of files || []) {
+    const att = await fileToAttachment(f);
+    await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(ticketId) + '/attachments', att);
+  }
+}
+
+function fmtBytes(n) {
+  if (n == null) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+
+// Reusable file picker — a button + a chip list of staged files. Files aren't
+// uploaded here; the parent uploads them after the ticket/comment is created.
+function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' }) {
+  const inputRef = React.useRef(null);
+  const [err, setErr] = React.useState('');
+  const add = (list) => {
+    const incoming = Array.from(list || []);
+    const tooBig = incoming.find((f) => f.size > MAX_ATTACH_BYTES);
+    if (tooBig) { setErr('“' + tooBig.name + '” is over 12 MB — attach a smaller file.'); return; }
+    setErr('');
+    onChange([...(files || []), ...incoming]);
+  };
+  return (
+    <div>
+      <input ref={inputRef} type="file" multiple style={{ display: 'none' }}
+        onChange={(e) => { add(e.target.files); e.target.value = ''; }} />
+      <button type="button" disabled={disabled} onClick={() => inputRef.current && inputRef.current.click()} style={{
+        display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 13px',
+        background: '#FFFFFF', color: '#211E1E', border: '1px solid #211E1E', borderRadius: 7,
+        boxShadow: '2px 2px 0 #211E1E', cursor: disabled ? 'default' : 'pointer',
+        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: '0.03em', textTransform: 'uppercase',
+        opacity: disabled ? 0.55 : 1,
+      }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>
+        {label}
+      </button>
+      {(files || []).length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          {files.map((f, i) => (
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 8px 5px 10px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', maxWidth: 280 }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+              <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(f.size)}</span>
+              {!disabled && (
+                <button type="button" onClick={() => onChange(files.filter((_, j) => j !== i))} aria-label={'Remove ' + f.name} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#B92323', fontWeight: 900, fontSize: 13, lineHeight: 1 }}>✕</button>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+      {err && <p style={{ color: '#B92323', fontSize: 12.5, marginTop: 6 }}>{err}</p>}
+    </div>
+  );
 }
 
 // open / pending / resolved … → label + colours.
@@ -8639,73 +8719,17 @@ function TicketsNotice({ title, body, action, onAction }) {
   );
 }
 
-// ── Landing strip — recent tickets + a jump into the full page ───────────────
-function MyTicketsStrip({ onOpen }) {
-  const [st, setSt] = React.useState({ loading: true, tickets: null, error: null });
-  React.useEffect(() => {
-    let off = false;
-    ticketsApiJson('GET', '/api/tickets')
-      .then((j) => { if (!off) setSt({ loading: false, tickets: j.tickets || [], error: null }); })
-      .catch((e) => { if (!off) setSt({ loading: false, tickets: null, error: e.message }); });
-    return () => { off = true; };
-  }, []);
-
-  const all = st.tickets || [];
-  const list = all.slice(0, 4);
-  const open = all.filter((t) => !['resolved', 'closed', 'cancelled'].includes(String(t.status || '').toLowerCase())).length;
-  const subtitle = st.loading ? 'Loading…'
-    : (!st.error && all.length) ? (open + ' open · ' + all.length + ' total')
-    : 'Issues & requests you’ve raised';
-
+// Sticky back bar for the ticket/approval detail views — uses the standard
+// .kb-back-btn (same as Profile/Notifications) and stays pinned to the top of
+// the scroll area while you read down a long ticket, like the guides do.
+// The yellow band matches the page background so cards scroll cleanly behind it.
+function TicketsBackBar({ onBack, label }) {
   return (
-    <div style={{ ...TK.card, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '14px 18px', borderBottom: '1px solid #211E1E', background: '#FFFDF4' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 11, minWidth: 0 }}>
-          <span style={{ width: 30, height: 30, borderRadius: 8, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
-            <IconTicket size={16} stroke={2.2} />
-          </span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 14, color: '#211E1E', letterSpacing: '-0.01em' }}>Your tickets</div>
-            <div style={{ fontSize: 11.5, color: '#78684C', fontWeight: 600 }}>{subtitle}</div>
-          </div>
-        </div>
-        <button onClick={onOpen} className="btn btn-outline" style={{ whiteSpace: 'nowrap' }}>Open my tickets →</button>
-      </div>
-
-      {st.loading && <div style={{ padding: '18px', color: '#78684C', fontSize: 13 }}>Loading your tickets…</div>}
-
-      {!st.loading && st.error && (
-        <div style={{ padding: '16px 18px', color: '#78684C', fontSize: 13, lineHeight: 1.5 }}>
-          We couldn’t load your tickets here. Open the tickets page to try again.
-        </div>
-      )}
-
-      {!st.loading && !st.error && list.length === 0 && (
-        <div style={{ padding: '18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 13, color: '#55503F', lineHeight: 1.5 }}>No tickets yet — report an issue, or request access to an app or service.</div>
-          <button onClick={onOpen} className="btn btn-primary" style={{ whiteSpace: 'nowrap' }}>Get started</button>
-        </div>
-      )}
-
-      {!st.loading && !st.error && list.length > 0 && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <tbody>
-            {list.map((t, i) => (
-              <tr key={t.id}
-                  onClick={onOpen}
-                  style={{ cursor: 'pointer', borderTop: i ? '1px solid #EFEAE0' : 'none' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#FFFBEF'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-                <td style={{ padding: '11px 18px', whiteSpace: 'nowrap', color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 }}>{t.ticket_number}</td>
-                <td style={{ padding: '11px 8px', fontWeight: 600, color: '#211E1E', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</td>
-                <td style={{ padding: '11px 8px', whiteSpace: 'nowrap' }}><TicketTypeBadge type={t.type} /></td>
-                <td style={{ padding: '11px 8px', whiteSpace: 'nowrap' }}><TicketStatusBadge status={t.status} small /></td>
-                <td style={{ padding: '11px 18px', whiteSpace: 'nowrap', color: '#9A8E78', fontSize: 11.5, textAlign: 'right' }}>{relativeTime(t.updated_at || t.created_at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+    <div style={{ position: 'sticky', top: 0, zIndex: 6, background: '#FDC831', padding: '8px 0 12px', marginBottom: 6 }}>
+      <button onClick={onBack} className="kb-back-btn">
+        <span className="kb-back-arrow">←</span>
+        {label}
+      </button>
     </div>
   );
 }
@@ -8746,7 +8770,21 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
               <button onClick={() => setCatalogOpen(true)} className="btn btn-primary">Request something</button>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 24 }}>
+          <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+            <style>{`
+              .tkt-tab { padding:9px 18px; border-radius:8px; cursor:pointer; border:1px solid #211E1E;
+                font-family:'Archivo',sans-serif; font-weight:800; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase;
+                display:inline-flex; align-items:center; gap:7px;
+                transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1), background .12s ease, color .12s ease; }
+              /* Idle: white button, charcoal hard-shadow. */
+              .tkt-tab.is-idle { background:#FFFFFF; color:#211E1E; box-shadow:2px 2px 0 #211E1E; }
+              .tkt-tab.is-idle:hover { transform:translate(-2px,-2px); box-shadow:4px 4px 0 #211E1E; }
+              .tkt-tab.is-idle:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+              /* Active: charcoal button, CHEESE shadow so the offset actually shows. */
+              .tkt-tab.is-active { background:#211E1E; color:#FDC831; box-shadow:3px 3px 0 #FDC831; }
+              .tkt-tab.is-active:hover { transform:translate(-2px,-2px); box-shadow:5px 5px 0 #FDC831; }
+              .tkt-tab.is-active:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #FDC831; }
+            `}</style>
             <TicketsTab label="My tickets" active={tab === 'mine'} onClick={() => setTab('mine')} />
             <TicketsTab label="Approvals" active={tab === 'approvals'} onClick={() => setTab('approvals')} badge={pendingCount} />
           </div>
@@ -8768,14 +8806,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
 
 function TicketsTab({ label, active, onClick, badge }) {
   return (
-    <button onClick={onClick} style={{
-      padding: '8px 16px', borderRadius: 8, cursor: 'pointer',
-      fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12.5, letterSpacing: '0.03em', textTransform: 'uppercase',
-      background: active ? '#211E1E' : '#FFFFFF', color: active ? '#FDC831' : '#211E1E',
-      border: '1px solid #211E1E', boxShadow: active ? '2px 2px 0 #211E1E' : 'none',
-      display: 'inline-flex', alignItems: 'center', gap: 7,
-      transition: 'transform .12s ease, box-shadow .12s ease',
-    }}>
+    <button type="button" onClick={onClick} className={'tkt-tab ' + (active ? 'is-active' : 'is-idle')}>
       {label}
       {badge != null && badge > 0 && (
         <span style={{ minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center', background: active ? '#FDC831' : '#B92323', color: active ? '#211E1E' : '#FFFFFF', borderRadius: 999, fontSize: 10, fontWeight: 900 }}>{badge}</span>
@@ -8855,12 +8886,13 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
 function TicketDetailView({ id, onBack }) {
   const [st, setSt] = React.useState({ loading: true, ticket: null, error: null });
   const [reply, setReply] = React.useState('');
+  const [replyFiles, setReplyFiles] = React.useState([]);
   const [sending, setSending] = React.useState(false);
   const [replyErr, setReplyErr] = React.useState('');
   const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
 
-  // Reusable load so we can refetch after posting a reply (the new comment, plus
-  // anything IT added since, comes back from the ticketing system).
+  // Reusable load so we can refetch after a reply — the new comment/attachment,
+  // plus anything IT added since, comes back from the ticketing system.
   const load = React.useCallback(() => {
     return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
       .then((j) => setSt({ loading: false, ticket: j, error: null }))
@@ -8871,11 +8903,16 @@ function TicketDetailView({ id, onBack }) {
 
   const send = async () => {
     const body = reply.trim();
-    if (!body) return;
+    if (!body && replyFiles.length === 0) return;
     setSending(true); setReplyErr('');
+    const commentBody = body || ('Added ' + (replyFiles.length > 1 ? 'attachments' : 'an attachment') + ': ' + replyFiles.map((f) => f.name).join(', '));
     try {
-      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', { body });
-      setReply('');
+      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', { body: commentBody });
+      if (replyFiles.length) {
+        try { await uploadAttachments(id, replyFiles); }
+        catch (e) { setReplyErr('Reply sent, but an attachment didn’t upload: ' + (e.message || 'error') + '.'); }
+      }
+      setReply(''); setReplyFiles([]);
       await load();
     } catch (e) {
       setReplyErr(e.message || 'Couldn’t send your reply.');
@@ -8888,10 +8925,17 @@ function TicketDetailView({ id, onBack }) {
   // Internal agent notes aren't for the requester — mirror the ticket system's
   // is_internal contract and hide them here.
   const comments = (t && Array.isArray(t.comments) ? t.comments : []).filter((c) => !c.is_internal);
+  // Attachments on the ticket — uploaded from here OR added on the ticketing
+  // system side. Field names vary, so read them defensively.
+  const attachments = (t && Array.isArray(t.attachments)) ? t.attachments : [];
+  const attName = (a) => a.file_name || a.name || a.filename || 'attachment';
+  const attUrl = (a) => { const u = a.url || a.download_url || a.file_url || a.href; return (typeof u === 'string' && /^https?:\/\//.test(u)) ? u : null; };
+  const attSize = (a) => (a.file_size != null ? a.file_size : (a.size != null ? a.size : a.bytes));
+  const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
 
   return (
     <div>
-      <button onClick={onBack} style={backLink}>← Back to my tickets</button>
+      <TicketsBackBar onBack={onBack} label="Back to my tickets" />
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
       {t && (
@@ -8913,6 +8957,23 @@ function TicketDetailView({ id, onBack }) {
             )}
           </div>
 
+          {/* Attachments on the ticket — from the portal or the ticketing system. */}
+          {attachments.length > 0 && (
+            <div style={{ ...TK.card, padding: '18px 24px', marginBottom: 14 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Attachments ({attachments.length})</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {attachments.map((a, i) => {
+                  const url = attUrl(a); const name = attName(a); const size = attSize(a);
+                  const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none' };
+                  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{size != null && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}</>;
+                  return url
+                    ? <a key={i} href={url} target="_blank" rel="noopener noreferrer" style={chip}>{inner}</a>
+                    : <span key={i} style={chip} title="Open this attachment from the ticket in SliceDesk">{inner}</span>;
+                })}
+              </div>
+            </div>
+          )}
+
           <div style={{ ...TK.card, padding: '20px 24px' }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
             {comments.length === 0 && (
@@ -8931,7 +8992,8 @@ function TicketDetailView({ id, onBack }) {
               );
             })}
 
-            {/* Reply composer — posts a public comment to the ticket in SliceDesk. */}
+            {/* Reply composer — posts a public comment (and any attachments) to the
+                ticket in SliceDesk. */}
             <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
               <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
               <textarea
@@ -8940,10 +9002,13 @@ function TicketDetailView({ id, onBack }) {
                 onChange={(e) => setReply(e.target.value)}
                 onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
                 placeholder="Write a message to the IT Team…" />
+              <div style={{ marginTop: 10 }}>
+                <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
+              </div>
               {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '8px 0 0' }}>{replyErr}</p>}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
                 <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
-                <button onClick={send} disabled={sending || !reply.trim()} className="btn btn-primary">{sending ? 'Sending…' : 'Send reply'}</button>
+                <button onClick={send} disabled={sending || (!reply.trim() && replyFiles.length === 0)} className="btn btn-primary">{sending ? 'Sending…' : 'Send reply'}</button>
               </div>
             </div>
           </div>
@@ -9043,7 +9108,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 
   return (
     <div>
-      <button onClick={onBack} style={backLink}>← Back to approvals</button>
+      <TicketsBackBar onBack={onBack} label="Back to approvals" />
       {st.loading && <TicketsNotice title="Loading request…" />}
       {st.error && <TicketsNotice title="Couldn’t load this request" body={st.error} />}
       {d && (
@@ -9141,6 +9206,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
   const [result, setResult] = React.useState(null);
   const [ffSubject, setFfSubject] = React.useState('');
   const [ffDesc, setFfDesc] = React.useState('');
+  const [attachFiles, setAttachFiles] = React.useState([]);
+  const [attachWarn, setAttachWarn] = React.useState('');
 
   const pickItem = React.useCallback(async (it) => {
     setItemBusy(true); setErr('');
@@ -9192,6 +9259,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
       const t = await ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
         justification, urgency, form_responses: responses,
       });
+      if (attachFiles.length && (t.id || t.ticket_number)) {
+        try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
+        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); }
+      }
       setResult(t); setView('done'); onCreated && onCreated();
     } catch (e) {
       const ve = e.data && e.data.validation_errors;
@@ -9207,6 +9278,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
       const t = await ticketsApiJson('POST', '/api/tickets', {
         subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
       });
+      if (attachFiles.length && (t.id || t.ticket_number)) {
+        try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
+        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); }
+      }
       setResult(t); setView('done'); onCreated && onCreated();
     } catch (e) {
       setErr(e.message || 'Couldn’t submit your request.');
@@ -9229,6 +9304,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
             ? 'It needs an approval before it can be fulfilled — you’ll be notified once it’s decided, and you can track it under My Tickets.'
             : 'You can track its progress any time under My Tickets.'}
         </p>
+        {attachWarn && <p style={{ fontSize: 13, color: '#9A4A00', margin: '0 0 18px', lineHeight: 1.5 }}>{attachWarn}</p>}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button className="btn btn-primary" onClick={onClose}>Done</button>
         </div>
@@ -9247,6 +9323,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
         <input style={TK.field} value={ffSubject} onChange={(e) => setFfSubject(e.target.value)} placeholder="e.g. Access to Figma" autoFocus />
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
+        <label style={TK.label}>Attachments (optional)</label>
+        <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
           {catalog && catalog.length > 0 && <button className="btn btn-outline" onClick={() => { setErr(''); setView('list'); }} disabled={busy}>← Catalog</button>}
@@ -9281,6 +9359,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
           <option value="medium">Medium</option>
           <option value="high">High</option>
         </select>
+        <label style={TK.label}>Attachments (optional)</label>
+        <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
