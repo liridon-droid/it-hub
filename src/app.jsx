@@ -8722,19 +8722,19 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
 function ticketStatusMeta(status) {
   const s = String(status || '').toLowerCase();
   const map = {
-    open:        { label: 'Open',        bg: '#E3EEFB', fg: '#1A4E8A' },
-    new:         { label: 'New',         bg: '#E3EEFB', fg: '#1A4E8A' },
-    in_progress: { label: 'In progress', bg: '#FFF3D6', fg: '#7A5A00' },
-    pending:     { label: 'Pending',     bg: '#FFEFDD', fg: '#9A4A00' },
-    waiting:     { label: 'Waiting',     bg: '#FFEFDD', fg: '#9A4A00' },
-    on_hold:     { label: 'On hold',     bg: '#FFEFDD', fg: '#9A4A00' },
-    resolved:    { label: 'Resolved',    bg: '#E8F3EC', fg: '#0A6B33' },
+    open:        { label: 'Open',        bg: '#2563B0', fg: '#FFFFFF', bd: '#1C4E8C' },
+    new:         { label: 'New',         bg: '#2563B0', fg: '#FFFFFF', bd: '#1C4E8C' },
+    in_progress: { label: 'In progress', bg: '#B5830F', fg: '#FFFFFF', bd: '#8E6709' },
+    pending:     { label: 'Pending',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
+    waiting:     { label: 'Waiting',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
+    on_hold:     { label: 'On hold',     bg: '#D1730F', fg: '#FFFFFF', bd: '#A85B0B' },
+    resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
     closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
-    approved:    { label: 'Approved',    bg: '#E8F3EC', fg: '#0A6B33' },
-    rejected:    { label: 'Rejected',    bg: '#FBE7E7', fg: '#992222' },
+    approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
+    rejected:    { label: 'Rejected',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
     cancelled:   { label: 'Cancelled',   bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
   };
-  return map[s] || { label: status || 'Unknown', bg: '#EFEDEA', fg: '#5C564C' };
+  return map[s] || { label: status || 'Unknown', bg: '#5C564C', fg: '#FFFFFF', bd: '#46413A' };
 }
 
 // The "two logics", as a label: incident → Issue, service_request → Request.
@@ -9069,8 +9069,8 @@ function ApprovalSummary({ approval, ticket }) {
   const stages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
   const current = approval && approval.current_stage;
   const decided = status === 'approved' || status === 'rejected';
-  const DOT = { Approved: '#0A8A3E', Pending: '#FDC831', Awaiting: '#D8D0C0', Rejected: '#B92323' };
-  const TXT = { Approved: '#0A6B33', Pending: '#211E1E', Awaiting: '#9A8E78', Rejected: '#B92323' };
+  const DOT = { Approved: '#0A8A3E', Pending: '#FDC831', Awaiting: '#8A8275', Rejected: '#B92323' };
+  const TXT = { Approved: '#0A8A3E', Pending: '#211E1E', Awaiting: '#8A8275', Rejected: '#B92323' };
 
   if (stages.length === 0) {
     return (
