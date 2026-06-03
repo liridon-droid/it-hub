@@ -8714,16 +8714,16 @@ function ticketInitials(name) {
   return (n.split(/\s+/).slice(0, 2).map((w) => (w[0] || '').toUpperCase()).join('')) || '?';
 }
 
-// One chat message — industry standard: YOU on the RIGHT (cheese bubble, the
-// accent), the IT Team on the LEFT (white bubble). Round avatars, brand
-// hard-shadow bubbles, charcoal text on both for readability.
+// One chat message — YOU on the RIGHT in a clean white bubble (cheese avatar),
+// the IT Team on the LEFT in a cheese bubble (charcoal avatar) so their replies
+// stand out. Round avatars, brand hard-shadow bubbles, charcoal text on both.
 function ConversationMessage({ mine, name, time, body }) {
   const initials = mine ? ticketInitials(name) : (name && !/^it team$/i.test(name) ? ticketInitials(name) : 'IT');
   const avatar = (
     <span style={{
       width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: '1px solid #211E1E',
       display: 'grid', placeItems: 'center', fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 11,
-      background: mine ? '#211E1E' : '#FDC831', color: mine ? '#FDC831' : '#211E1E',
+      background: mine ? '#FDC831' : '#211E1E', color: mine ? '#211E1E' : '#FDC831',
     }}>{initials}</span>
   );
   return (
@@ -8736,10 +8736,10 @@ function ConversationMessage({ mine, name, time, body }) {
         <div style={{
           maxWidth: '100%', padding: '9px 13px', border: '1px solid #211E1E', borderRadius: 14,
           fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          background: mine ? '#FDC831' : '#FFFFFF', color: '#211E1E',
+          background: mine ? '#FFFFFF' : '#FDC831', color: '#211E1E',
           boxShadow: '2px 2px 0 #211E1E',
           borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
-        }}>{linkifyText(body, mine ? '#9A1F1F' : '#B92323')}</div>
+        }}>{linkifyText(body, mine ? '#B92323' : '#9A1F1F')}</div>
       </div>
     </div>
   );
