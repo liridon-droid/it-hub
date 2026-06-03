@@ -8610,7 +8610,7 @@ function fmtBytes(n) {
 // (that's what the ticketing system stores/renders), so this is display-only:
 // pasted links become <a>s in the portal's view; the stored text is untouched.
 // Returns an array of strings + <a> nodes (safe to drop into a pre-wrap block).
-function linkifyText(text) {
+function linkifyText(text, linkColor) {
   const s = String(text || '');
   if (!s) return s;
   const re = /(https?:\/\/[^\s<>()]+|www\.[^\s<>()]+)/gi;
@@ -8623,12 +8623,48 @@ function linkifyText(text) {
     const tm = url.match(/[.,;:!?]+$/); // don't swallow trailing sentence punctuation
     if (tm) { trail = tm[0]; url = url.slice(0, -trail.length); }
     const href = url.startsWith('http') ? url : 'https://' + url;
-    out.push(<a key={'lk' + (key++)} href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#B92323', textDecoration: 'underline', wordBreak: 'break-word' }}>{url}</a>);
+    out.push(<a key={'lk' + (key++)} href={href} target="_blank" rel="noopener noreferrer" style={{ color: linkColor || '#B92323', textDecoration: 'underline', wordBreak: 'break-word' }}>{url}</a>);
     if (trail) out.push(trail);
     last = m.index + m[0].length;
   }
   if (last < s.length) out.push(s.slice(last));
   return out;
+}
+
+function ticketInitials(name) {
+  const n = String(name || '').trim();
+  if (!n) return '?';
+  return (n.split(/\s+/).slice(0, 2).map((w) => (w[0] || '').toUpperCase()).join('')) || '?';
+}
+
+// One chat message. Requester ("you") sits on the LEFT with a cheese avatar; IT
+// on the RIGHT with a charcoal avatar — round avatars, brand hard-shadow bubbles.
+function ConversationMessage({ mine, name, time, body }) {
+  const initials = mine ? ticketInitials(name) : (name && !/^it team$/i.test(name) ? ticketInitials(name) : 'IT');
+  const avatar = (
+    <span style={{
+      width: 32, height: 32, flexShrink: 0, borderRadius: '50%', border: '1px solid #211E1E',
+      display: 'grid', placeItems: 'center', fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 11,
+      background: mine ? '#FDC831' : '#211E1E', color: mine ? '#211E1E' : '#FDC831',
+    }}>{initials}</span>
+  );
+  return (
+    <div style={{ display: 'flex', flexDirection: mine ? 'row' : 'row-reverse', gap: 10, alignItems: 'flex-end', marginTop: 16 }}>
+      {avatar}
+      <div style={{ minWidth: 0, maxWidth: '78%', display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-start' : 'flex-end' }}>
+        <div style={{ fontSize: 11.5, color: '#9A8E78', margin: '0 3px 3px', fontWeight: 600 }}>
+          {mine ? 'You' : (name || 'IT Team')}{time ? ' · ' + time : ''}
+        </div>
+        <div style={{
+          maxWidth: '100%', padding: '9px 13px', border: '1px solid #211E1E', borderRadius: 14,
+          fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          background: mine ? '#FFFFFF' : '#211E1E', color: mine ? '#211E1E' : '#FFFFFF',
+          boxShadow: mine ? '2px 2px 0 #211E1E' : '2px 2px 0 #FDC831',
+          borderBottomLeftRadius: mine ? 4 : 14, borderBottomRightRadius: mine ? 14 : 4,
+        }}>{linkifyText(body, mine ? '#B92323' : '#FDC831')}</div>
+      </div>
+    </div>
+  );
 }
 
 // Pull the active catalog items out of the /api/catalog response, tolerant of
@@ -9299,15 +9335,7 @@ function TicketDetailView({ id, onBack, initial }) {
             )}
             {comments.map((c, i) => {
               const mine = !!(me && c.author_name && c.author_name.trim() === me.trim());
-              return (
-                <div key={c.id || i} style={{ borderLeft: '3px solid ' + (mine ? '#211E1E' : '#FDC831'), padding: '4px 0 4px 14px', margin: i ? '14px 0 0' : 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 800, fontSize: 13, color: '#211E1E' }}>{mine ? 'You' : (c.author_name || 'IT Team')}</span>
-                    <span style={{ fontSize: 11.5, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
-                  </div>
-                  <div style={{ fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(c.body)}</div>
-                </div>
-              );
+              return <ConversationMessage key={c.id || i} mine={mine} name={c.author_name} time={relativeTime(c.created_at)} body={c.body} />;
             })}
 
             {/* Reply composer — posts a public comment (and any attachments) to the
