@@ -225,6 +225,37 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
   }
 });
 
+// Add a reply to a ticket. The reply is attributed to the signed-in user and
+// posted to the ticketing system as a public comment (is_internal:false), so the
+// IT agents see it on the ticket. Gated to the ticket's requester (or admin) —
+// same rule as GET — so you can't reply on a ticket that isn't yours by guessing
+// its id. We re-read the ticket first to enforce that ownership server-side.
+app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  const body = req.body && req.body.body;
+  if (!body || !String(body).trim()) {
+    return res.status(400).json({ error: 'A reply can’t be empty.' });
+  }
+  try {
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
+    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
+      body: String(body).slice(0, 8000),
+      author_id: u.id,
+      author_name: u.name,
+      is_internal: false,
+    });
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.comment');
+  }
+});
+
 // Service catalog — the "request something" path (access to an app / service).
 app.get('/api/catalog', requireSliceUser, async (req, res) => {
   try {

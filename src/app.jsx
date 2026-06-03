@@ -1023,7 +1023,9 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
           gap: 10,
         }}>
-          {statusServices.map((s) => {
+          {/* Landing shows just the first 6 services — the "Full status →" link
+              above goes to the complete list on the Status page. */}
+          {statusServices.slice(0, 6).map((s) => {
             const tone =
               s.state === "operational" ? { bg: "#D4F4D4", dot: "#0A8A3E", label: "Up" } :
               s.state === "degraded" ? { bg: "#FFE8A3", dot: "#B8860B", label: "Slow" } :
@@ -1536,7 +1538,7 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
       </div>
 
       {/* Ticket path — now the primary/first option (most requests go here). */}
-      <button className="oncall-btn-secondary" onClick={() => setStage("form")}>
+      <button className="oncall-btn-secondary" onClick={() => onOpenTickets ? onOpenTickets() : setStage("form")}>
         <div className="oncall-ticket-icon" style={{
           width: 32, height: 32, borderRadius: 8,
           background: "#FFF9E6",
@@ -1558,10 +1560,10 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
             fontSize: 13.5, fontWeight: 800, letterSpacing: "-0.01em", color: "#211E1E",
             marginBottom: 1,
           }}>
-            Submit a ticket
+            My tickets
           </div>
           <div style={{ fontSize: 11, color: "#78684C", fontWeight: 500 }}>
-            Non-urgent questions and requests
+            View your tickets &amp; raise a new one
           </div>
         </div>
         <span data-submit-arrow style={{
@@ -1633,28 +1635,6 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           fontSize: 9.5, fontWeight: 900, letterSpacing: "0.08em",
         }}>OPEN →</div>
       </a>
-
-      {/* Footer link into the full Tickets page (My Tickets + Approvals). */}
-      {onOpenTickets && (
-        <button
-          type="button"
-          onClick={onOpenTickets}
-          className="oncall-mytickets"
-          style={{
-            marginTop: 14, width: "100%",
-            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
-            padding: "8px 12px",
-            background: "transparent",
-            border: "none", borderTop: "1.5px dashed rgba(33,30,30,0.18)", borderRadius: 0,
-            color: "#211E1E", cursor: "pointer",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 11.5, fontWeight: 800, letterSpacing: "0.04em", textTransform: "uppercase",
-          }}>
-          <IconTicket size={13} stroke={2.2} />
-          View my tickets &amp; approvals
-          <span aria-hidden="true" style={{ transition: "transform .2s ease" }}>→</span>
-        </button>
-      )}
     </div>
   );
 }
@@ -2747,6 +2727,23 @@ function App() {
   const [ticketsTab, setTicketsTab] = useState("mine");
   const [ticketsNav, setTicketsNav] = useState(0);
   const openTickets = (tab = "mine") => { setTicketsTab(tab); setTicketsNav((n) => n + 1); setStage("tickets"); };
+  // Catalog request modal raised from the chat flow (App-level so the answer
+  // page can open it). { itemId } preselects the matched app's request form.
+  const [catalogReq, setCatalogReq] = useState(null);
+  const openCatalog = (opts = {}) => setCatalogReq(opts);
+  // Cache the service catalog for the session so chat-intent matching doesn't
+  // refetch on every ticket click.
+  const catalogCacheRef = React.useRef(null);
+  const loadCatalogOnce = React.useCallback(async () => {
+    if (catalogCacheRef.current) return catalogCacheRef.current;
+    try {
+      const r = await fetch('/api/catalog', { credentials: 'include', cache: 'no-store' });
+      const j = r.ok ? await r.json() : null;
+      const items = (j && Array.isArray(j.catalog)) ? j.catalog.filter((c) => c.is_active !== false) : [];
+      catalogCacheRef.current = items;
+      return items;
+    } catch { return []; }
+  }, []);
   const [onbForm, setOnbForm] = useState(null);
   // null = modal closed. {} = open with empty drop-zone. { file, note } = open
   // pre-loaded so analysis kicks off automatically (the new "paperclip in the
@@ -2799,7 +2796,7 @@ function App() {
   // human labels), and the assistant's suggestion + guides — so the user just
   // reviews and submits, no re-typing. The ticket system renders the body as
   // plain text, so we avoid markdown (no **, no [N] citations).
-  const openTicket = (ctx = {}) => {
+  const openTicket = async (ctx = {}) => {
     const issue = String(query || '').trim();
 
     const qs = (outcome && outcome.route && outcome.route.questions) || [];
@@ -2822,10 +2819,36 @@ function App() {
     const opener = issue ? (/[.!?]$/.test(issue) ? issue : issue + '.') : 'I need some help.';
     const blocks = [opener];
     if (details.length) blocks.push(details.join('\n'));
+    const body = blocks.join('\n\n');
+    const fullText = [issue].concat(details).join('. ');
+    const det = detectAccessRequest(fullText);
+
+    // The "two logics": an access/service request vs a broken-thing issue.
+    // Explicit access phrasing (and no "broken" signal) → route into the service
+    // catalog when we can identify the app, so it follows the proper request +
+    // approval flow; otherwise open the review card as a service request.
+    if (det.isRequest && !det.isProblem) {
+      const match = matchCatalogItem(await loadCatalogOnce(), fullText);
+      if (match) { openCatalog({ itemId: match.id }); return; }
+      setTicketDraft({
+        subject: issue ? ('Access request: ' + issue.slice(0, 120)) : 'Access / service request',
+        description: body,
+        type: 'service_request',
+        priority: 'medium',
+      });
+      return;
+    }
+
+    // A named catalog app with a light request verb (e.g. "I need Figma") also
+    // routes to the catalog, as long as it isn't phrased as a problem.
+    if (!det.isProblem && /\b(need|want|get|use|access|add|request|set up|sign up|new)\b/.test(fullText.toLowerCase())) {
+      const match = matchCatalogItem(await loadCatalogOnce(), fullText);
+      if (match) { openCatalog({ itemId: match.id }); return; }
+    }
 
     setTicketDraft({
       subject: issue ? issue.slice(0, 140) : 'IT support request',
-      description: blocks.join('\n\n'),
+      description: body,
       type: 'incident',
       priority: 'medium',
     });
@@ -2878,6 +2901,7 @@ function App() {
       <GlobalKeyframes />
       <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
       {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} />}
+      {catalogReq && <CatalogRequestModal initialItemId={catalogReq.itemId} onClose={() => setCatalogReq(null)} onCreated={() => {}} />}
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -8550,6 +8574,30 @@ function ticketTypeMeta(type) {
   return { label: 'Issue', kind: 'incident' };
 }
 
+// Classify a chat query as an access/service request vs a broken-thing issue.
+// Used by the end-of-chat "Submit a ticket" flow to decide whether to route the
+// person into the service catalog (a request) or a normal incident ticket.
+// Conservative: a clear "broken" signal always wins (so "1Password won't open"
+// stays an issue), and we only call it a request on explicit access phrasing.
+function detectAccessRequest(text) {
+  const s = ' ' + String(text || '').toLowerCase() + ' ';
+  const isProblem = /(not working|isn['’]?t working|doesn['’]?t work|won['’]?t|can['’]?t|cannot|broken|\berror|\bfail|crash|freez|\bis down\b|stuck|locked out|reset|forgot|expired|disconnect|no (audio|sound|internet|wi-?fi|connection))/.test(s);
+  const isRequest = /(access to|need access|request access|get access|\bgrant\b|provision|set me up|sign me up|add me to|added to|invite to|onboard me|licen[sc]e|need (a |an )?(account|seat|login)|account for|enable .{0,24} for me)/.test(s);
+  return { isProblem, isRequest };
+}
+
+// Find the catalog item whose name appears in the text (longest name first, so
+// "1Password Business" beats "1Password"). Returns the item or null.
+function matchCatalogItem(catalog, text) {
+  if (!Array.isArray(catalog)) return null;
+  const s = String(text || '').toLowerCase();
+  const sorted = catalog.slice().sort((a, b) => String(b.name || '').length - String(a.name || '').length);
+  return sorted.find((c) => {
+    const n = String(c.name || '').toLowerCase().trim();
+    return n.length >= 3 && s.includes(n);
+  }) || null;
+}
+
 function TicketStatusBadge({ status, small }) {
   const m = ticketStatusMeta(status);
   return (
@@ -8806,14 +8854,35 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
 
 function TicketDetailView({ id, onBack }) {
   const [st, setSt] = React.useState({ loading: true, ticket: null, error: null });
-  React.useEffect(() => {
-    let off = false;
-    setSt({ loading: true, ticket: null, error: null });
-    ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
-      .then((j) => { if (!off) setSt({ loading: false, ticket: j, error: null }); })
-      .catch((e) => { if (!off) setSt({ loading: false, ticket: null, error: e.message }); });
-    return () => { off = true; };
+  const [reply, setReply] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const [replyErr, setReplyErr] = React.useState('');
+  const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
+
+  // Reusable load so we can refetch after posting a reply (the new comment, plus
+  // anything IT added since, comes back from the ticketing system).
+  const load = React.useCallback(() => {
+    return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
+      .then((j) => setSt({ loading: false, ticket: j, error: null }))
+      .catch((e) => setSt({ loading: false, ticket: null, error: e.message }));
   }, [id]);
+
+  React.useEffect(() => { setSt({ loading: true, ticket: null, error: null }); load(); }, [load]);
+
+  const send = async () => {
+    const body = reply.trim();
+    if (!body) return;
+    setSending(true); setReplyErr('');
+    try {
+      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', { body });
+      setReply('');
+      await load();
+    } catch (e) {
+      setReplyErr(e.message || 'Couldn’t send your reply.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const t = st.ticket;
   // Internal agent notes aren't for the requester — mirror the ticket system's
@@ -8845,17 +8914,38 @@ function TicketDetailView({ id, onBack }) {
           </div>
 
           <div style={{ ...TK.card, padding: '20px 24px' }}>
-            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Activity</div>
-            {comments.length === 0 && <div style={{ fontSize: 13, color: '#9A8E78' }}>No updates from IT yet. You’ll see replies here as your ticket progresses.</div>}
-            {comments.map((c, i) => (
-              <div key={c.id || i} style={{ borderLeft: '3px solid #FDC831', padding: '4px 0 4px 14px', margin: i ? '14px 0 0' : 0 }}>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
-                  <span style={{ fontWeight: 800, fontSize: 12.5, color: '#211E1E' }}>{c.author_name || 'IT Team'}</span>
-                  <span style={{ fontSize: 11, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
+            {comments.length === 0 && (
+              <div style={{ fontSize: 13, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
+            )}
+            {comments.map((c, i) => {
+              const mine = !!(me && c.author_name && c.author_name.trim() === me.trim());
+              return (
+                <div key={c.id || i} style={{ borderLeft: '3px solid ' + (mine ? '#211E1E' : '#FDC831'), padding: '4px 0 4px 14px', margin: i ? '14px 0 0' : 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontWeight: 800, fontSize: 12.5, color: '#211E1E' }}>{mine ? 'You' : (c.author_name || 'IT Team')}</span>
+                    <span style={{ fontSize: 11, color: '#9A8E78' }}>{relativeTime(c.created_at)}</span>
+                  </div>
+                  <div style={{ fontSize: 13.5, color: '#3A352C', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{c.body}</div>
                 </div>
-                <div style={{ fontSize: 13.5, color: '#3A352C', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{c.body}</div>
+              );
+            })}
+
+            {/* Reply composer — posts a public comment to the ticket in SliceDesk. */}
+            <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
+              <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
+              <textarea
+                style={{ ...TK.field, minHeight: 84, resize: 'vertical' }}
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
+                placeholder="Write a message to the IT Team…" />
+              {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '8px 0 0' }}>{replyErr}</p>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginTop: 10 }}>
+                <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
+                <button onClick={send} disabled={sending || !reply.trim()} className="btn btn-primary">{sending ? 'Sending…' : 'Send reply'}</button>
               </div>
-            ))}
+            </div>
           </div>
         </>
       )}
@@ -9037,9 +9127,10 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 
 // ── Request flow — browse the service catalog, fill the item's form, submit ──
 // Falls back to a freeform service_request when the catalog is empty/unreachable.
-function CatalogRequestModal({ onClose, onCreated }) {
+function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
   const [view, setView] = React.useState('list'); // list | form | done | freeform
   const [catalog, setCatalog] = React.useState(null); // null = loading
+  const [catErr, setCatErr] = React.useState(''); // catalog failed to load
   const [item, setItem] = React.useState(null);
   const [itemBusy, setItemBusy] = React.useState(false);
   const [responses, setResponses] = React.useState({});
@@ -9051,20 +9142,7 @@ function CatalogRequestModal({ onClose, onCreated }) {
   const [ffSubject, setFfSubject] = React.useState('');
   const [ffDesc, setFfDesc] = React.useState('');
 
-  React.useEffect(() => {
-    let off = false;
-    ticketsApiJson('GET', '/api/catalog')
-      .then((j) => {
-        if (off) return;
-        const items = (j.catalog || []).filter((c) => c.is_active !== false);
-        setCatalog(items);
-        if (items.length === 0) setView('freeform');
-      })
-      .catch(() => { if (!off) { setCatalog([]); setView('freeform'); } });
-    return () => { off = true; };
-  }, []);
-
-  const pickItem = async (it) => {
+  const pickItem = React.useCallback(async (it) => {
     setItemBusy(true); setErr('');
     try {
       const j = await ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(it.id));
@@ -9078,7 +9156,26 @@ function CatalogRequestModal({ onClose, onCreated }) {
     } finally {
       setItemBusy(false);
     }
-  };
+  }, []);
+
+  // Load the SliceDesk service catalog. On error we surface a retry (we do NOT
+  // silently fall back to the freeform form — the user asked to see the catalog).
+  // If the chat routed us here with an initialItemId, open that item's form.
+  const loadCatalog = React.useCallback(() => {
+    setCatalog(null); setCatErr('');
+    return ticketsApiJson('GET', '/api/catalog')
+      .then((j) => {
+        const items = (j.catalog || []).filter((c) => c.is_active !== false);
+        setCatalog(items);
+        if (initialItemId != null) {
+          const match = items.find((c) => String(c.id) === String(initialItemId));
+          if (match) pickItem(match);
+        }
+      })
+      .catch((e) => { setCatalog([]); setCatErr(e.message || 'Couldn’t load the catalog.'); });
+  }, [initialItemId, pickItem]);
+
+  React.useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
   const fields = (item && Array.isArray(item.request_form_fields)) ? item.request_form_fields : [];
 
@@ -9196,9 +9293,32 @@ function CatalogRequestModal({ onClose, onCreated }) {
   // Catalog list
   return (
     <ModalShell title="Request something" kicker="Service catalog — access to apps & services" onClose={onClose} maxWidth={760}>
-      {catalog === null && <div style={{ padding: '24px 4px', color: '#78684C', fontSize: 14 }}>Loading the catalog…</div>}
+      {catalog === null && !catErr && <div style={{ padding: '24px 4px', color: '#78684C', fontSize: 14 }}>Loading the catalog…</div>}
       {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
       {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '0 0 12px' }}>{err}</p>}
+
+      {/* Catalog couldn't load — e.g. the ticket module isn't reachable or the
+          module key is revoked. Offer a retry + the custom-request escape hatch. */}
+      {catErr && (
+        <div style={{ padding: '8px 2px' }}>
+          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 6px', fontWeight: 700 }}>Couldn’t load the service catalog</p>
+          <p style={{ fontSize: 13, color: '#78684C', margin: '0 0 16px', lineHeight: 1.5 }}>The ticketing system didn’t respond ({catErr}). Retry, or make a custom request and IT will sort out the details.</p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button className="btn btn-outline" onClick={loadCatalog}>Retry</button>
+            <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
+          </div>
+        </div>
+      )}
+
+      {/* Catalog loaded but empty — nothing published in SliceDesk yet. */}
+      {catalog && catalog.length === 0 && !catErr && (
+        <div style={{ padding: '8px 2px' }}>
+          <p style={{ fontSize: 14, color: '#211E1E', margin: '0 0 6px', fontWeight: 700 }}>No catalog items yet</p>
+          <p style={{ fontSize: 13, color: '#78684C', margin: '0 0 16px', lineHeight: 1.5 }}>Your IT team hasn’t published any requestable apps or services in the catalog yet. You can still make a custom request.</p>
+          <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
+        </div>
+      )}
+
       {catalog && catalog.length > 0 && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
