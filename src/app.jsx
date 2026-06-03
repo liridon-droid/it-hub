@@ -9052,15 +9052,6 @@ function TicketDetailView({ id, onBack }) {
             </div>
           )}
 
-          {/* Temporary diagnostics — only when nothing previewed — so we can map
-              the ticket module's (undocumented) attachment read shape exactly. */}
-          {t._attDebug && (attachments.length === 0 || !attachments.some((a) => attUrl(a))) && (
-            <div style={{ ...TK.card, padding: '12px 16px', marginBottom: 14 }}>
-              <div style={{ fontSize: 11.5, color: '#9A4A00', fontWeight: 800, marginBottom: 4 }}>Attachment diagnostics (temporary)</div>
-              <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11, color: '#55503F', wordBreak: 'break-all', display: 'block', lineHeight: 1.5 }}>{JSON.stringify(t._attDebug)}</code>
-            </div>
-          )}
-
           <div style={{ ...TK.card, padding: '20px 24px' }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
             {comments.length === 0 && (
