@@ -9004,50 +9004,55 @@ function ApprovalSummary({ approval, ticket }) {
   const current = approval && approval.current_stage;
   const decided = status === 'approved' || status === 'rejected';
 
+  // Brand palette only — charcoal / cheese / red / cream. No greens or ambers.
+  const pill = status === 'approved'
+    ? { label: 'Approved', bg: '#211E1E', fg: '#FDC831', bd: '#211E1E' }
+    : status === 'rejected'
+    ? { label: 'Rejected', bg: '#FFFFFF', fg: '#B92323', bd: '#B92323' }
+    : { label: 'Pending approval', bg: '#FDC831', fg: '#211E1E', bd: '#211E1E' };
+  const showText = actions.length > 0 || status === 'pending';
+
   return (
-    <div style={{ ...TK.card, padding: '18px 24px', marginBottom: 14 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: (stages.length || actions.length || status === 'pending') ? 14 : 0 }}>
-        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approval</div>
-        <TicketStatusBadge status={status} label={status === 'pending' ? 'Pending approval' : undefined} />
+    <div style={{ ...TK.card, padding: '11px 16px', marginBottom: 14 }}>
+      {/* One tight row: label · status · stage stepper */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Approval</span>
+        <span style={{ padding: '2px 9px', borderRadius: 999, background: pill.bg, color: pill.fg, border: '1px solid ' + pill.bd, fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{pill.label}</span>
+        {stages.length > 0 && <span style={{ width: 1, height: 14, background: '#E7E0D2', margin: '0 2px' }} />}
+        {stages.map((s, i) => {
+          const isCurrent = !decided && current && s.order === current.order;
+          const isDone = status === 'approved' || (current && s.order < current.order);
+          return (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999,
+              fontSize: 11, fontWeight: 700,
+              background: isCurrent ? '#FDC831' : isDone ? '#FFFDF4' : '#FFFFFF',
+              color: isCurrent ? '#211E1E' : isDone ? '#211E1E' : '#9A8E78',
+              border: '1px solid ' + (isCurrent || isDone ? '#211E1E' : '#E7E0D2'),
+            }}>
+              <span style={{ fontWeight: 900 }}>{isDone ? '✓' : (i + 1)}</span>{s.name}
+            </span>
+          );
+        })}
       </div>
 
-      {stages.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: actions.length ? 14 : 0 }}>
-          {stages.map((s, i) => {
-            const isCurrent = !decided && current && s.order === current.order;
-            const isDone = status === 'approved' || (current && s.order < current.order);
+      {showText && (
+        <div style={{ marginTop: 9, fontSize: 12.5, color: '#55503F', lineHeight: 1.55 }}>
+          {actions.map((a, i) => {
+            const who = a.actor_name || a.hub_user_name || a.by || 'Someone';
+            const act = String(a.action || '').toLowerCase();
+            const verb = /approv/.test(act) ? 'Approved' : /reject/.test(act) ? 'Rejected' : (a.action || 'Noted');
             return (
-              <span key={i} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 999,
-                border: '1px solid ' + (isCurrent ? '#7A5A00' : isDone ? '#0A6B33' : '#D8D0C0'),
-                background: isDone ? '#E8F3EC' : isCurrent ? '#FFF3D6' : '#FFFFFF',
-                color: isDone ? '#0A6B33' : isCurrent ? '#7A5A00' : '#9A8E78',
-                fontSize: 12, fontWeight: 700,
-              }}>
-                <span style={{ fontWeight: 900 }}>{isDone ? '✓' : (i + 1) + '.'}</span>
-                {s.name}{isCurrent ? ' · awaiting' : ''}
-              </span>
+              <div key={i}>
+                <b style={{ color: verb === 'Rejected' ? '#B92323' : '#211E1E' }}>{verb}</b> by {who}{(a.created_at || a.at) ? ' · ' + relativeTime(a.created_at || a.at) : ''}{a.comment ? ' — ' + a.comment : ''}
+              </div>
             );
           })}
-        </div>
-      )}
-
-      {actions.map((a, i) => {
-        const who = a.actor_name || a.hub_user_name || a.by || 'Someone';
-        const act = String(a.action || '').toLowerCase();
-        const verb = /approv/.test(act) ? 'Approved' : /reject/.test(act) ? 'Rejected' : (a.action || 'Noted');
-        const color = verb === 'Approved' ? '#0A6B33' : verb === 'Rejected' ? '#992222' : '#3A352C';
-        return (
-          <div key={i} style={{ fontSize: 13.5, color: '#3A352C', marginTop: i ? 8 : 0, lineHeight: 1.5 }}>
-            <b style={{ color }}>{verb}</b> by {who}{(a.created_at || a.at) ? ' · ' + relativeTime(a.created_at || a.at) : ''}{a.comment ? ' — ' + a.comment : ''}
-          </div>
-        );
-      })}
-
-      {status === 'pending' && (
-        <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, marginTop: actions.length ? 10 : 0 }}>
-          {current ? `Waiting on ${current.name}${current.type ? ' (' + current.type + ')' : ''} to sign off — you’ll be notified once it’s decided.`
-            : 'Waiting for approval — you’ll be notified once it’s decided.'}
+          {status === 'pending' && (
+            <div style={{ color: '#78684C' }}>
+              {current ? `Waiting on ${current.name} to sign off.` : 'Waiting for approval — you’ll be notified once it’s decided.'}
+            </div>
+          )}
         </div>
       )}
     </div>
