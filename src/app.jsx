@@ -8722,13 +8722,13 @@ function AttachmentPicker({ files, onChange, disabled, label = 'Attach files' })
 function ticketStatusMeta(status) {
   const s = String(status || '').toLowerCase();
   const map = {
-    open:        { label: 'Open',        bg: '#E8F3EC', fg: '#0A6B33' },
-    new:         { label: 'New',         bg: '#E8F3EC', fg: '#0A6B33' },
+    open:        { label: 'Open',        bg: '#E3EEFB', fg: '#1A4E8A' },
+    new:         { label: 'New',         bg: '#E3EEFB', fg: '#1A4E8A' },
     in_progress: { label: 'In progress', bg: '#FFF3D6', fg: '#7A5A00' },
     pending:     { label: 'Pending',     bg: '#FFEFDD', fg: '#9A4A00' },
     waiting:     { label: 'Waiting',     bg: '#FFEFDD', fg: '#9A4A00' },
     on_hold:     { label: 'On hold',     bg: '#FFEFDD', fg: '#9A4A00' },
-    resolved:    { label: 'Resolved',    bg: '#E3EEFB', fg: '#1A4E8A' },
+    resolved:    { label: 'Resolved',    bg: '#E8F3EC', fg: '#0A6B33' },
     closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
     approved:    { label: 'Approved',    bg: '#E8F3EC', fg: '#0A6B33' },
     rejected:    { label: 'Rejected',    bg: '#FBE7E7', fg: '#992222' },
@@ -9060,68 +9060,40 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   );
 }
 
-// Approval status shown inside a ticket (for service requests that need sign-off).
-// Rich when we have the approval detail (stages + who decided); a simple
-// "waiting for approval" line otherwise.
+// The approvals dropdown content: a simple list of who needs to approve and
+// where each stands (Approved / Pending / Awaiting / Rejected). Nothing else —
+// no stage numbers, pills, or "waiting on … to sign off" prose.
 function ApprovalSummary({ approval, ticket }) {
   const req = approval && approval.request;
   const status = String((req && req.status) || (ticket && ticket.status) || 'pending').toLowerCase();
   const stages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
-  const actions = (approval && Array.isArray(approval.actions)) ? approval.actions : [];
   const current = approval && approval.current_stage;
   const decided = status === 'approved' || status === 'rejected';
+  const DOT = { Approved: '#0A8A3E', Pending: '#FDC831', Awaiting: '#D8D0C0', Rejected: '#B92323' };
+  const TXT = { Approved: '#0A6B33', Pending: '#211E1E', Awaiting: '#9A8E78', Rejected: '#B92323' };
 
-  // Brand palette only — charcoal / cheese / red / cream. No greens or ambers.
-  const pill = status === 'approved'
-    ? { label: 'Approved', bg: '#211E1E', fg: '#FDC831', bd: '#211E1E' }
-    : status === 'rejected'
-    ? { label: 'Rejected', bg: '#FFFFFF', fg: '#B92323', bd: '#B92323' }
-    : { label: 'Pending approval', bg: '#FDC831', fg: '#211E1E', bd: '#211E1E' };
-  const showText = actions.length > 0 || status === 'pending';
-
-  return (
-    <div style={{ padding: '12px 14px' }}>
-      {/* One tight row: label · status · stage stepper */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Approval</span>
-        <span style={{ padding: '2px 9px', borderRadius: 999, background: pill.bg, color: pill.fg, border: '1px solid ' + pill.bd, fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, letterSpacing: '0.03em', textTransform: 'uppercase' }}>{pill.label}</span>
-        {stages.length > 0 && <span style={{ width: 1, height: 14, background: '#E7E0D2', margin: '0 2px' }} />}
-        {stages.map((s, i) => {
-          const isCurrent = !decided && current && s.order === current.order;
-          const isDone = status === 'approved' || (current && s.order < current.order);
-          return (
-            <span key={i} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999,
-              fontSize: 11, fontWeight: 700,
-              background: isCurrent ? '#FDC831' : isDone ? '#FFFDF4' : '#FFFFFF',
-              color: isCurrent ? '#211E1E' : isDone ? '#211E1E' : '#9A8E78',
-              border: '1px solid ' + (isCurrent || isDone ? '#211E1E' : '#E7E0D2'),
-            }}>
-              <span style={{ fontWeight: 900 }}>{isDone ? '✓' : (i + 1)}</span>{s.name}
-            </span>
-          );
-        })}
+  if (stages.length === 0) {
+    return (
+      <div style={{ padding: '12px 14px', fontSize: 13, color: '#55503F' }}>
+        {status === 'approved' ? 'This request was approved.' : status === 'rejected' ? 'This request was rejected.' : 'Waiting for approval — you’ll be notified once it’s decided.'}
       </div>
-
-      {showText && (
-        <div style={{ marginTop: 9, fontSize: 12.5, color: '#55503F', lineHeight: 1.55 }}>
-          {actions.map((a, i) => {
-            const who = a.actor_name || a.hub_user_name || a.by || 'Someone';
-            const act = String(a.action || '').toLowerCase();
-            const verb = /approv/.test(act) ? 'Approved' : /reject/.test(act) ? 'Rejected' : (a.action || 'Noted');
-            return (
-              <div key={i}>
-                <b style={{ color: verb === 'Rejected' ? '#B92323' : '#211E1E' }}>{verb}</b> by {who}{(a.created_at || a.at) ? ' · ' + relativeTime(a.created_at || a.at) : ''}{a.comment ? ' — ' + a.comment : ''}
-              </div>
-            );
-          })}
-          {status === 'pending' && (
-            <div style={{ color: '#78684C' }}>
-              {current ? `Waiting on ${current.name} to sign off.` : 'Waiting for approval — you’ll be notified once it’s decided.'}
-            </div>
-          )}
-        </div>
-      )}
+    );
+  }
+  return (
+    <div>
+      {stages.map((s, i) => {
+        const isReject = status === 'rejected' && current && s.order === current.order;
+        const isDone = status === 'approved' || (current && s.order < current.order);
+        const isCurrent = !decided && current && s.order === current.order;
+        const state = isReject ? 'Rejected' : isDone ? 'Approved' : isCurrent ? 'Pending' : 'Awaiting';
+        return (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none' }}>
+            <span style={{ width: 9, height: 9, borderRadius: '50%', background: DOT[state], border: '1px solid #211E1E', flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: TXT[state], fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em' }}>{state}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
