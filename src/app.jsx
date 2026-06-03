@@ -8731,13 +8731,24 @@ function detectAccessRequest(text) {
 // Find the catalog item whose name appears in the text (longest name first, so
 // "1Password Business" beats "1Password"). Returns the item or null.
 function matchCatalogItem(catalog, text) {
-  if (!Array.isArray(catalog)) return null;
-  const s = String(text || '').toLowerCase();
+  if (!Array.isArray(catalog) || !catalog.length) return null;
+  // Normalise to space-padded, alphanumeric-only so word-boundary checks work.
+  const norm = (x) => ' ' + String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  const s = norm(text);
   const sorted = catalog.slice().sort((a, b) => String(b.name || '').length - String(a.name || '').length);
-  return sorted.find((c) => {
-    const n = String(c.name || '').toLowerCase().trim();
-    return n.length >= 3 && s.includes(n);
-  }) || null;
+  // 1) Full item name appears in the query (most precise).
+  for (const c of sorted) {
+    const n = norm(c.name).trim();
+    if (n.length >= 3 && s.includes(' ' + n + ' ')) return c;
+  }
+  // 2) A distinctive token of the item's name appears (so "1Password Business"
+  //    still matches "i need 1password"). Skip short/generic words.
+  const STOP = new Set(['app','apps','access','account','accounts','license','licence','licenses','pro','plus','business','team','teams','enterprise','cloud','online','service','services','the','for','and','new']);
+  for (const c of sorted) {
+    const tokens = String(c.name || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !STOP.has(w));
+    if (tokens.some((w) => s.includes(' ' + w + ' '))) return c;
+  }
+  return null;
 }
 
 function TicketStatusBadge({ status, small }) {
@@ -8989,7 +9000,13 @@ function TicketDetailView({ id, onBack }) {
   const comments = (t && Array.isArray(t.comments) ? t.comments : []).filter((c) => !c.is_internal);
   // Attachments on the ticket — uploaded from here OR added on the ticketing
   // system side. Field names vary, so read them defensively.
-  const attachments = (t && (Array.isArray(t.attachments) ? t.attachments : (Array.isArray(t.files) ? t.files : []))) || [];
+  // Attachments can live on the ticket OR on a comment (a reply upload), so
+  // gather from both places.
+  const ticketAtts = (t && (Array.isArray(t.attachments) ? t.attachments : (Array.isArray(t.files) ? t.files : []))) || [];
+  const commentAtts = (t && Array.isArray(t.comments) ? t.comments : [])
+    .flatMap((c) => (c && (c.attachments || c.files || c.media)) || [])
+    .filter(Boolean);
+  const attachments = [...ticketAtts, ...commentAtts];
   const attName = (a) => a.file_name || a.name || a.filename || a.title || 'attachment';
   // Cover local URLs and Google Drive link fields (the ticket module can store
   // files in Drive, which exposes webViewLink / webContentLink).

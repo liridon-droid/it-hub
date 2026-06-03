@@ -247,11 +247,23 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
       }
       return c;
     };
-    const firstAtt = Array.isArray(data.attachments) ? data.attachments[0] : null;
+    // Comprehensive probe: where (if anywhere) does the ticket module reference
+    // attachments? Check the whole ticket payload, the comments (the reply
+    // upload may attach to a comment), and the activity log.
+    const comments = Array.isArray(data.comments) ? data.comments : [];
+    const commentAtts = comments
+      .flatMap((c) => (c && (c.attachments || c.files || c.media)) || [])
+      .filter(Boolean);
+    const act = Array.isArray(data.activity) ? data.activity
+      : Array.isArray(data.activities) ? data.activities
+      : Array.isArray(data.activity_log) ? data.activity_log : [];
     data._attDebug = {
-      inlineKeys: Object.keys(data).filter((k) => /attach|file|upload/i.test(k)),
+      ticketKeys: Object.keys(data),
       probe,
-      sample: sanitize(firstAtt),
+      ticketAttSample: sanitize(Array.isArray(data.attachments) ? data.attachments[0] : null),
+      commentKeys: comments[0] ? Object.keys(comments[0]) : null,
+      commentAtt: commentAtts.length ? sanitize(commentAtts[0]) : 'none',
+      activityKeys: act[0] ? Object.keys(act[0]) : null,
     };
     res.json(data);
   } catch (err) {
