@@ -4689,6 +4689,25 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
 const NOTIF_KEY = "portal2.notifications.v1";
 const NOTIF_EVT = "portal2:notifications:change";
 
+// Per-ticket "last seen update" so the bell can flag tickets the IT Team has
+// touched (replied, changed status) since you last opened them. Keyed by ticket
+// id → the updated_at we last saw. Opening a ticket records its current
+// updated_at, which clears its notification.
+const TICKET_SEEN_KEY = "portal2.ticketSeen.v1";
+function loadTicketSeen() {
+  try { const r = typeof localStorage !== 'undefined' && localStorage.getItem(TICKET_SEEN_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
+}
+function markTicketSeen(id, updatedAt) {
+  if (id == null || !updatedAt) return;
+  try {
+    const m = loadTicketSeen();
+    if (m[String(id)] === updatedAt) return;
+    m[String(id)] = updatedAt;
+    localStorage.setItem(TICKET_SEEN_KEY, JSON.stringify(m));
+    window.dispatchEvent(new Event(NOTIF_EVT));
+  } catch {}
+}
+
 // Bucket a Date into the same coarse "Today / Yesterday / Earlier" groups the
 // notification page already shows.
 function notifGroup(d) {
@@ -4784,10 +4803,11 @@ function saveNotifPersist(s) {
 
 function useNotifications() {
   const [persist, setPersist] = React.useState(loadNotifPersist);
-  // Live source: status incidents from /api/status. Polled every 60s — same
-  // cadence as the rest of the status pipeline — so resolutions and new
-  // incidents drop into the bell without a refresh.
-  const [rawNotifs, setRawNotifs] = React.useState([]);
+  // Two live sources, both polled every 60s: status incidents (/api/status) and
+  // the signed-in user's tickets (/api/tickets) — so an IT reply or status change
+  // on your ticket drops into the bell without a refresh.
+  const [incidentNotifs, setIncidentNotifs] = React.useState([]);
+  const [ticketNotifs, setTicketNotifs] = React.useState([]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -4800,7 +4820,7 @@ function useNotifications() {
         const projected = (j.incidents || [])
           .map(incidentToNotif)
           .sort((a, b) => b._ts - a._ts);
-        setRawNotifs(projected);
+        setIncidentNotifs(projected);
       } catch {
         // On error, leave the previous list in place so a transient blip
         // doesn't blank the bell. Empty initial state is fine.
@@ -4810,6 +4830,63 @@ function useNotifications() {
     const t = setInterval(load, 60000);
     return () => { cancelled = true; clearInterval(t); };
   }, []);
+
+  // Ticket activity → notifications. We compare each ticket's updated_at against
+  // the last value we saw (loadTicketSeen); a newer one means IT touched it since
+  // you last opened it. First sighting of a ticket is seeded (no notification),
+  // so you only get pinged on real changes. Recomputes on NOTIF_EVT too, so
+  // opening a ticket (which records it seen) clears its notification instantly.
+  const ticketsRef = React.useRef([]);
+  React.useEffect(() => {
+    let cancelled = false;
+    const recompute = () => {
+      const seen = loadTicketSeen();
+      const next = { ...seen };
+      let seeded = false;
+      const out = [];
+      for (const t of ticketsRef.current) {
+        const upd = t.updated_at || t.created_at;
+        if (!upd) continue;
+        const prev = seen[String(t.id)];
+        if (prev === undefined) { next[String(t.id)] = upd; seeded = true; continue; }
+        if (new Date(upd).getTime() > new Date(prev).getTime()) {
+          const when = new Date(upd);
+          out.push({
+            id: `tkt-${t.id}-${upd}`,
+            kind: 'ticket',
+            ticketId: t.id,
+            unread: true,
+            when: notifWhen(when),
+            group: notifGroup(when),
+            title: `${t.ticket_number || 'Your ticket'} — new update`,
+            body: `“${t.subject || 'Ticket'}” was updated by the IT Team — tap to view.`,
+            color: '#FDC831',
+            _ts: when.getTime(),
+          });
+        }
+      }
+      if (seeded) { try { localStorage.setItem(TICKET_SEEN_KEY, JSON.stringify(next)); } catch {} }
+      if (!cancelled) setTicketNotifs(out);
+    };
+    const load = async () => {
+      try {
+        const r = await fetch('/api/tickets', { credentials: 'include', cache: 'no-store' });
+        if (!r.ok || cancelled) return;
+        const j = await r.json();
+        ticketsRef.current = j.tickets || [];
+        recompute();
+      } catch { /* leave previous in place */ }
+    };
+    load();
+    const t = setInterval(load, 60000);
+    window.addEventListener(NOTIF_EVT, recompute); // re-eval when a ticket is marked seen
+    return () => { cancelled = true; clearInterval(t); window.removeEventListener(NOTIF_EVT, recompute); };
+  }, []);
+
+  const rawNotifs = React.useMemo(
+    () => [...incidentNotifs, ...ticketNotifs].sort((a, b) => b._ts - a._ts),
+    [incidentNotifs, ticketNotifs],
+  );
 
   // Same-tab broadcast (custom event) + cross-tab broadcast (storage event) so
   // dismissing in the dropdown updates the page (and vice versa) without a
@@ -4953,7 +5030,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
       </div>
 
       <div style={{display: "flex", alignItems: "center", gap: 12}}>
-        <NotificationsMenu onViewAll={onOpenNotifications} />
+        <NotificationsMenu onViewAll={onOpenNotifications} onOpenTickets={onOpenTickets} />
         <ItServicesButton />
         <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} onOpenTickets={onOpenTickets} onOpenApprovals={onOpenApprovals} />
       </div>
@@ -5022,7 +5099,7 @@ if (typeof document !== "undefined" && !document.getElementById("back-to-slicede
 // (status, ticket, access, security) and an "unread" dot; clicking marks all
 // read. Matches the user menu's visual language — hard 5px shadow, cheese
 // header, charcoal outlines.
-function NotificationsMenu({ onViewAll }) {
+function NotificationsMenu({ onViewAll, onOpenTickets }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
   // Shared store — dropdown shows the first 5 items; dismiss/read state is
@@ -5167,7 +5244,7 @@ function NotificationsMenu({ onViewAll }) {
                   key={it.id}
                   role="menuitem"
                   type="button"
-                  onClick={() => markRead(it.id)}
+                  onClick={() => { markRead(it.id); if (it.kind === 'ticket' && onOpenTickets) { setOpen(false); onOpenTickets(); } }}
                   style={{
                     width: "100%",
                     display: "flex", alignItems: "flex-start", gap: 10,
@@ -9179,7 +9256,11 @@ function TicketDetailView({ id, onBack, initial }) {
   // plus anything IT added since, comes back from the ticketing system.
   const load = React.useCallback(() => {
     return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
-      .then((j) => setSt({ loading: false, ticket: j, error: null }))
+      .then((j) => {
+        setSt({ loading: false, ticket: j, error: null });
+        // Mark seen so the bell stops flagging this ticket as having new activity.
+        markTicketSeen(j.id != null ? j.id : id, j.updated_at || j.created_at);
+      })
       // Keep whatever we already have (the list row we opened with) on failure,
       // so the header stays visible instead of dropping to an error screen.
       .catch((e) => setSt((s) => ({ loading: false, ticket: s.ticket, error: e.message })));
