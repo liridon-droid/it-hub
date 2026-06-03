@@ -8347,12 +8347,21 @@ function ReturnToHRModal({ onCancel, onConfirm }) {
 // ============================================================================
 // SHARED MODAL SHELL + BUTTON STYLES
 // ============================================================================
-function ModalShell({ title, kicker, onClose, children, maxWidth = 540 }) {
+function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) {
   React.useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+  // Optional logo/icon in the header (e.g. the catalog app's icon_url). A string
+  // is treated as an image URL (hidden if it fails to load); a node renders as-is.
+  const logo = !icon ? null : (
+    <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 9, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden" }}>
+      {typeof icon === "string"
+        ? <img src={icon} alt="" width="26" height="26" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        : icon}
+    </span>
+  );
   return ReactDOM.createPortal((
     <div style={{
       position: "fixed", inset: 0, zIndex: 200,
@@ -8368,12 +8377,16 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540 }) {
         <div style={{
           padding: "16px 22px",
           borderBottom: "1px solid #211E1E",
+          display: "flex", alignItems: "center", gap: 12,
         }}>
-          {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
-          <h2 style={{
-            fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800,
-            letterSpacing: "-0.02em", color: "#211E1E", margin: 0,
-          }}>{title}</h2>
+          {logo}
+          <div style={{ minWidth: 0 }}>
+            {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 4 }}>{kicker}</div>}
+            <h2 style={{
+              fontFamily: "'Archivo', sans-serif", fontSize: 20, fontWeight: 800,
+              letterSpacing: "-0.02em", color: "#211E1E", margin: 0,
+            }}>{title}</h2>
+          </div>
         </div>
         <div style={{ padding: "18px 22px" }}>{children}</div>
       </div>
@@ -8768,8 +8781,11 @@ function matchCatalogItem(catalog, text) {
   return null;
 }
 
-function TicketStatusBadge({ status, small }) {
+function TicketStatusBadge({ status, small, label, type }) {
   const m = ticketStatusMeta(status);
+  // A request that's "pending" is really waiting for approval — say so.
+  const isReqPending = type && ticketTypeMeta(type).kind === 'request' && String(status || '').toLowerCase() === 'pending';
+  const text = label || (isReqPending ? 'Pending approval' : m.label);
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
@@ -8778,7 +8794,7 @@ function TicketStatusBadge({ status, small }) {
       borderRadius: 999, fontSize: small ? 10 : 11, fontWeight: 800,
       fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
       textTransform: 'uppercase', whiteSpace: 'nowrap',
-    }}>{m.label}</span>
+    }}>{text}</span>
   );
 }
 
@@ -8967,12 +8983,73 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest }) {
               <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
-              <TicketStatusBadge status={t.status} />
+              <TicketStatusBadge status={t.status} type={t.type} />
               <span style={{ color: '#9A8E78', fontSize: 12 }}>{relativeTime(t.updated_at || t.created_at)}</span>
             </div>
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Approval status shown inside a ticket (for service requests that need sign-off).
+// Rich when we have the approval detail (stages + who decided); a simple
+// "waiting for approval" line otherwise.
+function ApprovalSummary({ approval, ticket }) {
+  const req = approval && approval.request;
+  const status = String((req && req.status) || (ticket && ticket.status) || 'pending').toLowerCase();
+  const stages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
+  const actions = (approval && Array.isArray(approval.actions)) ? approval.actions : [];
+  const current = approval && approval.current_stage;
+  const decided = status === 'approved' || status === 'rejected';
+
+  return (
+    <div style={{ ...TK.card, padding: '18px 24px', marginBottom: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: (stages.length || actions.length || status === 'pending') ? 14 : 0 }}>
+        <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Approval</div>
+        <TicketStatusBadge status={status} label={status === 'pending' ? 'Pending approval' : undefined} />
+      </div>
+
+      {stages.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: actions.length ? 14 : 0 }}>
+          {stages.map((s, i) => {
+            const isCurrent = !decided && current && s.order === current.order;
+            const isDone = status === 'approved' || (current && s.order < current.order);
+            return (
+              <span key={i} style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 999,
+                border: '1px solid ' + (isCurrent ? '#7A5A00' : isDone ? '#0A6B33' : '#D8D0C0'),
+                background: isDone ? '#E8F3EC' : isCurrent ? '#FFF3D6' : '#FFFFFF',
+                color: isDone ? '#0A6B33' : isCurrent ? '#7A5A00' : '#9A8E78',
+                fontSize: 12, fontWeight: 700,
+              }}>
+                <span style={{ fontWeight: 900 }}>{isDone ? '✓' : (i + 1) + '.'}</span>
+                {s.name}{isCurrent ? ' · awaiting' : ''}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {actions.map((a, i) => {
+        const who = a.actor_name || a.hub_user_name || a.by || 'Someone';
+        const act = String(a.action || '').toLowerCase();
+        const verb = /approv/.test(act) ? 'Approved' : /reject/.test(act) ? 'Rejected' : (a.action || 'Noted');
+        const color = verb === 'Approved' ? '#0A6B33' : verb === 'Rejected' ? '#992222' : '#3A352C';
+        return (
+          <div key={i} style={{ fontSize: 13.5, color: '#3A352C', marginTop: i ? 8 : 0, lineHeight: 1.5 }}>
+            <b style={{ color }}>{verb}</b> by {who}{(a.created_at || a.at) ? ' · ' + relativeTime(a.created_at || a.at) : ''}{a.comment ? ' — ' + a.comment : ''}
+          </div>
+        );
+      })}
+
+      {status === 'pending' && (
+        <div style={{ fontSize: 13.5, color: '#78684C', lineHeight: 1.5, marginTop: actions.length ? 10 : 0 }}>
+          {current ? `Waiting on ${current.name}${current.type ? ' (' + current.type + ')' : ''} to sign off — you’ll be notified once it’s decided.`
+            : 'Waiting for approval — you’ll be notified once it’s decided.'}
+        </div>
+      )}
     </div>
   );
 }
@@ -8994,6 +9071,19 @@ function TicketDetailView({ id, onBack }) {
   }, [id]);
 
   React.useEffect(() => { setSt({ loading: true, ticket: null, error: null }); load(); }, [load]);
+
+  // If the ticket carries an approval workflow (service requests that need
+  // sign-off), pull its status so the requester can see where it stands.
+  const [approval, setApproval] = React.useState(null);
+  const approvalId = st.ticket && st.ticket.approval_request_id;
+  React.useEffect(() => {
+    if (!approvalId) { setApproval(null); return; }
+    let off = false;
+    ticketsApiJson('GET', '/api/approvals/' + encodeURIComponent(approvalId))
+      .then((j) => { if (!off) setApproval(j); })
+      .catch(() => { if (!off) setApproval(null); });
+    return () => { off = true; };
+  }, [approvalId]);
 
   const send = async () => {
     const body = reply.trim();
@@ -9045,7 +9135,7 @@ function TicketDetailView({ id, onBack }) {
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <TicketTypeBadge type={t.type} />
-              <TicketStatusBadge status={t.status} />
+              <TicketStatusBadge status={t.status} type={t.type} />
               <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
             </div>
             <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 8px' }}>{t.subject}</h2>
@@ -9058,6 +9148,13 @@ function TicketDetailView({ id, onBack }) {
               <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
             )}
           </div>
+
+          {/* Approval status — for service requests that need sign-off. Sits
+              between the header and the conversation so the requester can see
+              who approved (or that it's still pending) without leaving the ticket. */}
+          {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+            <ApprovalSummary approval={approval} ticket={t} />
+          )}
 
           {/* Attachments on the ticket — image previews + download chips, from
               the portal or the ticketing system. */}
@@ -9394,7 +9491,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
   if (view === 'done') {
     const pending = result && String(result.status || '').toLowerCase() === 'pending';
     return (
-      <ModalShell title="Request submitted" kicker="Service request" onClose={onClose} maxWidth={620}>
+      <ModalShell title="Request submitted" kicker="Service request" icon={item && item.icon_url} onClose={onClose} maxWidth={620}>
         <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 8px', lineHeight: 1.55 }}>
           Your request <strong>{result && (result.ticket_number || result.id)}</strong> is in.
         </p>
@@ -9436,7 +9533,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
   // Item form
   if (view === 'form' && item) {
     return (
-      <ModalShell title={item.name} kicker="Service request" onClose={onClose} maxWidth={680}>
+      <ModalShell title={item.name} kicker="Service request" icon={item.icon_url} onClose={onClose} maxWidth={680}>
         <button onClick={() => { setErr(''); setView('list'); }} style={{ ...backLink, marginTop: 0 }}>← All items</button>
         {item.description && <p style={{ fontSize: 13.5, color: '#55503F', margin: '0 0 6px', lineHeight: 1.5 }}>{item.description}</p>}
         {item.approval_required && (
