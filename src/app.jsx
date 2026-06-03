@@ -8729,10 +8729,10 @@ function ticketStatusMeta(status) {
     waiting:     { label: 'Waiting',     bg: '#FFEFDD', fg: '#9A4A00' },
     on_hold:     { label: 'On hold',     bg: '#FFEFDD', fg: '#9A4A00' },
     resolved:    { label: 'Resolved',    bg: '#E3EEFB', fg: '#1A4E8A' },
-    closed:      { label: 'Closed',      bg: '#EFEDEA', fg: '#5C564C' },
+    closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
     approved:    { label: 'Approved',    bg: '#E8F3EC', fg: '#0A6B33' },
     rejected:    { label: 'Rejected',    bg: '#FBE7E7', fg: '#992222' },
-    cancelled:   { label: 'Cancelled',   bg: '#EFEDEA', fg: '#5C564C' },
+    cancelled:   { label: 'Cancelled',   bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
   };
   return map[s] || { label: status || 'Unknown', bg: '#EFEDEA', fg: '#5C564C' };
 }
@@ -8799,7 +8799,7 @@ function TicketStatusBadge({ status, small, label, type }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center',
       padding: small ? '2px 8px' : '3px 10px',
-      background: m.bg, color: m.fg, border: '1px solid ' + m.fg,
+      background: m.bg, color: m.fg, border: '1px solid ' + (m.bd || m.fg),
       borderRadius: 999, fontSize: small ? 10 : 11, fontWeight: 800,
       fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
       textTransform: 'uppercase', whiteSpace: 'nowrap',
