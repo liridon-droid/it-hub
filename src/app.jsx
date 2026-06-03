@@ -8954,10 +8954,10 @@ function TicketsTab({ label, active, onClick, badge }) {
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
-  const [selId, setSelId] = React.useState(null);
+  const [selTicket, setSelTicket] = React.useState(null);
   const [bucket, setBucket] = React.useState('all'); // all | open | resolved | closed
   // Tell the page whether a detail is open (so it can hide its header chrome).
-  React.useEffect(() => { onViewingChange && onViewingChange(selId != null); }, [selId, onViewingChange]);
+  React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
   React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
 
   React.useEffect(() => {
@@ -8969,7 +8969,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     return () => { off = true; };
   }, [refreshKey]);
 
-  if (selId != null) return <TicketDetailView id={selId} onBack={() => setSelId(null)} />;
+  if (selTicket) return <TicketDetailView id={selTicket.id} initial={selTicket} onBack={() => setSelTicket(null)} />;
 
   if (st.loading) return <TicketsNotice title="Loading your tickets…" />;
   if (st.error) {
@@ -9037,7 +9037,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {shown.map((t) => (
-          <button key={t.id} onClick={() => setSelId(t.id)} {...ROW_HOVER} style={{
+          <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
             display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
           }}>
@@ -9080,7 +9080,7 @@ function ApprovalSummary({ approval, ticket }) {
   const showText = actions.length > 0 || status === 'pending';
 
   return (
-    <div style={{ ...TK.card, padding: '11px 16px', marginBottom: 14 }}>
+    <div style={{ padding: '12px 14px' }}>
       {/* One tight row: label · status · stage stepper */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, color: '#78684C', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Approval</span>
@@ -9126,8 +9126,40 @@ function ApprovalSummary({ approval, ticket }) {
   );
 }
 
-function TicketDetailView({ id, onBack }) {
-  const [st, setSt] = React.useState({ loading: true, ticket: null, error: null });
+// "Approvals" header button + dropdown — keeps the approval detail out of the
+// ticket body (no mid-page card) and one click away. Shows who has approved and
+// who's still pending.
+function ApprovalsButton({ approval, ticket }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const status = String((approval && approval.request && approval.request.status) || (ticket && ticket.status) || 'pending').toLowerCase();
+  const dot = status === 'approved' ? '#0A8A3E' : status === 'rejected' ? '#B92323' : '#FDC831';
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="btn btn-outline" style={{ padding: '7px 13px', fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 7 }} onClick={() => setOpen((o) => !o)}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot, border: '1px solid #211E1E' }} />
+        Approvals
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .18s ease' }}><polyline points="6 9 12 15 18 9" /></svg>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 300, maxWidth: '82vw', background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '3px 3px 0 #211E1E', zIndex: 40, overflow: 'hidden' }}>
+          <ApprovalSummary approval={approval} ticket={ticket} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TicketDetailView({ id, onBack, initial }) {
+  const [st, setSt] = React.useState({ loading: !initial, ticket: initial || null, error: null });
   const [reply, setReply] = React.useState('');
   const [replyFiles, setReplyFiles] = React.useState([]);
   const [sending, setSending] = React.useState(false);
@@ -9140,10 +9172,14 @@ function TicketDetailView({ id, onBack }) {
   const load = React.useCallback(() => {
     return ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id))
       .then((j) => setSt({ loading: false, ticket: j, error: null }))
-      .catch((e) => setSt({ loading: false, ticket: null, error: e.message }));
+      // Keep whatever we already have (the list row we opened with) on failure,
+      // so the header stays visible instead of dropping to an error screen.
+      .catch((e) => setSt((s) => ({ loading: false, ticket: s.ticket, error: e.message })));
   }, [id]);
 
-  React.useEffect(() => { setSt({ loading: true, ticket: null, error: null }); load(); }, [load]);
+  // Don't blank the instant-rendered `initial` — just hydrate with the full
+  // ticket (comments, activity) in the background.
+  React.useEffect(() => { load(); }, [load]);
 
   // If the ticket carries an approval workflow (service requests that need
   // sign-off), pull its status so the requester can see where it stands.
@@ -9226,9 +9262,12 @@ function TicketDetailView({ id, onBack }) {
     <div>
       <TicketsBackBar onBack={onBack} label="Back to my tickets" />
       {st.loading && <TicketsNotice title="Loading ticket…" />}
-      {st.error && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
+      {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
       {t && (
         <>
+          {st.error && (
+            <div style={{ fontSize: 12.5, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
+          )}
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -9236,8 +9275,11 @@ function TicketDetailView({ id, onBack }) {
                 <TicketStatusBadge status={t.status} type={t.type} />
                 <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
               </div>
-              {/* Lifecycle actions — Close / Reopen, the only transitions a requester gets. */}
+              {/* Actions — Approvals dropdown (left), then Close / Reopen. */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+                  <ApprovalsButton approval={approval} ticket={t} />
+                )}
                 {(() => {
                   const s = String(t.status || '').toLowerCase();
                   const isResolved = s === 'resolved';
@@ -9263,13 +9305,6 @@ function TicketDetailView({ id, onBack }) {
               <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
             )}
           </div>
-
-          {/* Approval status — for service requests that need sign-off. Sits
-              between the header and the conversation so the requester can see
-              who approved (or that it's still pending) without leaving the ticket. */}
-          {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
-            <ApprovalSummary approval={approval} ticket={t} />
-          )}
 
           {/* Attachments on the ticket — image previews + download chips, from
               the portal or the ticketing system. */}
