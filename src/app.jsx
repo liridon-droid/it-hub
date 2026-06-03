@@ -8746,6 +8746,15 @@ function ticketTypeMeta(type) {
   return { label: 'Issue', kind: 'incident' };
 }
 
+// Group the many raw statuses into the buckets a user actually thinks in:
+// open (anything still active), resolved, closed.
+function ticketBucket(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'resolved') return 'resolved';
+  if (s === 'closed' || s === 'cancelled') return 'closed';
+  return 'open';
+}
+
 // Classify a chat query as an access/service request vs a broken-thing issue.
 // Used by the end-of-chat "Submit a ticket" flow to decide whether to route the
 // person into the service catalog (a request) or a normal incident ticket.
@@ -8846,6 +8855,10 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
+  // When a ticket/approval detail is open, hide the page chrome (title, tabs,
+  // search, actions) for a clean focused reading page — just the detail + its
+  // own "Back" control. The list views report this up via onViewingChange.
+  const [detailOpen, setDetailOpen] = React.useState(false);
   // Bumped after a create/approve so the visible view (and the tab badge) refetch.
   const [refreshKey, setRefreshKey] = React.useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
@@ -8862,6 +8875,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
 
   return (
     <div className="page" style={{ background: '#FDC831', display: 'flex', flexDirection: 'column' }}>
+      {!detailOpen && (
       <div style={{ background: '#F7F4EF', borderBottom: '1px solid #211E1E', padding: '34px 32px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
@@ -8911,12 +8925,13 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
           </div>
         </div>
       </div>
+      )}
 
-      <div style={{ flex: 1, padding: '28px 32px 64px' }}>
+      <div style={{ flex: 1, padding: detailOpen ? '20px 32px 64px' : '28px 32px 64px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           {tab === 'mine'
-            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={() => setCatalogOpen(true)} query={query} />
-            : <ApprovalsView refreshKey={refreshKey} onActed={refresh} query={query} />}
+            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={() => setCatalogOpen(true)} query={query} onViewingChange={setDetailOpen} />
+            : <ApprovalsView refreshKey={refreshKey} onActed={refresh} query={query} onViewingChange={setDetailOpen} />}
         </div>
       </div>
 
@@ -8937,9 +8952,13 @@ function TicketsTab({ label, active, onClick, badge }) {
 }
 
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
-function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query }) {
+function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
   const [selId, setSelId] = React.useState(null);
+  const [bucket, setBucket] = React.useState('all'); // all | open | resolved | closed
+  // Tell the page whether a detail is open (so it can hide its header chrome).
+  React.useEffect(() => { onViewingChange && onViewingChange(selId != null); }, [selId, onViewingChange]);
+  React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
 
   React.useEffect(() => {
     let off = false;
@@ -8975,16 +8994,36 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query 
   }
 
   const q = (query || '').trim().toLowerCase();
-  const shown = !q ? st.tickets : st.tickets.filter((t) => {
+  const counts = { all: st.tickets.length, open: 0, resolved: 0, closed: 0 };
+  for (const tk of st.tickets) counts[ticketBucket(tk.status)] += 1;
+  const shown = st.tickets.filter((t) => {
+    if (bucket !== 'all' && ticketBucket(t.status) !== bucket) return false;
+    if (!q) return true;
     const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
     return hay.includes(q);
   });
+  const Chip = (key, label) => {
+    const on = bucket === key;
+    return (
+      <button key={key} onClick={() => setBucket(key)}
+        onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = '#FFF7DD'; }}
+        onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = '#FFFFFF'; }}
+        style={{
+          padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
+          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
+          background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
+          display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'background .12s ease',
+        }}>
+        {label}<span style={{ fontSize: 10, fontWeight: 900, opacity: on ? 0.9 : 0.5 }}>{counts[key]}</span>
+      </button>
+    );
+  };
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div style={{ fontSize: 13, color: '#55503F', fontWeight: 600 }}>
-          {q ? `${shown.length} of ${st.tickets.length} ticket${st.tickets.length === 1 ? '' : 's'}` : `${st.tickets.length} ticket${st.tickets.length === 1 ? '' : 's'}`}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {Chip('all', 'All')}{Chip('open', 'Open')}{Chip('resolved', 'Resolved')}{Chip('closed', 'Closed')}
         </div>
         <button onClick={onRefresh}
           onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
@@ -8992,7 +9031,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query 
           style={{ ...textActionBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>↻ Refresh</button>
       </div>
       {shown.length === 0 ? (
-        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>No tickets match “{query}”.</div>
+        <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
+          {q ? `No tickets match “${query}”${bucket !== 'all' ? ' in ' + bucket : ''}.` : `No ${bucket} tickets.`}
+        </div>
       ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {shown.map((t) => (
@@ -9091,6 +9132,7 @@ function TicketDetailView({ id, onBack }) {
   const [replyFiles, setReplyFiles] = React.useState([]);
   const [sending, setSending] = React.useState(false);
   const [replyErr, setReplyErr] = React.useState('');
+  const [confirmReopen, setConfirmReopen] = React.useState(false);
   const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
 
   // Reusable load so we can refetch after a reply — the new comment/attachment,
@@ -9127,13 +9169,22 @@ function TicketDetailView({ id, onBack }) {
         try { await uploadAttachments(id, replyFiles); }
         catch (e) { setReplyErr('Reply sent, but an attachment didn’t upload: ' + (e.message || 'error') + '.'); }
       }
-      setReply(''); setReplyFiles([]);
+      setReply(''); setReplyFiles([]); setConfirmReopen(false);
       await load(); // picks up reopen-on-reply (server flips resolved/closed → open)
     } catch (e) {
       setReplyErr(e.message || 'Couldn’t send your reply.');
     } finally {
       setSending(false);
     }
+  };
+
+  // Gate sending: on a resolved/closed ticket, the first click asks to confirm
+  // the reopen (replying reopens it). Second click (or Cancel) resolves it.
+  const requestSend = () => {
+    if (!reply.trim() && replyFiles.length === 0) return;
+    const s = String((st.ticket && st.ticket.status) || '').toLowerCase();
+    if ((s === 'resolved' || s === 'closed') && !confirmReopen) { setConfirmReopen(true); return; }
+    send();
   };
 
   // Close / reopen — the lifecycle actions a requester gets. Both reversible.
@@ -9255,26 +9306,46 @@ function TicketDetailView({ id, onBack }) {
             {/* Reply composer — posts a public comment (and any attachments) to the
                 ticket in SliceDesk. */}
             <div style={{ marginTop: comments.length ? 18 : 14, borderTop: '1px solid #EFEAE0', paddingTop: 16 }}>
-              <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
-              {['resolved', 'closed'].includes(String(t.status || '').toLowerCase()) && (
-                <div style={{ fontSize: 12, color: '#78684C', margin: '-2px 0 8px', fontWeight: 600 }}>
-                  This ticket is {String(t.status).toLowerCase()} — replying will reopen it.
-                </div>
-              )}
-              <textarea
-                style={{ ...TK.field, minHeight: 84, resize: 'vertical', fontSize: 14.5, lineHeight: 1.5 }}
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send(); }}
-                placeholder="Write a message to the IT Team…" />
-              <div style={{ marginTop: 10 }}>
-                <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
-              </div>
-              {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '8px 0 0' }}>{replyErr}</p>}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
-                <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
-                <button onClick={send} disabled={sending || (!reply.trim() && replyFiles.length === 0)} className="btn btn-primary">{sending ? 'Sending…' : 'Send reply'}</button>
-              </div>
+              {(() => {
+                const reopenOnReply = ['resolved', 'closed'].includes(String(t.status || '').toLowerCase());
+                return (
+                  <>
+                    <label style={{ ...TK.label, marginTop: 0 }}>Add a reply</label>
+                    {reopenOnReply && !confirmReopen && (
+                      <div style={{ fontSize: 12, color: '#78684C', margin: '-2px 0 8px', fontWeight: 600 }}>
+                        This ticket is {String(t.status).toLowerCase()} — replying will reopen it.
+                      </div>
+                    )}
+                    <textarea
+                      style={{ ...TK.field, minHeight: 84, resize: 'vertical', fontSize: 14.5, lineHeight: 1.5 }}
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') requestSend(); }}
+                      placeholder="Write a message to the IT Team…" />
+                    <div style={{ marginTop: 10 }}>
+                      <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
+                    </div>
+                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '8px 0 0' }}>{replyErr}</p>}
+
+                    {reopenOnReply && confirmReopen ? (
+                      <div style={{ marginTop: 12, border: '1px solid #211E1E', background: '#FFF7DD', borderRadius: 8, padding: '11px 14px' }}>
+                        <div style={{ fontSize: 13.5, color: '#211E1E', fontWeight: 600, marginBottom: 10, lineHeight: 1.45 }}>
+                          This ticket is <b>{String(t.status).toLowerCase()}</b>. Sending this reply will <b>reopen</b> it — continue?
+                        </div>
+                        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                          <button onClick={() => setConfirmReopen(false)} disabled={sending} className="btn btn-outline" style={{ padding: '7px 14px', fontSize: 12 }}>Cancel</button>
+                          <button onClick={send} disabled={sending} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
+                        <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
+                        <button onClick={requestSend} disabled={sending || (!reply.trim() && replyFiles.length === 0)} className="btn btn-primary">{sending ? 'Sending…' : 'Send reply'}</button>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </>
@@ -9284,9 +9355,11 @@ function TicketDetailView({ id, onBack }) {
 }
 
 // ── Approvals — requests waiting on the signed-in user (manager sign-off) ────
-function ApprovalsView({ refreshKey, onActed, query }) {
+function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, pending: [], error: null });
   const [selId, setSelId] = React.useState(null);
+  React.useEffect(() => { onViewingChange && onViewingChange(selId != null); }, [selId, onViewingChange]);
+  React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
 
   React.useEffect(() => {
     let off = false;
