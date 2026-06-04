@@ -128,6 +128,9 @@ CREATE TABLE IF NOT EXISTS status_checks (
 );
 
 CREATE INDEX IF NOT EXISTS status_checks_service_time_idx ON status_checks (service_id, checked_at DESC);
+-- Time-leading index for the window scans in fetchStatusPayload (10-day history
+-- + uptime roll-ups) and the retention prune.
+CREATE INDEX IF NOT EXISTS status_checks_time_idx ON status_checks (checked_at);
 
 CREATE TABLE IF NOT EXISTS status_incidents (
   id SERIAL PRIMARY KEY,
@@ -138,9 +141,14 @@ CREATE TABLE IF NOT EXISTS status_incidents (
     CHECK (state IN ('investigating','identified','monitoring','resolved')),
   started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   resolved_at TIMESTAMPTZ,
+  -- true when the poller opened this incident automatically; only auto rows are
+  -- auto-resolved on recovery, so admin-authored incidents are never touched.
+  auto_created BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Idempotent add for databases created before auto_created existed.
+ALTER TABLE status_incidents ADD COLUMN IF NOT EXISTS auto_created BOOLEAN NOT NULL DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS status_incidents_open_idx
   ON status_incidents (started_at DESC) WHERE resolved_at IS NULL;

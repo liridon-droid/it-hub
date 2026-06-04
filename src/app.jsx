@@ -508,7 +508,8 @@ function useLiveStatus(intervalMs = 30000) {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const j = await r.json();
         if (cancelled) return;
-        const flat = (j.groups || []).flatMap((g) => g.services || []);
+        if (!j || !Array.isArray(j.groups)) throw new Error('malformed status payload');
+        const flat = j.groups.flatMap((g) => g.services || []);
         setServices(flat);
         setLastCheck(new Date());
         setError(null);
@@ -1023,7 +1024,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
               { bg: "#FFD4D0", dot: "#B92323", label: "Down" };
             // Both the API and the static fallback expose `uptime` (number 0–100);
             // the chip below renders "—" when it's absent.
-            const uptimePct = (typeof s.uptime === 'number' ? s.uptime : null);
+            const uptimePct = (Number.isFinite(s.uptime) ? s.uptime : null);
             return (
               <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -21408,7 +21409,6 @@ function StatusPage({ onBack }) {
   const overallTone = down.length ? 'red' : degraded.length ? 'amber' : 'green';
   const toneAccent = overallTone === 'green' ? '#0A8A3E' : overallTone === 'amber' ? '#B8860B' : '#DA3327';
 
-  const [subOpen, setSubOpen] = React.useState(false);
   const [reportOpen, setReportOpen] = React.useState(false);
   const [expandedSvc, setExpandedSvc] = React.useState(null);
   const [filter, setFilter] = React.useState('all'); // all | issues | operational
@@ -21501,8 +21501,7 @@ function StatusPage({ onBack }) {
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <button onClick={onBack} className="btn btn-outline">← Back</button>
-            <button onClick={() => setReportOpen(true)} className="btn btn-outline">Report an issue</button>
-            <button onClick={() => setSubOpen(true)} className="btn btn-primary">Subscribe</button>
+            <button onClick={() => setReportOpen(true)} className="btn btn-primary">Report an issue</button>
           </div>
         </div>
       </div>
@@ -21661,24 +21660,24 @@ function StatusPage({ onBack }) {
           )}
         </div>
 
-        {/* In-page footer line — pinned to the bottom of the status content
-            via marginTop:auto on the surrounding flex column so it never
-            floats in the middle when content is short. */}
-        <div style={{
-          marginTop: "auto", paddingTop: 64,
-          textAlign: "center",
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-          color: "#4A3F2E",
-        }}>
-          <div style={{
-            borderTop: "1px solid rgba(33,30,30,0.15)",
-            paddingTop: 24,
-          }}>Built by the Slice IT Team</div>
+        {/* In-page footer — pinned to the bottom via marginTop:auto on the
+            surrounding flex column. A standalone pill (matches the brand
+            buttons), no divider line. */}
+        <div style={{ marginTop: "auto", paddingTop: 64, textAlign: "center" }}>
+          <span style={{
+            display: "inline-block",
+            padding: "9px 18px",
+            background: "#FFFFFF",
+            border: "1px solid #211E1E",
+            borderRadius: 999,
+            boxShadow: "2px 2px 0 #211E1E",
+            fontFamily: "'Archivo', sans-serif",
+            fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
+            color: "#211E1E",
+          }}>Built by the Slice IT Team</span>
         </div>
       </div>
 
-      {subOpen && <SubscribeModal onClose={() => setSubOpen(false)}/>}
       {reportOpen && <ReportIssueModal onClose={() => setReportOpen(false)} services={allServices}/>}
 
       <style>{`
@@ -21789,7 +21788,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
     : service.state === "degraded" ? { bg: "#FFE8A3", ink: "#8A6A14", label: "Degraded" }
     : { bg: "#FFD4D0", ink: "#8A1E17", label: "Down" };
 
-  const uptime = typeof service.uptime === "number" ? service.uptime : null;
+  const uptime = Number.isFinite(service.uptime) ? service.uptime : null;
   const isOutlier = uptime != null && uptime < 99;
   const uptimeColor = isOutlier ? "#DA3327" : "#211E1E";
   const responseMs = service.response_ms;
@@ -22047,6 +22046,18 @@ function IncidentCard({ incident, open }) {
               fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
               padding: "2px 7px", letterSpacing: "0.04em", textTransform: "uppercase",
             }}>{stateTone.label}</span>
+            {incident.auto_created && (
+              <span title="Opened automatically by monitoring" style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                background: "#211E1E", color: "#FDC831",
+                borderRadius: 3, padding: "2px 7px",
+                fontFamily: "Archivo, sans-serif", fontSize: 10, fontWeight: 800,
+                letterSpacing: "0.04em", textTransform: "uppercase",
+              }}>
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
+                Auto
+              </span>
+            )}
             <span style={{ fontSize: 11, color: "#78684C", fontWeight: 600 }}>· Started {startedRel}</span>
           </div>
           <div style={{ fontSize: 15, fontWeight: 700, color: "#211E1E", letterSpacing: "-0.005em" }}>
@@ -22109,96 +22120,6 @@ function IncidentCard({ incident, open }) {
         </div>
       )}
     </div>
-  );
-}
-
-// Subscribe modal — three channels
-function SubscribeModal({ onClose }) {
-  const [channel, setChannel] = React.useState("email");
-  const [value, setValue] = React.useState("");
-  const [sent, setSent] = React.useState(false);
-  const channels = [
-    { id: "email", label: "Email", hint: "One summary per incident, end-of-day digest otherwise.", placeholder: "you@slice.com" },
-    { id: "slack", label: "Slack channel", hint: "Pipe updates into a channel. Requires admin approval.", placeholder: "#my-team-alerts" },
-    { id: "rss",   label: "RSS feed",      hint: "Copy the URL into your feed reader.", placeholder: "" },
-  ];
-  const active = channels.find(c => c.id === channel);
-  const rssUrl = "https://status.slice.com/feed.rss";
-
-  const submit = (e) => { e.preventDefault(); setSent(true); };
-
-  return ReactDOM.createPortal(
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0, zIndex: 2147483600,
-      background: "rgba(33,30,30,0.55)",
-      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-      display: "grid", placeItems: "center", padding: 24,
-    }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "min(560px, 100%)",
-        background: "#F7F4EF",
-        border: "1px solid #211E1E", borderRadius: 16,
-        boxShadow: "5px 5px 0 #211E1E",
-        padding: 28,
-      }}>
-        {!sent ? (
-          <React.Fragment>
-            <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
-              Subscribe to status updates
-            </div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.015em" }}>
-              How should we reach you?
-            </h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
-              {channels.map(c => (
-                <button key={c.id} onClick={() => setChannel(c.id)} style={{
-                  padding: "12px 10px",
-                  background: channel === c.id ? "#211E1E" : "#FFFFFF",
-                  color: channel === c.id ? "#FDC831" : "#211E1E",
-                  border: "1px solid #211E1E", borderRadius: 10,
-                  boxShadow: channel === c.id ? "none" : "1px 1px 0 #211E1E",
-                  fontFamily: "Archivo, sans-serif", fontSize: 13, fontWeight: 800,
-                  cursor: "pointer", transition: "all .12s",
-                }}>{c.label}</button>
-              ))}
-            </div>
-            <p style={{ fontSize: 13, color: "#4A3F2E", margin: "0 0 14px", lineHeight: 1.5 }}>{active.hint}</p>
-            {channel === "rss" ? (
-              <div style={{
-                background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 8,
-                padding: "12px 14px",
-                fontFamily: "ui-monospace, Menlo, monospace", fontSize: 12.5, color: "#211E1E",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
-              }}>
-                <span>{rssUrl}</span>
-                <button onClick={() => { navigator.clipboard?.writeText(rssUrl); }} className="btn btn-outline" style={{ padding: "6px 12px", fontSize: 12 }}>Copy</button>
-              </div>
-            ) : (
-              <form onSubmit={submit}>
-                <input value={value} onChange={(e) => setValue(e.target.value)} placeholder={active.placeholder} style={inputStyle}/>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18 }}>
-                  <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "10px 16px" }}>Cancel</button>
-                  <button type="submit" disabled={!value.trim()} className="btn btn-primary" style={{ padding: "10px 18px", opacity: value.trim() ? 1 : 0.5, cursor: value.trim() ? "pointer" : "not-allowed" }}>Subscribe →</button>
-                </div>
-              </form>
-            )}
-            {channel === "rss" && (
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 18 }}>
-                <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Done</button>
-              </div>
-            )}
-          </React.Fragment>
-        ) : (
-          <div style={{ textAlign: "center", padding: "12px 8px" }}>
-            <div style={{ width: 72, height: 72, margin: "0 auto 16px", background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%", boxShadow: "2px 2px 0 #211E1E", display: "grid", placeItems: "center", color: "#FFFFFF", fontSize: 36, fontWeight: 900 }}>✓</div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "#211E1E" }}>You're on the list.</h2>
-            <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>We'll send a note when anything changes.</p>
-            <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Close</button>
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
   );
 }
 

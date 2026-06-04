@@ -10086,9 +10086,22 @@ function renderStatus(root) {
   const probesHost = $('statusProbesHost');
   const incidentsHost = $('statusIncidentsHost');
 
+  // True when the admin is actively editing inside `host` — focus is in one of
+  // its fields, or (for the services list) a debounced save is still pending.
+  // We use this to avoid yanking the DOM — and the cursor — out from under an
+  // in-progress edit when the 30s background poll lands.
+  function editingIn(host) {
+    const ae = document.activeElement;
+    if (ae && host.contains(ae)) return true;
+    if (host === groupsHost && debounceTimers.size > 0) return true;
+    return false;
+  }
+
   // Single render entry-point — every CRUD success calls this so the panels
-  // reflect server truth.
-  async function reload() {
+  // reflect server truth. `force` repaints the editable lists even if they're
+  // focused (right after an add/delete the user expects the change). The 30s
+  // background poll calls reload({ force: false }) so it never disrupts typing.
+  async function reload({ force = true } = {}) {
     try {
       const [payload, probesPayload] = await Promise.all([
         fetchStatusPayload(),
@@ -10097,14 +10110,14 @@ function renderStatus(root) {
       statusState.payload = payload;
       statusState.probes = probesPayload.probes || [];
       statusState.loadError = null;
-      paint();
+      paint({ force });
     } catch (e) {
       statusState.loadError = e.message;
       statGrid.innerHTML = `<div class="stat" style="grid-column:1/-1;"><div class="stat-label">Status platform</div><div class="stat-value" style="color:#DA3327;">Sync error: ${esc(e.message)}</div></div>`;
     }
   }
 
-  function paint() {
+  function paint({ force = true } = {}) {
     const payload = statusState.payload;
     if (!payload) return;
     const flat = payload.groups.flatMap((g) => g.services || []);
@@ -10115,6 +10128,7 @@ function renderStatus(root) {
       down:  flat.filter((s) => s.state === 'down').length,
       open:  (payload.incidents || []).filter((i) => i.state !== 'resolved').length,
     };
+    // Read-only panels are always safe to repaint — no inputs to disturb.
     statGrid.innerHTML = `
       <div class="stat"><div class="stat-label">Total services</div><div class="stat-value">${counts.total}</div></div>
       <div class="stat"><div class="stat-label">Operational</div><div class="stat-value" style="color:#0A8A3E;">${counts.op}</div></div>
@@ -10122,9 +10136,11 @@ function renderStatus(root) {
       <div class="stat"><div class="stat-label">Down</div><div class="stat-value" style="color:#DA3327;">${counts.down}</div></div>
       <div class="stat"><div class="stat-label">Open incidents</div><div class="stat-value" style="color:${counts.open ? '#DA3327' : '#0A8A3E'};">${counts.open}</div></div>
     `;
-    paintGroups(payload.groups);
     paintProbes(statusState.probes);
-    paintIncidents(payload.incidents || [], flat);
+    // Editable lists: skip the repaint on a background tick if the admin is
+    // mid-edit, so adding a URL "and this and that" is never interrupted.
+    if (force || !editingIn(groupsHost))    paintGroups(payload.groups);
+    if (force || !editingIn(incidentsHost)) paintIncidents(payload.incidents || [], flat);
   }
 
   function svcRowHtml(s) {
@@ -10183,14 +10199,22 @@ function renderStatus(root) {
   }
 
   // Debounced patch for free-text inputs so we don't fire one PATCH per keystroke.
+  // The unsaved fields are held per-service so they can be flushed on demand
+  // (on a source change or a Test click) instead of being silently dropped.
   const debounceTimers = new Map();
+  const pendingPatch = new Map(); // serviceId -> merged unsaved fields
   function debouncePatch(id, payload) {
+    pendingPatch.set(id, { ...(pendingPatch.get(id) || {}), ...payload });
     if (debounceTimers.has(id)) clearTimeout(debounceTimers.get(id));
-    debounceTimers.set(id, setTimeout(async () => {
-      debounceTimers.delete(id);
-      try { await statusApi('PATCH', `/api/admin/status/services/${id}`, payload); }
-      catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
-    }, 600));
+    debounceTimers.set(id, setTimeout(() => flushPatch(id), 600));
+  }
+  async function flushPatch(id) {
+    if (debounceTimers.has(id)) { clearTimeout(debounceTimers.get(id)); debounceTimers.delete(id); }
+    const payload = pendingPatch.get(id);
+    if (!payload) return;
+    pendingPatch.delete(id);
+    try { await statusApi('PATCH', `/api/admin/status/services/${id}`, payload); }
+    catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
   }
 
   function paintGroups(groups) {
@@ -10228,6 +10252,7 @@ function renderStatus(root) {
             }
           } else {
             try {
+              await flushPatch(id); // persist any pending URL/name/icon edit before the repaint
               await statusApi('PATCH', `/api/admin/status/services/${id}`, { [f]: v });
               if (f === 'source') await reload(); // refresh URL field's enabled-ness
             } catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
@@ -10250,13 +10275,7 @@ function renderStatus(root) {
       if (testBtn) testBtn.onclick = async () => {
         testBtn.disabled = true; testBtn.textContent = 'Testing…';
         try {
-          // Flush any debounced URL edit before polling.
-          if (debounceTimers.has(id)) {
-            clearTimeout(debounceTimers.get(id));
-            debounceTimers.delete(id);
-            const urlInput = row.querySelector('[data-f="source_url"]');
-            if (urlInput) await statusApi('PATCH', `/api/admin/status/services/${id}`, { source_url: urlInput.value });
-          }
+          await flushPatch(id); // persist the latest typed URL before polling
           await statusApi('POST', '/api/admin/status/poll');
           toast('Polled — check the result on the right.', 'ok');
           await reload();
@@ -10324,6 +10343,7 @@ function renderStatus(root) {
             <span style="font-family:ui-monospace, SF Mono, Menlo, monospace; font-size:11px; color:var(--ink-3);">${idLabel}</span>
             <span class="pill ${sevClass}">${esc(sevClass)}</span>
             <span class="pill ${stateClass}">${esc(stateClass)}</span>
+            ${inc.auto_created ? `<span class="pill" style="color:#FDC831;background:#211E1E;border-color:#211E1E;" title="Opened automatically by monitoring">⚡ Auto</span>` : ''}
             <span class="text-3">${inc.service_name ? esc(inc.service_name) : 'No service'} · started ${new Date(inc.started_at).toLocaleString()}</span>
           </div>
           <div class="status-incident-title" data-edit-title>${esc(inc.title)}</div>
@@ -10378,15 +10398,20 @@ function renderStatus(root) {
         titleEl.style.outline = '1.5px solid var(--ink-3)';
         titleEl.style.borderRadius = '4px';
         titleEl.focus();
+        let savingTitle = false;
         const saveTitle = async () => {
+          if (savingTitle) return; // Enter fires blur too — don't double-save
+          savingTitle = true;
           titleEl.contentEditable = 'false';
           titleEl.style.outline = '';
-          if (titleEl.textContent.trim() && titleEl.textContent !== current) {
-            try { await statusApi('PATCH', `/api/admin/status/incidents/${id}`, { title: titleEl.textContent.trim() }); }
-            catch (e) { toast(`Save failed: ${e.message}`, 'err'); titleEl.textContent = current; }
-          } else if (!titleEl.textContent.trim()) {
-            titleEl.textContent = current;
-          }
+          try {
+            if (titleEl.textContent.trim() && titleEl.textContent !== current) {
+              try { await statusApi('PATCH', `/api/admin/status/incidents/${id}`, { title: titleEl.textContent.trim() }); }
+              catch (e) { toast(`Save failed: ${e.message}`, 'err'); titleEl.textContent = current; }
+            } else if (!titleEl.textContent.trim()) {
+              titleEl.textContent = current;
+            }
+          } finally { savingTitle = false; }
         };
         titleEl.onblur = saveTitle;
         titleEl.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); titleEl.blur(); } if (e.key === 'Escape') { titleEl.textContent = current; titleEl.blur(); } };
@@ -10444,11 +10469,19 @@ function renderStatus(root) {
   // Resolve the single bucket new services go into. There are no category
   // separations in the UI, but the DB still attaches each service to a group —
   // so we reuse the first real group, creating a default one if none exists.
+  let defaultGroupPromise = null;
   async function resolveDefaultGroupId() {
     const existing = (statusState.payload?.groups || []).find((g) => g.id !== 0);
     if (existing) return existing.id;
-    const g = await statusApi('POST', '/api/admin/status/groups', { slug: 'services', label: 'Services', position: 0 });
-    return g.id;
+    // Two quick "Add service" clicks on an empty catalog must not each create a
+    // 'Services' group (slug is UNIQUE — the second INSERT would 500). Share the
+    // in-flight create; reset on failure so a transient error doesn't wedge it.
+    if (!defaultGroupPromise) {
+      defaultGroupPromise = statusApi('POST', '/api/admin/status/groups', { slug: 'services', label: 'Services', position: 0 })
+        .then((g) => g.id)
+        .catch((e) => { defaultGroupPromise = null; throw e; });
+    }
+    return defaultGroupPromise;
   }
 
   function openAddAppModal() {
@@ -10673,7 +10706,7 @@ function renderStatus(root) {
   // Initial load + 30s refresh poll so probes/incidents update without F5.
   reload();
   if (statusState.pollHandle) clearInterval(statusState.pollHandle);
-  statusState.pollHandle = setInterval(reload, 30000);
+  statusState.pollHandle = setInterval(() => reload({ force: false }), 30000);
 }
 
 // =========== SYSTEM ===========

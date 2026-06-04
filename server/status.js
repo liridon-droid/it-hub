@@ -170,21 +170,55 @@ async function fetchWithTimeout(url, opts = {}) {
   }
 }
 
+// Release a response body we don't need to read, so a server that returns a
+// body on HEAD (or the GET fallback) doesn't leave a socket dangling.
+function drain(r) {
+  try { r.body?.cancel?.(); } catch { /* already consumed / no body */ }
+}
+
+// Defense-in-depth: source_url is admin-set, but never let the poller be aimed
+// at loopback / link-local / private ranges or non-HTTP schemes. Returns an
+// error string when the URL should not be fetched, or null when it's allowed.
+const PRIVATE_IP_RE = /^(?:127\.|10\.|169\.254\.|192\.168\.|::1$|fe80:|fc00:|fd00:|172\.(?:1[6-9]|2\d|3[01])\.)/i;
+const IPV4_RE = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+function probeUrlBlockedReason(rawUrl) {
+  let u;
+  try { u = new URL(rawUrl); } catch { return 'invalid URL'; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'only http/https allowed';
+  // Strip the [..] wrapper URL uses for IPv6 literals so [::1] tests as ::1.
+  const host = u.hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.local') || host.endsWith('.internal')) return 'internal host blocked';
+  // Only apply the private-range test to actual IP literals — otherwise a public
+  // domain that merely starts with "10." (e.g. 10.example.com) would be blocked.
+  const isIpLiteral = IPV4_RE.test(host) || host.includes(':');
+  if (isIpLiteral && PRIVATE_IP_RE.test(host)) return 'private/loopback address blocked';
+  return null;
+}
+
 async function probeHttp(service) {
   if (!service.source_url) {
-    return { state: 'operational', error: 'no source_url configured' };
+    return { state: 'down', error: 'no source_url configured' };
   }
+  const blocked = probeUrlBlockedReason(service.source_url);
+  if (blocked) return { state: 'down', error: blocked };
   const t0 = Date.now();
   try {
     // HEAD first — many vendor status pages refuse HEAD, so fall back to GET.
     let r = await fetchWithTimeout(service.source_url, { method: 'HEAD' });
-    if (r.status === 405 || r.status === 501) {
+    if (r.status === 405 || r.status === 501 || r.status === 403) {
+      drain(r);
       r = await fetchWithTimeout(service.source_url, { method: 'GET' });
     }
     const dt = Date.now() - t0;
+    // 5xx = down. 408/429 (overloaded) and most 4xx = degraded. 401/403 mean the
+    // endpoint is up but auth-gated, so they count as operational — a healthy
+    // service behind auth shouldn't read as "degraded" forever. Slow = degraded.
     let state = 'operational';
     if (r.status >= 500) state = 'down';
-    else if (r.status >= 400 || dt >= PROBE_DEGRADED_MS) state = 'degraded';
+    else if (r.status === 408 || r.status === 429) state = 'degraded';
+    else if (r.status >= 400 && r.status !== 401 && r.status !== 403) state = 'degraded';
+    else if (dt >= PROBE_DEGRADED_MS) state = 'degraded';
+    drain(r);
     return { state, response_ms: dt, http_status: r.status };
   } catch (err) {
     return { state: 'down', error: err.message || 'fetch failed' };
@@ -195,24 +229,50 @@ async function probeHttp(service) {
 // publishes a slightly different shape at slack-status.com/api/v2.0.0/current
 // (status: "ok|active|incident") so we sniff and handle both.
 function parseStatuspageSummary(json) {
-  // Slack-style
-  if (json && typeof json.status === 'string' && (json.status === 'ok' || json.status === 'active' || json.status === 'incident')) {
-    if (json.status === 'ok' || json.status === 'active') return { state: 'operational' };
-    return { state: 'degraded', state_note: 'Slack reports an active incident' };
+  if (!json || typeof json !== 'object') return { state: 'operational' };
+
+  // Slack-style — { status: "ok" | "active" | "incident" }
+  if (typeof json.status === 'string' && ['ok', 'active', 'incident'].includes(json.status)) {
+    if (json.status === 'incident') return { state: 'degraded', state_note: 'Active incident reported' };
+    return { state: 'operational' };
   }
-  // Statuspage.io summary.json — { status: { indicator, description } }
+
+  // Heroku v4 — { status: [ { system, status: "green"|"yellow"|"red" }, … ] }.
+  // Worst component wins. (This shape was previously misread as always-up.)
+  if (Array.isArray(json.status)) {
+    const colors = json.status.map((c) => String(c && c.status || '').toLowerCase());
+    if (colors.includes('red'))    return { state: 'down', state_note: 'Vendor reports a major outage' };
+    if (colors.some((c) => c === 'yellow' || c === 'orange')) return { state: 'degraded', state_note: 'Vendor reports degraded service' };
+    return { state: 'operational' };
+  }
+
+  // Atlassian Statuspage.io summary.json — { status: { indicator, description } }.
+  // When the top-level indicator is clean, fall back to the worst component so a
+  // partial outage that hasn't tripped the overall indicator still shows.
   const indicator = json?.status?.indicator;
-  const description = json?.status?.description || null;
-  if (indicator === 'none') return { state: 'operational', state_note: description };
-  if (indicator === 'minor') return { state: 'degraded', state_note: description };
+  let description = json?.status?.description || null;
+  if (indicator === 'minor')                       return { state: 'degraded', state_note: description };
   if (indicator === 'major' || indicator === 'critical') return { state: 'down', state_note: description };
+  if (indicator === 'none' || indicator == null) {
+    const comps = Array.isArray(json.components) ? json.components : [];
+    const bad = comps.filter((c) => c && c.status && c.status !== 'operational' && !/_maintenance$/.test(c.status));
+    if (bad.some((c) => /major_outage|partial_outage/.test(c.status))) {
+      return { state: 'down', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}` };
+    }
+    if (bad.length) {
+      return { state: 'degraded', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}` };
+    }
+    return { state: 'operational', state_note: description };
+  }
   return { state: 'operational', state_note: description };
 }
 
 async function probeStatuspage(service) {
   if (!service.source_url) {
-    return { state: 'operational', error: 'no source_url configured' };
+    return { state: 'down', error: 'no source_url configured' };
   }
+  const blocked = probeUrlBlockedReason(service.source_url);
+  if (blocked) return { state: 'down', error: blocked };
   const t0 = Date.now();
   try {
     const r = await fetchWithTimeout(service.source_url, {
@@ -221,6 +281,7 @@ async function probeStatuspage(service) {
     });
     const dt = Date.now() - t0;
     if (!r.ok) {
+      drain(r);
       return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` };
     }
     const json = await r.json();
@@ -231,56 +292,152 @@ async function probeStatuspage(service) {
   }
 }
 
+// How many consecutive agreeing readings we need before flipping the effective
+// state. With a 60s cadence this rides out a single transient blip (a one-off
+// timeout won't show the whole company a red banner) but confirms a real change
+// within ~2 minutes. This is the flap-resistance an industry monitor expects.
+const CONFIRM_SAMPLES = 2;
+
 async function pollOne(pool, service) {
-  if (service.source === 'manual') return; // admin-managed, never auto-poll
-  const result =
+  // Manual services are admin-owned — we never probe them, but we still record
+  // a heartbeat sample of their current state so the 10-day bars + uptime are
+  // populated for them too (otherwise they'd read as "no data" forever).
+  if (service.source === 'manual') {
+    await pool.query(
+      `INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`,
+      [service.id, service.state],
+    );
+    return;
+  }
+  const observed =
     service.source === 'statuspage' ? await probeStatuspage(service) :
     service.source === 'probe'      ? await probeHttp(service) :
     null;
-  if (!result) return;
+  if (!observed) return;
+  await applyState(pool, service, observed);
+}
 
+// Record the raw observation, then promote it to the effective state only once
+// CONFIRM_SAMPLES consecutive readings agree. On a confirmed transition, open or
+// resolve an auto-incident so monitoring drives the public timeline.
+async function applyState(pool, service, observed) {
   await pool.query(
     `INSERT INTO status_checks (service_id, state, response_ms, http_status, error)
      VALUES ($1, $2, $3, $4, $5)`,
-    [service.id, result.state, result.response_ms || null, result.http_status || null, result.error || null],
+    [service.id, observed.state, observed.response_ms || null, observed.http_status || null, observed.error || null],
   );
+
+  const recent = await pool.query(
+    `SELECT state FROM status_checks WHERE service_id = $1 ORDER BY checked_at DESC LIMIT $2`,
+    [service.id, CONFIRM_SAMPLES],
+  );
+  const confirmed =
+    recent.rows.length >= CONFIRM_SAMPLES && recent.rows.every((r) => r.state === observed.state);
+  const effective = confirmed ? observed.state : service.state;
+  // Operational → no note. If the effective state matches what we just observed,
+  // use the fresh note. If we're holding a prior (still-bad) state because the
+  // new reading isn't confirmed yet, keep the prior note rather than blanking it.
+  const note = effective === 'operational'
+    ? null
+    : (effective === observed.state ? (observed.state_note || null) : (service.state_note || null));
+
   await pool.query(
     `UPDATE status_services
-        SET state = $2,
-            state_note = $3,
-            response_ms = $4,
-            last_checked_at = NOW(),
-            last_error = $5,
-            updated_at = NOW()
+        SET state = $2, state_note = $3, response_ms = $4,
+            last_checked_at = NOW(), last_error = $5, updated_at = NOW()
       WHERE id = $1`,
-    [service.id, result.state, result.state_note || null, result.response_ms || null, result.error || null],
+    [service.id, effective, note, observed.response_ms || null, observed.error || null],
   );
+
+  if (effective !== service.state) {
+    await handleAutoIncident(pool, service, service.state, effective);
+  }
 }
 
-async function runOnePollPass(pool) {
-  const { rows } = await pool.query(
-    `SELECT id, source, source_url FROM status_services WHERE source IN ('probe','statuspage')`,
+const isBadState = (s) => s === 'degraded' || s === 'down';
+
+// Open an auto-incident when a monitored service drops, escalate it if the
+// severity worsens, and auto-resolve it on recovery. Only auto-created
+// incidents are touched here — admin-authored ones are never mutated.
+async function handleAutoIncident(pool, service, fromState, toState) {
+  const open = await pool.query(
+    `SELECT id FROM status_incidents
+      WHERE service_id = $1 AND auto_created = true AND resolved_at IS NULL
+      ORDER BY started_at DESC LIMIT 1`,
+    [service.id],
   );
-  if (rows.length === 0) return;
-  // Parallel — each service has its own 6s timeout, so a single slow vendor
-  // can't block the cycle. Promise.allSettled so one failure doesn't kill
-  // the rest.
-  await Promise.allSettled(rows.map((s) => pollOne(pool, s)));
+  const openId = open.rows[0]?.id;
+
+  if (isBadState(toState)) {
+    const severity = toState === 'down' ? 'major' : 'minor';
+    if (!openId) {
+      const inc = await pool.query(
+        `INSERT INTO status_incidents (service_id, title, severity, state, auto_created)
+         VALUES ($1, $2, $3, 'investigating', true) RETURNING id`,
+        [service.id, `${service.name} is ${toState}`, severity],
+      );
+      await pool.query(
+        `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Identified', $2)`,
+        [inc.rows[0].id, `Automated monitoring detected ${service.name} is ${toState}. The IT Team has been alerted.`],
+      );
+    } else if (fromState !== toState) {
+      await pool.query(
+        `UPDATE status_incidents SET severity = $2, updated_at = NOW() WHERE id = $1`,
+        [openId, severity],
+      );
+      await pool.query(
+        `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Update', $2)`,
+        [openId, `${service.name} status changed to ${toState}.`],
+      );
+    }
+  } else if (openId) {
+    await pool.query(
+      `UPDATE status_incidents SET state = 'resolved', resolved_at = NOW(), updated_at = NOW() WHERE id = $1`,
+      [openId],
+    );
+    await pool.query(
+      `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Resolved', $2)`,
+      [openId, `Automated monitoring sees ${service.name} back to operational.`],
+    );
+  }
 }
 
-// Retain ~90 days of samples per service. One row/minute/service for ~30
-// services = ~1.3M rows over 90 days, which is fine for Postgres but worth
-// trimming so it doesn't grow unbounded.
+// A single shared in-flight pass. The 60s tick and the admin "poll now" / "Test"
+// routes all funnel through here; if a pass is already running, callers join it
+// instead of starting a second concurrent pass (which would double-write checks
+// and race the auto-incident open/resolve logic).
+let pollPassInFlight = null;
+function runOnePollPass(pool) {
+  if (pollPassInFlight) return pollPassInFlight;
+  pollPassInFlight = (async () => {
+    // Includes manual services so they get a heartbeat sample each pass.
+    const { rows } = await pool.query(
+      `SELECT id, name, source, source_url, state, state_note FROM status_services`,
+    );
+    if (rows.length === 0) return;
+    // Parallel — each service has its own 6s timeout, so a single slow vendor
+    // can't block the cycle. Promise.allSettled so one failure doesn't kill
+    // the rest.
+    await Promise.allSettled(rows.map((s) => pollOne(pool, s)));
+  })().finally(() => { pollPassInFlight = null; });
+  return pollPassInFlight;
+}
+
+// We only display a 10-day window (and the admin probe panel reads the last 50
+// samples), so retaining far beyond that is pure waste. Keep 30 days for a
+// little headroom in case the display window is widened later.
 async function pruneOldChecks(pool) {
-  await pool.query(`DELETE FROM status_checks WHERE checked_at < NOW() - INTERVAL '90 days'`);
+  await pool.query(`DELETE FROM status_checks WHERE checked_at < NOW() - INTERVAL '30 days'`);
 }
 
 export function runStatusPollers(pool, { intervalMs = 60_000 } = {}) {
   let stopped = false;
+  let inProgress = false;
   let pruneCounter = 0;
 
   const tick = async () => {
-    if (stopped) return;
+    if (stopped || inProgress) return; // skip if the previous pass is still running
+    inProgress = true;
     try {
       await runOnePollPass(pool);
       pruneCounter += 1;
@@ -290,6 +447,8 @@ export function runStatusPollers(pool, { intervalMs = 60_000 } = {}) {
       }
     } catch (e) {
       console.warn('[status] poll cycle failed:', e.message);
+    } finally {
+      inProgress = false;
     }
   };
 
@@ -333,14 +492,14 @@ async function fetchStatusPayload(pool) {
   );
   const incidents = await pool.query(
     `SELECT i.id, i.service_id, s.name AS service_name, i.title, i.severity,
-            i.state, i.started_at, i.resolved_at,
+            i.state, i.started_at, i.resolved_at, i.auto_created,
             COALESCE(json_agg(json_build_object(
               'id', u.id, 'label', u.label, 'body', u.body, 'created_at', u.created_at
             ) ORDER BY u.created_at) FILTER (WHERE u.id IS NOT NULL), '[]'::json) AS updates
        FROM status_incidents i
        LEFT JOIN status_services s ON s.id = i.service_id
        LEFT JOIN status_incident_updates u ON u.incident_id = i.id
-      WHERE i.started_at >= NOW() - INTERVAL '60 days'
+      WHERE i.started_at >= NOW() - INTERVAL '30 days'
       GROUP BY i.id, s.name
       ORDER BY i.started_at DESC`,
   );
@@ -414,6 +573,7 @@ async function fetchStatusPayload(pool) {
       state: i.state,
       started_at: i.started_at,
       resolved_at: i.resolved_at,
+      auto_created: i.auto_created || false,
       updates: i.updates || [],
     })),
     server_time: new Date().toISOString(),
@@ -483,6 +643,11 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       if (!b.name) return res.status(400).json({ error: 'name required' });
       const source = VALID_SOURCES.has(b.source) ? b.source : 'manual';
       const state = VALID_STATES.has(b.state) ? b.state : 'operational';
+      // probe/statuspage are useless without a URL to poll; manual never uses one.
+      if (source !== 'manual' && !(b.source_url && String(b.source_url).trim())) {
+        return res.status(400).json({ error: 'source_url is required for probe and vendor-status sources' });
+      }
+      const sourceUrl = source === 'manual' ? null : String(b.source_url).slice(0, 500);
       const r = await pool.query(
         `INSERT INTO status_services
            (group_id, name, vendor, domain, icon_url, source, source_url, state, state_note, position)
@@ -494,12 +659,14 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           b.domain ? String(b.domain).slice(0, 120) : null,
           b.icon_url ? String(b.icon_url).slice(0, 500) : null,
           source,
-          b.source_url ? String(b.source_url).slice(0, 500) : null,
+          sourceUrl,
           state,
           b.state_note ? String(b.state_note).slice(0, 200) : null,
           Number(b.position) || 0,
         ],
       );
+      // Seed an initial sample so the new service's history/uptime isn't blank.
+      await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [r.rows[0].id, state]);
       res.json(r.rows[0]);
     } catch (e) { next(e); }
   });
@@ -537,7 +704,19 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
         ],
       );
       if (r.rows.length === 0) return res.status(404).json({ error: 'not found' });
-      res.json(r.rows[0]);
+      const row = r.rows[0];
+      if (row.source === 'manual') {
+        // Manual services don't poll a URL — keep the field clean so the admin
+        // UI and pollers don't get confused.
+        if (row.source_url) {
+          await pool.query(`UPDATE status_services SET source_url = NULL WHERE id = $1`, [req.params.id]);
+          row.source_url = null;
+        }
+        // Record the admin's toggle as a sample so the history bar reflects it
+        // immediately rather than waiting for the next heartbeat pass.
+        if (state) await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [req.params.id, row.state]);
+      }
+      res.json(row);
     } catch (e) { next(e); }
   });
   app.delete('/api/admin/status/services/:id', requireSliceAdmin, async (req, res, next) => {
