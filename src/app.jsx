@@ -1021,9 +1021,9 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
               s.state === "operational" ? { bg: "#D4F4D4", dot: "#0A8A3E", label: "Up" } :
               s.state === "degraded" ? { bg: "#FFE8A3", dot: "#B8860B", label: "Slow" } :
               { bg: "#FFD4D0", dot: "#B92323", label: "Down" };
-            // API shape uses uptime_90d (number 0–100); static fallback uses
-            // `uptime`. Either is fine for the percentage chip.
-            const uptimePct = (typeof s.uptime_90d === 'number' ? s.uptime_90d : s.uptime);
+            // Both the API and the static fallback expose `uptime` (number 0–100);
+            // the chip below renders "—" when it's absent.
+            const uptimePct = (typeof s.uptime === 'number' ? s.uptime : null);
             return (
               <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -2636,7 +2636,6 @@ const STAGE_TO_PATH = {
   onboarding: "/onboarding",
   "onboarding-filed": "/onboarding",
   offboarding: "/offboarding",
-  profile: "/profile",
   notifications: "/notifications",
 };
 const PATH_TO_STAGE = {
@@ -2647,7 +2646,6 @@ const PATH_TO_STAGE = {
   "/tickets": "tickets",
   "/onboarding": "onboarding",
   "/offboarding": "offboarding",
-  "/profile": "profile",
   "/notifications": "notifications",
 };
 function stageFromPath(path) {
@@ -2890,7 +2888,7 @@ function App() {
   return (
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
-      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenProfile={() => setStage("profile")} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
+      <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
       {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} />}
       {catalogReq && <CatalogRequestModal initialItemId={catalogReq.itemId} onClose={() => setCatalogReq(null)} onCreated={() => {}} />}
 
@@ -2960,10 +2958,6 @@ function App() {
         onReportIssue={() => setTicketDraft({ subject: "", description: "", type: "incident", priority: "medium" })} />
       }
 
-      {stage === "profile" &&
-      <ProfilePage onBack={goHome} />
-      }
-
       {stage === "notifications" &&
       <NotificationsPage onBack={goHome} />
       }
@@ -2972,7 +2966,7 @@ function App() {
           and the Footer would float in the middle of the viewport. Marketing
           surfaces (Help / Knowledge / Status) keep it. */}
       {stage !== "onboarding" && stage !== "onboarding-filed" && stage !== "offboarding"
-        && stage !== "notifications" && stage !== "profile"
+        && stage !== "notifications"
         && stage !== "questions" && stage !== "search-results"
         && (
         <Footer />
@@ -4939,7 +4933,7 @@ function useNotifications() {
   return { items, unreadCount, markRead, markAllRead, dismiss };
 }
 
-function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
+function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [activeLocal, setActiveLocal] = React.useState("Help");
   const active = activeProp || activeLocal;
   // Onboarding + Offboarding are hidden for now — those features are still WIP.
@@ -5032,7 +5026,7 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenProfile, onOpenNoti
       <div style={{display: "flex", alignItems: "center", gap: 12}}>
         <NotificationsMenu onViewAll={onOpenNotifications} onOpenTickets={onOpenTickets} />
         <ItServicesButton />
-        <UserMenu onOpenProfile={onOpenProfile} onOpenNotifications={onOpenNotifications} onOpenTickets={onOpenTickets} onOpenApprovals={onOpenApprovals} />
+        <UserMenu onOpenNotifications={onOpenNotifications} onOpenTickets={onOpenTickets} onOpenApprovals={onOpenApprovals} />
       </div>
     </nav>
   );
@@ -5323,9 +5317,9 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
 // --- User avatar + dropdown ---------------------------------------------------
 // Slightly dressier than a flat circle: a notched avatar button with initials,
 // presence dot, and a tiny caret. Clicking opens a small menu with typical
-// account actions (profile, tickets, prefs, sign out). Click-outside and Esc
-// both close it.
-function UserMenu({ onOpenProfile, onOpenNotifications, onOpenTickets, onOpenApprovals }) {
+// account actions (notifications, tickets, approvals, admin, sign out).
+// Click-outside and Esc both close it.
+function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   const [open, setOpen] = React.useState(false);
   // __PORTAL2_USERMENU_HELPERS__
   const _userName = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
@@ -5349,9 +5343,6 @@ function UserMenu({ onOpenProfile, onOpenNotifications, onOpenTickets, onOpenApp
   }, [open]);
 
   const items = [
-    { label: "My profile",     hint: "Personal info & photo",   action: "profile", icon: (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6"/></svg>
-    )},
     { label: "Notifications",  hint: "Updates & alerts",        action: "notifications", icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
     )},
@@ -5498,8 +5489,7 @@ function UserMenu({ onOpenProfile, onOpenNotifications, onOpenTickets, onOpenApp
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  if (it.action === "profile" && onOpenProfile) onOpenProfile();
-                  else if (it.action === "notifications" && onOpenNotifications) onOpenNotifications();
+                  if (it.action === "notifications" && onOpenNotifications) onOpenNotifications();
                   else if (it.action === "tickets" && onOpenTickets) onOpenTickets();
                   else if (it.action === "approvals" && onOpenApprovals) onOpenApprovals();
                   else if (it.action === "admin") window.location.href = withBase("/admin.html");
@@ -6071,262 +6061,6 @@ Object.assign(window, {
   Nav, Footer, Card, Pill, Chip, ChoiceCard, MultiChip, Progress, TypingDots, GlobalKeyframes
 });
 
-// ─── profile (89d92b3d) ──────────────────────────────────
-// ====================================================================
-//  PROFILE PAGE
-//  Clean, simple "my profile" view — reachable from the nav avatar menu.
-//  Two-column on wide screens: identity card + stats on the left, editable
-//  info & notification prefs on the right. Brand language: cream surfaces,
-//  charcoal outlines, cheese-yellow accent, hard 4px shadows, Archivo for
-//  display.
-// ====================================================================
-
-function ProfilePage({ onBack }) {
-  const [name,     setName]     = React.useState((typeof window !== "undefined" && window.PORTAL_CURRENT_USER) || "");
-  const [title,    setTitle]    = React.useState("IT Lead");
-  const [dept,     setDept]     = React.useState("People Ops · Prishtina");
-  const [bio,      setBio]      = React.useState(
-    "Keeping the Slice IT team running smoothly — laptops, access, security, and the occasional rescue mission."
-  );
-  const [notifyEmail,  setNotifyEmail]  = React.useState(true);
-  const [notifySlack,  setNotifySlack]  = React.useState(true);
-  const [notifyDigest, setNotifyDigest] = React.useState(false);
-  const [saved,        setSaved]        = React.useState(false);
-
-  const save = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2400);
-  };
-
-  // Derive initials from name so the avatar updates live as the user types.
-  const initials = React.useMemo(() => {
-    return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() || "").join("") || "?";
-  }, [name]);
-
-  return (
-    <div className="page" style={{ minHeight: "100vh", background: "#FDC831" }}>
-      {/* Hero strip — full-bleed cream banner. Mirrors Knowledge / Status so
-          Profile feels like part of the same product family. */}
-      <div style={{
-        background: "#F7F4EF",
-        borderBottom: "1px solid #211E1E",
-        padding: "20px 32px",
-      }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <button onClick={onBack} className="kb-back-btn">
-          <span className="kb-back-arrow">←</span>
-          Back to IT Hub
-        </button>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {saved && (
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "5px 10px",
-              background: "#D4F4D4",
-              border: "1px solid #0A8A3E",
-              borderRadius: 999,
-              fontSize: 11, fontWeight: 700, color: "#0A6B30",
-              animation: "fadeUp .3s var(--ease) both",
-            }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-              Profile updated
-            </span>
-          )}
-          <button onClick={save} style={{
-            display: "inline-flex", alignItems: "center", gap: 8,
-            padding: "9px 18px",
-            background: "#FDC831",
-            color: "#211E1E",
-            border: "1px solid #211E1E",
-            borderRadius: 999,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontWeight: 700, fontSize: 13,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            transition: "transform .15s ease, box-shadow .15s ease",
-          }}
-          onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1.5px,-1.5px)";e.currentTarget.style.boxShadow="4.5px 4.5px 0 #211E1E";}}
-          onMouseLeave={(e)=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="2px 2px 0 #211E1E";}}>
-            Save changes
-          </button>
-        </div>
-        </div>
-      </div>
-
-      {/* Body */}
-      <div style={{ maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "32px 32px 80px" }}>
-
-      {/* Two column */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 300px) minmax(0, 1fr)",
-        gap: 20,
-        alignItems: "start",
-      }}>
-        {/* Left: identity + stats + quick actions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Identity card */}
-          <div style={{
-            background: "#FFFFFF",
-            border: "1px solid #211E1E",
-            borderRadius: 16,
-            boxShadow: "2px 2px 0 #211E1E",
-            overflow: "hidden",
-          }}>
-            <div style={{
-              height: 70,
-              background: "#FDC831",
-              borderBottom: "1px solid #211E1E",
-              position: "relative",
-              overflow: "hidden",
-            }}>
-              {/* Subtle wedge pattern reminiscent of pizza slices */}
-              <svg width="100%" height="100%" viewBox="0 0 300 70" preserveAspectRatio="none"
-                style={{ position: "absolute", inset: 0, opacity: 0.14 }} aria-hidden="true">
-                <path d="M0 70 L60 0 L120 70 Z" fill="#211E1E"/>
-                <path d="M120 70 L180 0 L240 70 Z" fill="#211E1E"/>
-                <path d="M240 70 L300 0 L360 70 Z" fill="#211E1E"/>
-              </svg>
-              <div style={{
-                position: "absolute", top: 12, right: 12,
-                display: "inline-flex", alignItems: "center", gap: 6,
-                padding: "4px 10px",
-                background: "#FFFFFF", border: "1px solid #211E1E",
-                borderRadius: 999,
-                fontSize: 9.5, fontWeight: 800, textTransform: "uppercase",
-                letterSpacing: "0.06em", color: "#211E1E",
-              }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#0A8A3E" }}/>
-                Active
-              </div>
-            </div>
-
-            <div style={{ padding: "0 20px 20px", marginTop: -38 }}>
-              <div style={{
-                width: 80, height: 80,
-                background: "#211E1E", color: "#FDC831",
-                display: "grid", placeItems: "center",
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 26, fontWeight: 900, letterSpacing: "0.02em",
-                borderRadius: "50%",
-                border: "1px solid #211E1E",
-                marginBottom: 12,
-                position: "relative",
-              }}>
-                {initials}
-                <button type="button" aria-label="Change photo" style={{
-                  position: "absolute", bottom: -2, right: -2,
-                  width: 26, height: 26, borderRadius: "50%",
-                  background: "#FFFFFF", color: "#211E1E",
-                  border: "1px solid #211E1E",
-                  display: "grid", placeItems: "center",
-                  cursor: "pointer",
-                  boxShadow: "1px 1px 0 #211E1E",
-                  transition: "transform .12s ease",
-                }}
-                onMouseEnter={(e)=>{e.currentTarget.style.transform="translate(-1px,-1px)";}}
-                onMouseLeave={(e)=>{e.currentTarget.style.transform="none";}}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-                    <circle cx="12" cy="13" r="4"/>
-                  </svg>
-                </button>
-              </div>
-
-              <h1 style={{
-                fontFamily: "'Archivo', sans-serif",
-                fontSize: 20, fontWeight: 800,
-                letterSpacing: "-0.015em",
-                margin: "0 0 2px",
-                color: "#211E1E",
-                lineHeight: 1.2,
-              }}>{name}</h1>
-              <div style={{
-                fontSize: 12, color: "#5A4B28", fontWeight: 600,
-                marginBottom: 3,
-              }}>{title}</div>
-              <div style={{
-                fontSize: 11, color: "#8A7A4E", fontWeight: 500,
-              }}>{dept}</div>
-
-              <div style={{
-                marginTop: 14,
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "8px 10px",
-                background: "#F6EECB",
-                border: "1px solid #211E1E",
-                borderRadius: 10,
-              }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="5" width="18" height="14" rx="2"/>
-                  <polyline points="3 7 12 13 21 7"/>
-                </svg>
-                <span style={{
-                  fontSize: 11.5, fontWeight: 600, color: "#211E1E",
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>{(typeof window !== "undefined" && window.PORTAL_CURRENT_EMAIL) || ""}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-          }}>
-            <StatChip label="Open tickets" value="3" accent="#FDC831" />
-            <StatChip label="Resolved" value="47" accent="#D4F4D4" />
-            <StatChip label="Devices" value="2" accent="#E4DBFF" />
-            <StatChip label="At Slice" value="2.8y" accent="#FFD4D0" />
-          </div>
-
-          {/* Quick actions */}
-          <div style={{
-            background: "#FFFFFF",
-            border: "1px solid #211E1E",
-            borderRadius: 14,
-            padding: "6px",
-            boxShadow: "2px 2px 0 #211E1E",
-          }}>
-            <QuickAction icon="shield" label="Security & MFA"    hint="2 trusted devices" />
-            <QuickAction icon="signal" label="Sign-in history"   hint="Review last 30 days" />
-          </div>
-        </div>
-
-        {/* Right: editable sections */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Section title="Personal info" hint="Edits sync to OneLogin within a minute.">
-            <Field label="Full name"  value={name}  onChange={setName}  />
-            <Row>
-              <Field label="Role"        value={title} onChange={setTitle} />
-              <Field label="Team · Location" value={dept} onChange={setDept} />
-            </Row>
-            <Field label="Short bio" value={bio} onChange={setBio} multiline />
-          </Section>
-
-          <Section title="Notifications" hint="Where IT reaches you.">
-            <Toggle label="Email alerts" sub="Ticket updates, incidents, account changes"
-              checked={notifyEmail} onChange={setNotifyEmail} />
-            <Toggle label="Slack DMs" sub="Urgent pings from @it-support"
-              checked={notifySlack} onChange={setNotifySlack} />
-            <Toggle label="Weekly digest" sub="Monday mornings · what shipped, what's planned"
-              checked={notifyDigest} onChange={setNotifyDigest} />
-          </Section>
-        </div>
-      </div>
-
-      <style>{`
-        @media (max-width: 820px) {
-          .profile-grid { grid-template-columns: 1fr !important; }
-        }
-      `}</style>
-      </div>
-    </div>
-  );
-}
-
 // ---------- NOTIFICATIONS PAGE ----------
 // Full notifications view linked from the bell-dropdown's "View all" footer.
 // Same yellow + cream module pattern as Profile / Knowledge / Status.
@@ -6531,195 +6265,6 @@ function NotificationsPage({ onBack }) {
         )}
       </div>
     </div>
-  );
-}
-
-// ---- Helpers ---------------------------------------------------------
-
-function StatChip({ label, value, accent }) {
-  return (
-    <div style={{
-      background: "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 10,
-      padding: "9px 11px",
-      boxShadow: "1px 1px 0 #211E1E",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      <span aria-hidden="true" style={{
-        position: "absolute", top: 0, left: 0, bottom: 0,
-        width: 4, background: accent,
-      }}/>
-      <div style={{
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 18, fontWeight: 800, color: "#211E1E",
-        letterSpacing: "-0.01em", lineHeight: 1,
-        paddingLeft: 5,
-      }}>{value}</div>
-      <div style={{
-        fontSize: 10, fontWeight: 600, color: "#6B5E3D",
-        letterSpacing: "0.04em", textTransform: "uppercase",
-        marginTop: 4, paddingLeft: 5,
-      }}>{label}</div>
-    </div>
-  );
-}
-
-function QuickAction({ icon, label, hint }) {
-  const ICONS = {
-    key: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M11 12l8-8 3 3-3 3 2 2-2 2-2-2-3 3"/></svg>,
-    shield: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><polyline points="9 12 11 14 15 10"/></svg>,
-    signal: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 14l4-4 4 4 6-6"/><circle cx="18" cy="8" r="1.5"/></svg>,
-  };
-  return (
-    <button type="button" style={{
-      width: "100%",
-      display: "flex", alignItems: "center", gap: 10,
-      padding: "9px 10px",
-      background: "transparent",
-      border: "none",
-      borderRadius: 8,
-      cursor: "pointer",
-      textAlign: "left",
-      fontFamily: "inherit",
-      transition: "background .12s ease",
-    }}
-    onMouseEnter={(e)=>{e.currentTarget.style.background = "#FFF5CC";}}
-    onMouseLeave={(e)=>{e.currentTarget.style.background = "transparent";}}>
-      <span style={{
-        width: 28, height: 28,
-        display: "grid", placeItems: "center",
-        background: "#F6EECB",
-        border: "1px solid #211E1E",
-        borderRadius: 8,
-        color: "#211E1E",
-        flexShrink: 0,
-      }}>{ICONS[icon]}</span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{
-          display: "block",
-          fontSize: 12, fontWeight: 700, color: "#211E1E",
-          letterSpacing: "-0.005em",
-        }}>{label}</span>
-        <span style={{
-          display: "block",
-          fontSize: 10.5, color: "#6B5E3D", fontWeight: 500,
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>{hint}</span>
-      </span>
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6B5E3D" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 18 15 12 9 6"/>
-      </svg>
-    </button>
-  );
-}
-
-function Section({ title, hint, children }) {
-  return (
-    <div style={{
-      background: "#FFFFFF",
-      border: "1px solid #211E1E",
-      borderRadius: 14,
-      padding: "18px 20px 20px",
-      boxShadow: "2px 2px 0 #211E1E",
-    }}>
-      <div style={{ marginBottom: 14 }}>
-        <h2 style={{
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 14, fontWeight: 800, letterSpacing: "-0.01em",
-          color: "#211E1E", margin: 0,
-          textTransform: "uppercase",
-        }}>{title}</h2>
-        {hint && (
-          <div style={{ fontSize: 11.5, color: "#6B5E3D", marginTop: 3, fontWeight: 500 }}>{hint}</div>
-        )}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{children}</div>
-    </div>
-  );
-}
-
-function Field({ label, value, onChange, multiline }) {
-  const shared = {
-    width: "100%", boxSizing: "border-box",
-    padding: "9px 12px",
-    background: "#FFFCF3",
-    border: "1px solid #211E1E",
-    borderRadius: 8,
-    fontSize: 13, color: "#211E1E",
-    fontFamily: "inherit",
-    outline: "none",
-    resize: "vertical",
-    lineHeight: 1.5,
-    transition: "box-shadow .15s ease, background .15s ease",
-  };
-  const onFocus = (e)=>{e.currentTarget.style.background="#FFFFFF";e.currentTarget.style.boxShadow="1px 1px 0 #FDC831, 2px 2px 0 1.5px #211E1E";};
-  const onBlur  = (e)=>{e.currentTarget.style.background="#FFFCF3";e.currentTarget.style.boxShadow="none";};
-  return (
-    <label style={{ display: "block", flex: 1, minWidth: 0 }}>
-      <div style={{
-        fontSize: 10, fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.08em", color: "#3A2F10", marginBottom: 6,
-      }}>{label}</div>
-      {multiline ? (
-        <textarea rows={3} value={value} onChange={(e)=>onChange(e.target.value)}
-          style={shared} onFocus={onFocus} onBlur={onBlur} />
-      ) : (
-        <input type="text" value={value} onChange={(e)=>onChange(e.target.value)}
-          style={shared} onFocus={onFocus} onBlur={onBlur} />
-      )}
-    </label>
-  );
-}
-
-function Row({ children }) {
-  return (
-    <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>{children}</div>
-  );
-}
-
-function Toggle({ label, sub, checked, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!checked)}
-      style={{
-        display: "flex", alignItems: "center", gap: 14,
-        padding: "11px 12px",
-        background: checked ? "#FFFAE0" : "#FFFFFF",
-        border: `1.5px solid ${checked ? "#211E1E" : "#D9D0B1"}`,
-        borderRadius: 10,
-        cursor: "pointer",
-        textAlign: "left",
-        fontFamily: "inherit",
-        transition: "background .15s ease, border-color .15s ease",
-      }}
-    >
-      <span style={{
-        width: 38, height: 22,
-        background: checked ? "#211E1E" : "#E6DFC6",
-        borderRadius: 999,
-        border: "1px solid #211E1E",
-        position: "relative",
-        flexShrink: 0,
-        transition: "background .18s ease",
-      }}>
-        <span style={{
-          position: "absolute", top: 1.5,
-          left: checked ? 18 : 1.5,
-          width: 16, height: 16,
-          background: checked ? "#FDC831" : "#FFFFFF",
-          borderRadius: "50%",
-          border: "1px solid #211E1E",
-          transition: "left .18s ease, background .18s ease",
-        }}/>
-      </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#211E1E" }}>{label}</span>
-        {sub && <span style={{ display: "block", fontSize: 11, color: "#6B5E3D", fontWeight: 500, marginTop: 2 }}>{sub}</span>}
-      </span>
-    </button>
   );
 }
 
@@ -21869,17 +21414,8 @@ function StatusPage({ onBack }) {
   const [filter, setFilter] = React.useState('all'); // all | issues | operational
   const [query, setQuery] = React.useState('');
 
-  // KPI roll-ups derived from the live payload.
+  // Total services — drives the "All" filter-chip count.
   const totalServices = allServices.length;
-  const upWith90d = allServices.filter((s) => typeof s.uptime_90d === 'number');
-  const avgUptime = upWith90d.length
-    ? upWith90d.reduce((sum, s) => sum + s.uptime_90d, 0) / upWith90d.length
-    : null;
-  const responding = allServices.filter((s) => s.response_ms != null);
-  const avgResponse = responding.length
-    ? Math.round(responding.reduce((sum, s) => sum + s.response_ms, 0) / responding.length)
-    : null;
-  const openIncidents = openIncidentList.length;
 
   const agoSec = lastCheck ? Math.max(0, Math.round((Date.now() - lastCheck.getTime()) / 1000)) : null;
   const agoLabel = agoSec == null ? 'syncing…'
@@ -21971,25 +21507,6 @@ function StatusPage({ onBack }) {
         </div>
       </div>
 
-      {/* KPI strip — quick read of how things look right now */}
-      <div style={{
-        background: "#211E1E",
-        borderBottom: "1px solid #211E1E",
-      }}>
-        <div style={{
-          maxWidth: 1120, margin: "0 auto",
-          padding: "20px 32px",
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: 18,
-        }}>
-          <KpiTile label="Operational" value={`${operationalCount} / ${totalServices}`} accent="#0A8A3E" />
-          <KpiTile label="Open incidents" value={openIncidents} accent={openIncidents ? "#DA3327" : "#0A8A3E"} />
-          <KpiTile label="Avg uptime · 90d" value={avgUptime != null ? `${avgUptime.toFixed(2)}%` : "—"} accent="#FDC831" />
-          <KpiTile label="Avg response" value={avgResponse != null ? `${avgResponse}ms` : "—"} accent="#FFFFFF" />
-        </div>
-      </div>
-
       {/* Body */}
       <div style={{
         maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "48px 32px 64px",
@@ -22077,7 +21594,7 @@ function StatusPage({ onBack }) {
             <div>Service</div>
             <div>Status</div>
             <div style={{ display: "flex", justifyContent: "space-between", paddingRight: 4 }}>
-              <span>90 days ago</span>
+              <span>10 days ago</span>
               <span>Today</span>
             </div>
             <div style={{ textAlign: "right" }}>Uptime</div>
@@ -22174,27 +21691,6 @@ function StatusPage({ onBack }) {
   );
 }
 
-function KpiTile({ label, value, accent }) {
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 6,
-      paddingLeft: 14,
-      borderLeft: `3px solid ${accent}`,
-    }}>
-      <span style={{
-        fontFamily: "Archivo, sans-serif",
-        fontSize: 10, fontWeight: 900, letterSpacing: "0.1em", textTransform: "uppercase",
-        color: "#A89A7A",
-      }}>{label}</span>
-      <span style={{
-        fontFamily: "Archivo, sans-serif",
-        fontSize: 24, fontWeight: 900, letterSpacing: "-0.01em",
-        color: "#FFFFFF", lineHeight: 1,
-      }}>{value}</span>
-    </div>
-  );
-}
-
 function FilterChip({ active, onClick, children }) {
   return (
     <button
@@ -22254,11 +21750,36 @@ function StatusLegend() {
   );
 }
 
-// Convert bar index → label like "Mar 12" relative to today
+// How many days of daily history the public page shows. The server hands us
+// one cell per calendar day (worst state wins); we render the most recent N.
+const STATUS_WINDOW_DAYS = 10;
+
+// Convert bar index → label like "Mar 12" relative to today.
 function bucketLabel(indexFromEnd) {
   const d = new Date();
   d.setDate(d.getDate() - indexFromEnd);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+// Single-letter weekday (M T W T F S S) for the day-bar caption.
+function weekdayLetter(indexFromEnd) {
+  const d = new Date();
+  d.setDate(d.getDate() - indexFromEnd);
+  return d.toLocaleDateString("en-US", { weekday: "narrow" });
+}
+
+// Day-bar palette. A day's value is 0=up, 1=degraded, 2=down, or null when we
+// have no sample for it — and "no data" gets an honest hatched grey rather than
+// a misleading green, so a brand-new or paused service never looks 100% healthy.
+const DAY_TONE = {
+  up:       { bar: "#0A8A3E", label: "Operational" },
+  degraded: { bar: "#FDC831", label: "Degraded" },
+  down:     { bar: "#DA3327", label: "Down" },
+  none:     { bar: "#E2DCCE", label: "No data" },
+};
+function dayKey(v) {
+  if (v == null) return "none";
+  return v === 0 ? "up" : v === 1 ? "degraded" : "down";
 }
 
 function ServiceRow({ service, isLast, expanded, onToggle }) {
@@ -22268,21 +21789,18 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
     : service.state === "degraded" ? { bg: "#FFE8A3", ink: "#8A6A14", label: "Degraded" }
     : { bg: "#FFD4D0", ink: "#8A1E17", label: "Down" };
 
-  const uptime = typeof service.uptime_90d === "number" ? service.uptime_90d : null;
+  const uptime = typeof service.uptime === "number" ? service.uptime : null;
   const isOutlier = uptime != null && uptime < 99;
   const uptimeColor = isOutlier ? "#DA3327" : "#211E1E";
   const responseMs = service.response_ms;
 
-  // The server returns a 90-element history array (oldest first, today last,
-  // values 0|1|2). Pad if the service is too new to have 90 days of samples.
+  // The server returns a per-day history array (oldest first, today last) where
+  // each cell is 0|1|2 or null for a day with no samples. Show the most recent
+  // STATUS_WINDOW_DAYS, padding the front with null when the service is too new.
   const rawHist = Array.isArray(service.history) ? service.history : [];
-  const hist = rawHist.length >= 90 ? rawHist.slice(-90) : new Array(90 - rawHist.length).fill(0).concat(rawHist);
-
-  // Week-grouped bars: 13 weeks × 7 days, with small gap between weeks
-  const weeks = [];
-  for (let w = 0; w < Math.ceil(hist.length / 7); w++) {
-    weeks.push(hist.slice(w * 7, (w + 1) * 7));
-  }
+  const hist = rawHist.length >= STATUS_WINDOW_DAYS
+    ? rawHist.slice(-STATUS_WINDOW_DAYS)
+    : new Array(STATUS_WINDOW_DAYS - rawHist.length).fill(null).concat(rawHist);
 
   const initials = (service.name || "?")
     .split(/\s+/).filter(Boolean).slice(0, 2)
@@ -22358,44 +21876,57 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           )}
         </div>
         <div style={{ position: "relative" }}>
-          <div style={{ display: "flex", gap: 4, alignItems: "center", height: 28 }}>
-            {weeks.map((wk, wi) => (
-              <div key={wi} style={{ display: "flex", gap: 1.5, flex: 1, height: "100%" }}>
-                {wk.map((v, di) => {
-                  const globalIdx = wi * 7 + di;
-                  const fromEnd = hist.length - 1 - globalIdx;
-                  return (
-                    <div key={di}
-                      onMouseEnter={(e) => { e.stopPropagation(); setHover(globalIdx); }}
-                      onMouseLeave={() => setHover(-1)}
-                      style={{
-                        flex: 1, minWidth: 3, height: "100%",
-                        background: v === 0 ? "#0A8A3E" : v === 1 ? "#FDC831" : "#DA3327",
-                        border: "1px solid #211E1E",
-                        borderRadius: 2,
-                        transition: "transform .12s ease",
-                        transformOrigin: "center",
-                        transform: hover === globalIdx ? "scaleY(1.15) scaleX(1.6)" : "none",
-                        cursor: "pointer",
-                      }}
-                      title={`${bucketLabel(fromEnd)} — ${v === 0 ? "Up" : v === 1 ? "Degraded" : "Down"}`}
-                    />
-                  );
-                })}
-              </div>
-            ))}
+          {/* One bar per day, oldest → today. Tall, rounded, hover-lifts, with a
+              weekday caption beneath so 10 days reads like a little calendar. */}
+          <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}>
+            {hist.map((v, i) => {
+              const fromEnd = hist.length - 1 - i;
+              const key = dayKey(v);
+              const tone = DAY_TONE[key];
+              const isHover = hover === i;
+              const isToday = fromEnd === 0;
+              return (
+                <div key={i}
+                  onMouseEnter={(e) => { e.stopPropagation(); setHover(i); }}
+                  onMouseLeave={() => setHover(-1)}
+                  style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer" }}
+                  title={`${bucketLabel(fromEnd)} — ${tone.label}`}
+                >
+                  <div style={{
+                    width: "100%", height: 34, borderRadius: 6,
+                    background: tone.bar,
+                    border: "1.5px solid #211E1E",
+                    backgroundImage: key === "none"
+                      ? "repeating-linear-gradient(45deg, rgba(33,30,30,0.10) 0 3px, transparent 3px 6px)"
+                      : "linear-gradient(180deg, rgba(255,255,255,0.30), rgba(0,0,0,0.05))",
+                    boxShadow: isHover ? "0 3px 0 #211E1E" : "0 1.5px 0 rgba(33,30,30,0.22)",
+                    transform: isHover ? "translateY(-3px)" : "none",
+                    transition: "transform .12s var(--ease), box-shadow .12s var(--ease)",
+                  }}/>
+                  <span style={{
+                    fontFamily: "Archivo, sans-serif", fontSize: 9, fontWeight: 800,
+                    letterSpacing: "0.02em", lineHeight: 1,
+                    color: isToday ? "#211E1E" : isHover ? "#4A3F2E" : "#A89A7A",
+                    transition: "color .12s",
+                  }}>{weekdayLetter(fromEnd)}</span>
+                </div>
+              );
+            })}
           </div>
           {hover >= 0 && (
             <div style={{
-              position: "absolute", top: -32, left: `${(hover / hist.length) * 100}%`,
+              position: "absolute", top: -34,
+              left: `${((hover + 0.5) / hist.length) * 100}%`,
               transform: "translateX(-50%)",
               background: "#211E1E", color: "#FFFFFF",
-              padding: "4px 8px", borderRadius: 4,
+              padding: "5px 9px", borderRadius: 6,
               fontFamily: "Archivo, sans-serif", fontSize: 11, fontWeight: 700,
-              whiteSpace: "nowrap", pointerEvents: "none",
-              boxShadow: "1px 1px 0 rgba(0,0,0,0.2)",
+              whiteSpace: "nowrap", pointerEvents: "none", zIndex: 2,
+              boxShadow: "2px 2px 0 rgba(0,0,0,0.18)",
+              display: "flex", alignItems: "center", gap: 6,
             }}>
-              {bucketLabel(hist.length - 1 - hover)} — {hist[hover] === 0 ? "Up" : hist[hover] === 1 ? "Degraded" : "Down"}
+              <span style={{ width: 7, height: 7, borderRadius: 2, background: DAY_TONE[dayKey(hist[hover])].bar, border: "1px solid rgba(255,255,255,0.5)" }}/>
+              {bucketLabel(hist.length - 1 - hover)} — {DAY_TONE[dayKey(hist[hover])].label}
             </div>
           )}
         </div>
@@ -22403,7 +21934,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 22, color: uptimeColor, letterSpacing: "-0.01em", lineHeight: 1 }}>
             {uptime != null ? `${uptime.toFixed(2)}%` : "—"}
           </div>
-          <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, marginTop: 3 }}>90-day uptime</div>
+          <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, marginTop: 3 }}>10-day uptime</div>
         </div>
         <div style={{
           width: 28, height: 28,
@@ -22425,7 +21956,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           borderBottom: isLast ? "none" : "1.5px solid #E7E1D4",
         }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 12 }}>
-            <MiniStat label="90d uptime" value={uptime != null ? `${uptime.toFixed(2)}%` : "—"} />
+            <MiniStat label="10-day uptime" value={uptime != null ? `${uptime.toFixed(2)}%` : "—"} />
             <MiniStat label="Last response" value={responseMs != null ? `${responseMs}ms` : "—"} />
             <MiniStat label="Last checked"
               value={service.last_checked_at ? relativeTime(service.last_checked_at) : "—"} />

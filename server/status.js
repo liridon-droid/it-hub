@@ -312,23 +312,23 @@ async function fetchStatusPayload(pool) {
        FROM status_services
        ORDER BY group_id, position, id`,
   );
-  // 90-day daily history per service — one cell per day, worst state of the
+  // 10-day daily history per service — one cell per day, worst state of the
   // day wins so a single bad sample colors the bar. 0 = ok, 1 = degraded, 2 = down.
   const history = await pool.query(
     `SELECT service_id,
             (NOW()::date - checked_at::date)::int AS days_ago,
             MAX(CASE state WHEN 'down' THEN 2 WHEN 'degraded' THEN 1 ELSE 0 END) AS worst
        FROM status_checks
-      WHERE checked_at >= NOW() - INTERVAL '90 days'
+      WHERE checked_at >= NOW() - INTERVAL '10 days'
       GROUP BY service_id, days_ago`,
   );
-  // Compute 90-day uptime per service: % of samples that were operational.
+  // Compute 10-day uptime per service: % of samples that were operational.
   const uptime = await pool.query(
     `SELECT service_id,
             COUNT(*)::int AS samples,
             SUM(CASE state WHEN 'operational' THEN 1 ELSE 0 END)::int AS ok
        FROM status_checks
-      WHERE checked_at >= NOW() - INTERVAL '90 days'
+      WHERE checked_at >= NOW() - INTERVAL '10 days'
       GROUP BY service_id`,
   );
   const incidents = await pool.query(
@@ -345,11 +345,14 @@ async function fetchStatusPayload(pool) {
       ORDER BY i.started_at DESC`,
   );
 
-  // Roll history rows up by service into a 90-element array (index 0 = today).
+  // Roll history rows up by service into a 10-element array (index 0 = today).
+  // Days with no samples stay null so the UI can show "no data" honestly rather
+  // than painting an un-checked day green.
+  const HISTORY_DAYS = 10;
   const histByService = new Map();
   for (const r of history.rows) {
-    const list = histByService.get(r.service_id) || new Array(90).fill(0);
-    if (r.days_ago >= 0 && r.days_ago < 90) list[r.days_ago] = r.worst;
+    const list = histByService.get(r.service_id) || new Array(HISTORY_DAYS).fill(null);
+    if (r.days_ago >= 0 && r.days_ago < HISTORY_DAYS) list[r.days_ago] = r.worst;
     histByService.set(r.service_id, list);
   }
   const uptimeByService = new Map();
@@ -379,8 +382,8 @@ async function fetchStatusPayload(pool) {
         last_error: s.last_error,
         position: s.position,
         // Reverse so index 0 = oldest, last = today (matches what the bars expect).
-        history: (histByService.get(s.id) || new Array(90).fill(0)).slice().reverse(),
-        uptime_90d: uptimeByService.get(s.id) ?? null,
+        history: (histByService.get(s.id) || new Array(HISTORY_DAYS).fill(null)).slice().reverse(),
+        uptime: uptimeByService.get(s.id) ?? null,
       })),
   }));
   // Strays — services whose group was deleted — get bucketed at the end.
@@ -394,8 +397,8 @@ async function fetchStatusPayload(pool) {
         state: s.state, state_note: s.state_note, response_ms: s.response_ms,
         last_checked_at: s.last_checked_at, last_error: s.last_error,
         position: s.position,
-        history: (histByService.get(s.id) || new Array(90).fill(0)).slice().reverse(),
-        uptime_90d: uptimeByService.get(s.id) ?? null,
+        history: (histByService.get(s.id) || new Array(HISTORY_DAYS).fill(null)).slice().reverse(),
+        uptime: uptimeByService.get(s.id) ?? null,
       })),
     });
   }
