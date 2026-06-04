@@ -8624,6 +8624,19 @@ const ROW_HOVER = {
   onMouseUp: (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; },
 };
 
+// The hub_token that authenticates this session (the hub appends it to the
+// iframe URL). The network shim adds it as an X-Hub-Token header on fetch/XHR,
+// but a native <img src> or a download link can't carry headers — for those we
+// append it as ?hub_token=, which the server's hub auth also accepts (see
+// server/middleware/hubAuth.js getToken). Returns '' (no token) for non-embedded
+// loads, where cookie auth applies instead.
+function hubTokenQuery() {
+  try {
+    const t = new URLSearchParams(window.location.search).get('hub_token');
+    return t ? ('?hub_token=' + encodeURIComponent(t)) : '';
+  } catch { return ''; }
+}
+
 // fetch + JSON + error-unwrap. The network shim in main.jsx already prefixes the
 // deploy base and attaches the hub_token, so callers pass bare /api/... paths.
 // On a non-2xx the thrown error carries .status and .data (so callers can read
@@ -9251,6 +9264,11 @@ function TicketDetailView({ id, onBack, initial }) {
   const [sending, setSending] = React.useState(false);
   const [replyErr, setReplyErr] = React.useState('');
   const [confirmReopen, setConfirmReopen] = React.useState(false);
+  // Close / reopen confirmation prompt: '' | 'close' | 'reopen'.
+  const [confirmAction, setConfirmAction] = React.useState('');
+  // Attachments fetched from the dedicated list route, used only as a fallback
+  // when the ticket read didn't inline an `attachments` array (see effect below).
+  const [extraAtts, setExtraAtts] = React.useState([]);
   const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
 
   // Reusable load so we can refetch after a reply — the new comment/attachment,
@@ -9283,6 +9301,26 @@ function TicketDetailView({ id, onBack, initial }) {
       .catch(() => { if (!off) setApproval(null); });
     return () => { off = true; };
   }, [approvalId]);
+
+  // Attachments live inline on the ticket (`attachments`) OR on its comments —
+  // that's the spec's primary shape and we read it in render. But the ticket
+  // module may instead expose them only via a dedicated list endpoint. So if the
+  // loaded ticket carries none inline, fall back to GET /tickets/:id/attachments.
+  // Silent on failure (a 404 just means "this ticket has none").
+  const ticketForAtts = st.ticket;
+  React.useEffect(() => {
+    if (!ticketForAtts) { setExtraAtts([]); return; }
+    const tAtts = Array.isArray(ticketForAtts.attachments) ? ticketForAtts.attachments
+      : (Array.isArray(ticketForAtts.files) ? ticketForAtts.files : []);
+    const cAtts = (Array.isArray(ticketForAtts.comments) ? ticketForAtts.comments : [])
+      .flatMap((c) => (c && (c.attachments || c.files || c.media)) || []);
+    if (tAtts.length + cAtts.length > 0) { setExtraAtts([]); return; }
+    let off = false;
+    ticketsApiJson('GET', '/api/tickets/' + encodeURIComponent(id) + '/attachments')
+      .then((j) => { if (!off) setExtraAtts(Array.isArray(j) ? j : ((j && Array.isArray(j.attachments)) ? j.attachments : [])); })
+      .catch(() => { if (!off) setExtraAtts([]); });
+    return () => { off = true; };
+  }, [ticketForAtts, id]);
 
   const send = async () => {
     const body = reply.trim();
@@ -9321,8 +9359,10 @@ function TicketDetailView({ id, onBack, initial }) {
     try {
       await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action });
       await load();
+      return true;
     } catch (e) {
       setStatusErr(e.message || 'Couldn’t update the ticket.');
+      return false;
     } finally {
       setStatusBusy('');
     }
@@ -9332,20 +9372,47 @@ function TicketDetailView({ id, onBack, initial }) {
   // Internal agent notes aren't for the requester — mirror the ticket system's
   // is_internal contract and hide them here.
   const comments = (t && Array.isArray(t.comments) ? t.comments : []).filter((c) => !c.is_internal);
-  // Attachments on the ticket — uploaded from here OR added on the ticketing
-  // system side. Field names vary, so read them defensively.
-  // Attachments can live on the ticket OR on a comment (a reply upload), so
-  // gather from both places.
+  // Attachment field-name helpers — the ticket module's shapes vary, so read
+  // defensively. attUrl prefers a direct http(s) link if the object carries one
+  // (e.g. a Drive webViewLink); otherwise it builds a same-origin URL to our own
+  // content proxy from the attachment id. A native <img>/download link can't get
+  // the X-Hub-Token header the network shim adds to fetch/XHR, and the shim
+  // doesn't rewrite <img src> either — so we prepend the deploy base ourselves
+  // (withBase) and carry auth as ?hub_token=, which the server also accepts.
+  const attName = (a) => (a && (a.file_name || a.name || a.filename || a.title)) || 'attachment';
+  const attSize = (a) => (a && (a.file_size != null ? a.file_size : (a.size != null ? a.size : a.bytes)));
+  const attUrl = (a) => {
+    if (!a) return null;
+    const direct = a.url || a.download_url || a.file_url || a.href || a.webViewLink || a.web_view_link || a.webContentLink || a.drive_url || a.content_url || a.view_url;
+    if (typeof direct === 'string' && /^https?:\/\//.test(direct)) return direct;
+    const attId = a.id != null ? a.id : (a.attachment_id != null ? a.attachment_id : (a.file_id != null ? a.file_id : a.attId));
+    if (attId != null) return withBase('/api/tickets/' + encodeURIComponent(id) + '/attachments/' + encodeURIComponent(attId) + '/content') + hubTokenQuery();
+    return null;
+  };
+
+  // Attachments can live inline on the ticket, on a comment (a reply upload), or
+  // arrive from the list-endpoint fallback (extraAtts). Gather all and dedupe —
+  // the ticket-level array usually re-lists comment uploads, and the SliceDesk
+  // side adds them here too.
   const ticketAtts = (t && (Array.isArray(t.attachments) ? t.attachments : (Array.isArray(t.files) ? t.files : []))) || [];
   const commentAtts = (t && Array.isArray(t.comments) ? t.comments : [])
     .flatMap((c) => (c && (c.attachments || c.files || c.media)) || [])
     .filter(Boolean);
-  const attachments = [...ticketAtts, ...commentAtts];
-  const attName = (a) => a.file_name || a.name || a.filename || a.title || 'attachment';
-  // Cover local URLs and Google Drive link fields (the ticket module can store
-  // files in Drive, which exposes webViewLink / webContentLink).
-  const attUrl = (a) => { const u = a.url || a.download_url || a.file_url || a.href || a.webViewLink || a.web_view_link || a.webContentLink || a.drive_url || a.content_url || a.view_url; return (typeof u === 'string' && /^https?:\/\//.test(u)) ? u : null; };
-  const attSize = (a) => (a.file_size != null ? a.file_size : (a.size != null ? a.size : a.bytes));
+  const seenAtt = new Set();
+  const attachments = [...ticketAtts, ...commentAtts, ...extraAtts].filter((a) => {
+    if (!a) return false;
+    const idv = a.id != null ? a.id : (a.attachment_id != null ? a.attachment_id : a.file_id);
+    const key = idv != null ? ('id:' + idv) : ('nm:' + attName(a) + '|' + (attSize(a) != null ? attSize(a) : ''));
+    if (seenAtt.has(key)) return false;
+    seenAtt.add(key);
+    return true;
+  });
+
+  // Lifecycle flags — shared by the action buttons and the confirm prompt below.
+  const statusLc = String((t && t.status) || '').toLowerCase();
+  const isResolved = statusLc === 'resolved';
+  const isClosed = statusLc === 'closed';
+  const isPendingApproval = !!t && ticketTypeMeta(t.type).kind === 'request' && statusLc === 'pending';
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
 
   return (
@@ -9371,13 +9438,9 @@ function TicketDetailView({ id, onBack, initial }) {
                   <ApprovalsButton approval={approval} ticket={t} />
                 )}
                 {(() => {
-                  const s = String(t.status || '').toLowerCase();
-                  const isResolved = s === 'resolved';
-                  const isClosed = s === 'closed';
-                  const isPendingApproval = ticketTypeMeta(t.type).kind === 'request' && s === 'pending';
                   const sm = { padding: '7px 13px', fontSize: 11.5 };
-                  const reopenBtn = <button key="r" className="btn btn-primary" style={sm} disabled={!!statusBusy} onClick={() => changeStatus('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
-                  const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => changeStatus('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : (isResolved ? 'Close' : 'Close ticket'))}</button>;
+                  const reopenBtn = <button key="r" className="btn btn-primary" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
+                  const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : (isResolved ? 'Close' : 'Close ticket'))}</button>;
                   if (isClosed) return reopenBtn;
                   if (isResolved) return [reopenBtn, closeBtn];
                   return closeBtn;
@@ -9465,6 +9528,36 @@ function TicketDetailView({ id, onBack, initial }) {
               })()}
             </div>
           </div>
+
+          {/* Close / reopen confirmation — "are you sure?" before changing the
+              ticket's lifecycle, in both directions. */}
+          {confirmAction && (
+            <ModalShell
+              title={confirmAction === 'reopen' ? 'Reopen this ticket?' : (isPendingApproval ? 'Cancel this request?' : 'Close this ticket?')}
+              kicker={t.ticket_number}
+              maxWidth={460}
+              onClose={() => { if (!statusBusy) setConfirmAction(''); }}>
+              <p style={{ fontSize: 14, color: '#4A3F2E', lineHeight: 1.6, margin: '0 0 18px' }}>
+                {confirmAction === 'reopen'
+                  ? 'This moves the ticket back to open and lets the IT Team know you still need help.'
+                  : (isPendingApproval
+                    ? 'This withdraws your request. You can submit a new one later if you change your mind.'
+                    : 'You can reopen it anytime if you still need help.')}
+              </p>
+              {statusErr && <p style={{ color: '#B92323', fontSize: 13, margin: '0 0 12px' }}>{statusErr}</p>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button onClick={() => setConfirmAction('')} disabled={!!statusBusy} style={btnSecondary}>Cancel</button>
+                <button
+                  onClick={async () => { const ok = await changeStatus(confirmAction); if (ok) setConfirmAction(''); }}
+                  disabled={!!statusBusy}
+                  style={{ ...btnPrimary, opacity: statusBusy ? 0.6 : 1, cursor: statusBusy ? 'default' : 'pointer' }}>
+                  {statusBusy === 'reopen' ? 'Reopening…'
+                    : statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…')
+                    : (confirmAction === 'reopen' ? 'Reopen ticket' : (isPendingApproval ? 'Cancel request' : 'Close ticket'))}
+                </button>
+              </div>
+            </ModalShell>
+          )}
         </>
       )}
     </div>

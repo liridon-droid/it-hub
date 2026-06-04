@@ -324,6 +324,91 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   }
 });
 
+// Read an attachment's BYTES back out of a ticket so the portal can show it
+// inline. The ticket module owns the file (often in Google Drive) and its content
+// endpoint is module-key-authed — not a browser session — so the browser can't
+// fetch it directly. We proxy it here, same-origin, after gating ownership the
+// same way as GET. Auth for a native <img src>/download link rides on the
+// ?hub_token= query param (the network shim can't add headers to an <img> load);
+// requireSliceUser/hub auth accepts that param. Gated to the requester (or admin).
+app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  try {
+    // Ownership gate — the module proxy has module-wide access, so without this a
+    // user could read anyone's file by guessing ids (same rule as GET /tickets/:id).
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
+    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
+      return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
+    }
+
+    const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module` +
+      `/tickets/${encodeURIComponent(req.params.id)}/attachments/${encodeURIComponent(req.params.attId)}/content`;
+    const upstream = await fetch(url, { headers: { Authorization: `Bearer ${moduleConfig.apiKey}` } });
+    const ctype = upstream.headers.get('content-type') || '';
+
+    // The module (or the hub proxy in front of it) can answer in any of three
+    // shapes — handle all so the portal works whichever the ticket module picked.
+    if (ctype.includes('application/json')) {
+      const j = await upstream.json().catch(() => ({}));
+      if (!upstream.ok) return res.status(upstream.status).json({ error: j.error || `Ticket service returned ${upstream.status}` });
+      // (a) a short-lived signed download URL → bounce the browser straight at it.
+      const link = j.download_url || j.url || j.href || j.signed_url;
+      if (typeof link === 'string' && /^https?:\/\//.test(link)) return res.redirect(302, link);
+      // (b) the bytes wrapped as base64 in a JSON envelope.
+      const b64 = j.content_base64 || j.content || j.data;
+      if (typeof b64 === 'string' && b64) {
+        const buf = Buffer.from(b64, 'base64');
+        res.setHeader('Content-Type', j.mime_type || j.content_type || 'application/octet-stream');
+        res.setHeader('Content-Disposition', `inline; filename="${String(j.file_name || 'attachment').replace(/[\r\n"]/g, '')}"`);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        return res.send(buf);
+      }
+      return res.status(502).json({ error: 'Attachment content unavailable', detail: 'Ticket service returned JSON with no file bytes or download URL.' });
+    }
+
+    // (c) raw bytes (the spec's primary shape) — stream them through unchanged.
+    if (!upstream.ok) {
+      const text = await upstream.text().catch(() => '');
+      return res.status(upstream.status).json({ error: `Ticket service returned ${upstream.status}`, detail: text.slice(0, 200) });
+    }
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.setHeader('Content-Type', ctype || 'application/octet-stream');
+    const cd = upstream.headers.get('content-disposition');
+    if (cd) res.setHeader('Content-Disposition', cd);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    return res.send(buf);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.attachment.content');
+  }
+});
+
+// Fallback list endpoint — the portal calls this only when GET /tickets/:id did
+// NOT inline an `attachments` array (the spec allows either inlining or a
+// dedicated list route). Returns the inlined array if present, else proxies the
+// module's own list route. Safe to 404 — the portal treats that as "none".
+app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  try {
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
+    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    if (Array.isArray(look.data.attachments)) return res.json({ attachments: look.data.attachments });
+    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.attachment.list');
+  }
+});
+
 // Service catalog — the "request something" path (access to an app / service).
 app.get('/api/catalog', requireSliceUser, async (req, res) => {
   try {
