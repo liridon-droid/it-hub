@@ -165,3 +165,32 @@ CREATE TABLE IF NOT EXISTS status_incident_updates (
 
 CREATE INDEX IF NOT EXISTS status_incident_updates_incident_idx
   ON status_incident_updates (incident_id, created_at);
+
+-- ── Slack notifications ─────────────────────────────────────────────────────
+-- Small key/value bag for status settings (the Slack bot token + event toggles).
+-- The token can also come from the SLACK_BOT_TOKEN env var, which takes
+-- precedence; this row is the admin-set fallback.
+CREATE TABLE IF NOT EXISTS status_config (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Channels the Hub can post to. channel_id is the Slack channel id (C0…/G0…)
+-- or a #name the bot can resolve. is_global channels receive every alert.
+CREATE TABLE IF NOT EXISTS status_slack_channels (
+  id SERIAL PRIMARY KEY,
+  label TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  is_global BOOLEAN NOT NULL DEFAULT false,
+  enabled BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Which channels a given service's alerts route to (in addition to globals).
+CREATE TABLE IF NOT EXISTS status_service_channels (
+  service_id INT REFERENCES status_services(id) ON DELETE CASCADE,
+  channel_id INT REFERENCES status_slack_channels(id) ON DELETE CASCADE,
+  PRIMARY KEY (service_id, channel_id)
+);
+CREATE INDEX IF NOT EXISTS status_service_channels_svc_idx ON status_service_channels (service_id);

@@ -370,6 +370,8 @@ async function handleAutoIncident(pool, service, fromState, toState) {
 
   if (isBadState(toState)) {
     const severity = toState === 'down' ? 'major' : 'minor';
+    const icon = toState === 'down' ? ':red_circle:' : ':large_yellow_circle:';
+    const notifyDown = await slackEventEnabled(pool, 'down');
     if (!openId) {
       const inc = await pool.query(
         `INSERT INTO status_incidents (service_id, title, severity, state, auto_created)
@@ -380,6 +382,8 @@ async function handleAutoIncident(pool, service, fromState, toState) {
         `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Identified', $2)`,
         [inc.rows[0].id, `Automated monitoring detected ${service.name} is ${toState}. The IT Team has been alerted.`],
       );
+      // Notify only when an incident is actually opened (not on every poll).
+      if (notifyDown) await notifySlack(pool, { serviceId: service.id, text: `${icon} *${slackText(service.name)}* is *${toState}*. Monitoring opened an incident.` });
     } else if (fromState !== toState) {
       await pool.query(
         `UPDATE status_incidents SET severity = $2, updated_at = NOW() WHERE id = $1`,
@@ -389,6 +393,8 @@ async function handleAutoIncident(pool, service, fromState, toState) {
         `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Update', $2)`,
         [openId, `${service.name} status changed to ${toState}.`],
       );
+      // Separate message for an escalation/severity change on an open incident.
+      if (notifyDown) await notifySlack(pool, { serviceId: service.id, text: `${icon} *${slackText(service.name)}* status changed to *${toState}*.` });
     }
   } else if (openId) {
     await pool.query(
@@ -399,6 +405,79 @@ async function handleAutoIncident(pool, service, fromState, toState) {
       `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Resolved', $2)`,
       [openId, `Automated monitoring sees ${service.name} back to operational.`],
     );
+    if (await slackEventEnabled(pool, 'recovery')) {
+      await notifySlack(pool, { serviceId: service.id, text: `:large_green_circle: *${slackText(service.name)}* has recovered — back to operational.` });
+    }
+  }
+}
+
+// ── Slack notifications ─────────────────────────────────────────────────────
+// A status_config key/value bag holds the bot token (env SLACK_BOT_TOKEN wins)
+// and the per-event on/off toggles (default on). Channels live in
+// status_slack_channels; a service's alerts go to its connected channels plus
+// any channel flagged is_global.
+
+async function getConfig(pool, key) {
+  const { rows } = await pool.query(`SELECT value FROM status_config WHERE key = $1`, [key]);
+  return rows[0]?.value ?? null;
+}
+async function setConfig(pool, key, value) {
+  await pool.query(
+    `INSERT INTO status_config (key, value, updated_at) VALUES ($1, $2, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+    [key, value],
+  );
+}
+async function getSlackToken(pool) {
+  return process.env.SLACK_BOT_TOKEN || (await getConfig(pool, 'slack_bot_token')) || null;
+}
+// Event toggles default ON unless an admin explicitly turned them off.
+async function slackEventEnabled(pool, key) {
+  const v = await getConfig(pool, `slack_evt_${key}`);
+  return v == null ? true : v === 'on';
+}
+
+// Slack mrkdwn plain text only needs &, <, > escaped. Run user-controlled
+// values (service names, incident titles/bodies) through this before building
+// a message so they can't break or spoof the formatting.
+function slackText(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function postToSlack(token, channel, text) {
+  const r = await fetchWithTimeout('https://slack.com/api/chat.postMessage', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ channel, text, unfurl_links: false }),
+    timeoutMs: 8000,
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!j.ok) throw new Error(j.error || `slack HTTP ${r.status}`);
+  return j;
+}
+
+// Resolve the target channels for a service (its connected channels ∪ every
+// global channel) and post `text` to each. No-ops silently when Slack isn't
+// configured or no channel is wired up, so it's always safe to call.
+async function notifySlack(pool, { serviceId, text }) {
+  try {
+    const token = await getSlackToken(pool);
+    if (!token) return;
+    const { rows } = await pool.query(
+      `SELECT DISTINCT c.channel_id
+         FROM status_slack_channels c
+         LEFT JOIN status_service_channels sc ON sc.channel_id = c.id
+        WHERE c.enabled = true
+          AND (c.is_global = true OR sc.service_id = $1)`,
+      [serviceId || null],
+    );
+    if (rows.length === 0) return;
+    await Promise.allSettled(rows.map((r) =>
+      postToSlack(token, r.channel_id, text).catch((e) => {
+        console.warn(`[status] slack post to ${r.channel_id} failed: ${e.message}`);
+      })));
+  } catch (e) {
+    console.warn('[status] notifySlack failed:', e.message);
   }
 }
 
@@ -499,7 +578,7 @@ async function fetchStatusPayload(pool) {
        FROM status_incidents i
        LEFT JOIN status_services s ON s.id = i.service_id
        LEFT JOIN status_incident_updates u ON u.incident_id = i.id
-      WHERE i.started_at >= NOW() - INTERVAL '30 days'
+      WHERE i.started_at >= NOW() - INTERVAL '10 days'
       GROUP BY i.id, s.name
       ORDER BY i.started_at DESC`,
   );
@@ -749,7 +828,11 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           );
         }
         await client.query('COMMIT');
-        res.json(inc.rows[0]);
+        const created = inc.rows[0];
+        if (await slackEventEnabled(pool, 'manual')) {
+          await notifySlack(pool, { serviceId: created.service_id, text: `:memo: *New incident:* ${slackText(created.title)} — _${created.severity}_` });
+        }
+        res.json(created);
       } catch (e) {
         await client.query('ROLLBACK');
         throw e;
@@ -783,7 +866,14 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
         ],
       );
       if (r.rows.length === 0) return res.status(404).json({ error: 'not found' });
-      res.json(r.rows[0]);
+      const updated = r.rows[0];
+      // Notify on an admin state change (e.g. manually resolving an incident) so
+      // it mirrors the automated recovery path.
+      if (state && await slackEventEnabled(pool, 'manual')) {
+        const emoji = state === 'resolved' ? ':white_check_mark:' : ':speech_balloon:';
+        await notifySlack(pool, { serviceId: updated.service_id, text: `${emoji} Incident *${slackText(updated.title)}* → *${state}*` });
+      }
+      res.json(updated);
     } catch (e) { next(e); }
   });
   app.delete('/api/admin/status/incidents/:id', requireSliceAdmin, async (req, res, next) => {
@@ -798,12 +888,18 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       const b = req.body || {};
       if (!b.body) return res.status(400).json({ error: 'body required' });
       const label = String(b.label || 'Update').slice(0, 40);
+      const body = String(b.body).slice(0, 1000);
       const r = await pool.query(
         `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, $2, $3) RETURNING *`,
-        [req.params.id, label, String(b.body).slice(0, 1000)],
+        [req.params.id, label, body],
       );
       // Bump the parent so /api/status sorts correctly when this update lands.
       await pool.query(`UPDATE status_incidents SET updated_at = NOW() WHERE id = $1`, [req.params.id]);
+      if (await slackEventEnabled(pool, 'manual')) {
+        const inc = await pool.query(`SELECT service_id, title FROM status_incidents WHERE id = $1`, [req.params.id]);
+        const row = inc.rows[0];
+        if (row) await notifySlack(pool, { serviceId: row.service_id, text: `:speech_balloon: *${slackText(row.title)}* — ${slackText(label)}: ${slackText(body)}` });
+      }
       res.json(r.rows[0]);
     } catch (e) { next(e); }
   });
@@ -826,6 +922,131 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           ORDER BY s.name`,
       );
       res.json({ probes: r.rows });
+    } catch (e) { next(e); }
+  });
+
+  // ── Slack notification config ─────────────────────────────────────────────
+  // Snapshot for the admin Slack panel. Never returns the token itself — only
+  // whether one is set, plus the channel list, toggles, and per-service routing.
+  app.get('/api/admin/status/slack', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const token = await getSlackToken(pool);
+      const channels = await pool.query(
+        `SELECT id, label, channel_id, is_global, enabled FROM status_slack_channels ORDER BY id`,
+      );
+      const map = await pool.query(`SELECT service_id, channel_id FROM status_service_channels`);
+      const serviceChannels = {};
+      for (const r of map.rows) (serviceChannels[r.service_id] ||= []).push(r.channel_id);
+      res.json({
+        token_set: !!token,
+        token_from_env: !!process.env.SLACK_BOT_TOKEN,
+        channels: channels.rows,
+        toggles: {
+          down: await slackEventEnabled(pool, 'down'),
+          recovery: await slackEventEnabled(pool, 'recovery'),
+          manual: await slackEventEnabled(pool, 'manual'),
+        },
+        service_channels: serviceChannels,
+      });
+    } catch (e) { next(e); }
+  });
+
+  // Set / clear the bot token (empty string clears the DB-stored value; the
+  // SLACK_BOT_TOKEN env var, if present, still wins and can't be cleared here).
+  app.put('/api/admin/status/slack/token', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const token = typeof (req.body || {}).token === 'string' ? req.body.token.trim() : '';
+      await setConfig(pool, 'slack_bot_token', token || null);
+      res.json({ ok: true, token_set: !!(process.env.SLACK_BOT_TOKEN || token) });
+    } catch (e) { next(e); }
+  });
+
+  app.put('/api/admin/status/slack/toggles', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const b = req.body || {};
+      for (const k of ['down', 'recovery', 'manual']) {
+        if (b[k] != null) await setConfig(pool, `slack_evt_${k}`, b[k] ? 'on' : 'off');
+      }
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
+  app.post('/api/admin/status/slack/channels', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const b = req.body || {};
+      if (!b.label || !b.channel_id) return res.status(400).json({ error: 'label and channel_id required' });
+      const r = await pool.query(
+        `INSERT INTO status_slack_channels (label, channel_id, is_global) VALUES ($1, $2, $3) RETURNING *`,
+        [String(b.label).slice(0, 80), String(b.channel_id).slice(0, 60), !!b.is_global],
+      );
+      res.json(r.rows[0]);
+    } catch (e) { next(e); }
+  });
+  app.patch('/api/admin/status/slack/channels/:id', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const b = req.body || {};
+      const r = await pool.query(
+        `UPDATE status_slack_channels SET
+           label      = COALESCE($2, label),
+           channel_id = COALESCE($3, channel_id),
+           is_global  = COALESCE($4, is_global),
+           enabled    = COALESCE($5, enabled)
+         WHERE id = $1 RETURNING *`,
+        [
+          req.params.id,
+          b.label != null ? String(b.label).slice(0, 80) : null,
+          b.channel_id != null ? String(b.channel_id).slice(0, 60) : null,
+          b.is_global != null ? !!b.is_global : null,
+          b.enabled != null ? !!b.enabled : null,
+        ],
+      );
+      if (r.rows.length === 0) return res.status(404).json({ error: 'not found' });
+      res.json(r.rows[0]);
+    } catch (e) { next(e); }
+  });
+  app.delete('/api/admin/status/slack/channels/:id', requireSliceAdmin, async (req, res, next) => {
+    try {
+      await pool.query(`DELETE FROM status_slack_channels WHERE id = $1`, [req.params.id]);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
+  // Set the channels a service routes to (replaces the full set for that service).
+  app.put('/api/admin/status/services/:id/channels', requireSliceAdmin, async (req, res, next) => {
+    const client = await pool.connect();
+    try {
+      const ids = Array.isArray((req.body || {}).channel_ids) ? req.body.channel_ids.map(Number).filter(Number.isInteger) : [];
+      await client.query('BEGIN');
+      await client.query(`DELETE FROM status_service_channels WHERE service_id = $1`, [req.params.id]);
+      for (const cid of ids) {
+        await client.query(
+          `INSERT INTO status_service_channels (service_id, channel_id) VALUES ($1, $2)
+           ON CONFLICT (service_id, channel_id) DO NOTHING`,
+          [req.params.id, cid],
+        );
+      }
+      await client.query('COMMIT');
+      res.json({ ok: true, channel_ids: ids });
+    } catch (e) {
+      await client.query('ROLLBACK'); next(e);
+    } finally { client.release(); }
+  });
+
+  // Send a test message to one channel (or all enabled channels when no id given).
+  app.post('/api/admin/status/slack/test', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const token = await getSlackToken(pool);
+      if (!token) return res.status(400).json({ error: 'No Slack bot token configured yet.' });
+      const id = (req.body || {}).id;
+      const q = id
+        ? await pool.query(`SELECT channel_id, label FROM status_slack_channels WHERE id = $1`, [id])
+        : await pool.query(`SELECT channel_id, label FROM status_slack_channels WHERE enabled = true`);
+      if (q.rows.length === 0) return res.status(400).json({ error: 'No channel to test.' });
+      const results = await Promise.allSettled(q.rows.map((c) =>
+        postToSlack(token, c.channel_id, ':wave: Test from the Slice IT Hub status page — Slack notifications are wired up.')));
+      const failed = results.filter((r) => r.status === 'rejected').map((r) => String(r.reason && r.reason.message || r.reason));
+      if (failed.length) return res.status(502).json({ error: `Slack rejected ${failed.length}/${results.length}: ${failed.join('; ')}` });
+      res.json({ ok: true, sent: results.length });
     } catch (e) { next(e); }
   });
 }

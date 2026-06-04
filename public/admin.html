@@ -9827,6 +9827,7 @@ function statusFaviconUrl(domain, size = 64) {
 const statusState = {
   payload: null,
   probes: [],
+  slack: null,
   loadError: null,
   pollHandle: null,
 };
@@ -9838,6 +9839,11 @@ async function fetchStatusPayload() {
 }
 async function fetchStatusProbes() {
   const r = await fetch('/api/admin/status/probes', { credentials: 'include', cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+async function fetchStatusSlack() {
+  const r = await fetch('/api/admin/status/slack', { credentials: 'include', cache: 'no-store' });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
@@ -9908,6 +9914,14 @@ function renderStatus(root) {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:18px;">
+        <div class="card" id="statusSlackCard">
+          <div class="card-head"><h2 class="card-title">Slack notifications</h2></div>
+          <div class="text-3" style="font-size:12.5px;margin-bottom:12px;">
+            Post status changes to Slack. Add channels, then connect each app to one or more channels below; channels marked <b>Everything</b> receive every alert.
+          </div>
+          <div id="statusSlackHost"></div>
+        </div>
+
         <div class="card">
           <div class="card-head"><h2 class="card-title">Probes</h2></div>
           <div class="text-3" style="font-size:12.5px;margin-bottom:12px;">
@@ -10078,6 +10092,29 @@ function renderStatus(root) {
       .status-add-group-pick select { padding: 8px 10px; font-size: 12.5px; border: 1.5px solid var(--border); border-radius: 6px; background: #FFFFFF; }
 
       .btn.xs { padding: 4px 10px; font-size: 11px; }
+
+      /* ── Slack panel ───────────────────────────────────────────────── */
+      .slack-token-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+      .slack-token-row input { flex:1; padding:8px 10px; font-size:12.5px; font-family:ui-monospace, SF Mono, Menlo, monospace; border:1.5px solid var(--border); border-radius:7px; }
+      .slack-status { font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px; margin-bottom:12px; }
+      .slack-status .dot { width:8px; height:8px; border-radius:50%; }
+      .slack-toggles { display:flex; flex-direction:column; gap:7px; margin:6px 0 14px; }
+      .slack-toggles label { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink); cursor:pointer; }
+      .slack-section-label { font-size:10.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); margin:6px 0 8px; }
+      .slack-ch { display:grid; grid-template-columns: 1fr 1fr auto auto; gap:6px; align-items:center; margin-bottom:6px; }
+      .slack-ch input.tx { padding:6px 8px; font-size:12px; border:1.5px solid var(--border); border-radius:6px; min-width:0; }
+      .slack-ch .glob { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--ink-3); white-space:nowrap; }
+      .slack-ch-actions { display:flex; gap:4px; }
+      .slack-ch-actions button { background:none; border:none; cursor:pointer; color:var(--ink-3); font-size:11px; padding:4px 6px; border-radius:4px; }
+      .slack-ch-actions button:hover { background:var(--sidebar); color:var(--ink); }
+      .slack-add-btn { padding:7px; background:transparent; border:1px dashed var(--border); border-radius:7px; cursor:pointer; font-size:12px; color:var(--ink-3); width:100%; margin-top:4px; }
+      .slack-add-btn:hover { background:var(--sidebar); color:var(--ink); }
+      .slack-empty { font-size:12px; color:var(--ink-3); margin-bottom:8px; }
+      /* per-service channel chips (in the service row) */
+      .status-svc-slack { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+      .slack-chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--ink); background:#fff; border:1.5px solid var(--border); border-radius:999px; padding:3px 9px; cursor:pointer; }
+      .slack-chip input { margin:0; }
+      .slack-chip.on { border-color:var(--ink); background:#FFF9E6; }
     </style>
   `;
 
@@ -10085,6 +10122,7 @@ function renderStatus(root) {
   const groupsHost = $('statusGroupsHost');
   const probesHost = $('statusProbesHost');
   const incidentsHost = $('statusIncidentsHost');
+  const slackHost = $('statusSlackHost');
 
   // True when the admin is actively editing inside `host` — focus is in one of
   // its fields, or (for the services list) a debounced save is still pending.
@@ -10103,12 +10141,14 @@ function renderStatus(root) {
   // background poll calls reload({ force: false }) so it never disrupts typing.
   async function reload({ force = true } = {}) {
     try {
-      const [payload, probesPayload] = await Promise.all([
+      const [payload, probesPayload, slackPayload] = await Promise.all([
         fetchStatusPayload(),
         fetchStatusProbes().catch(() => ({ probes: [] })),
+        fetchStatusSlack().catch(() => null),
       ]);
       statusState.payload = payload;
       statusState.probes = probesPayload.probes || [];
+      statusState.slack = slackPayload || statusState.slack;
       statusState.loadError = null;
       paint({ force });
     } catch (e) {
@@ -10141,6 +10181,88 @@ function renderStatus(root) {
     // mid-edit, so adding a URL "and this and that" is never interrupted.
     if (force || !editingIn(groupsHost))    paintGroups(payload.groups);
     if (force || !editingIn(incidentsHost)) paintIncidents(payload.incidents || [], flat);
+    if (force || !editingIn(slackHost))     paintSlack();
+  }
+
+  // Slack panel: token status, event toggles, and channel management.
+  function paintSlack() {
+    const s = statusState.slack;
+    if (!s) { slackHost.innerHTML = `<div class="slack-empty">Loading…</div>`; return; }
+    const dot = s.token_set ? '#0A8A3E' : '#DA3327';
+    const statusLine = s.token_set
+      ? `<span class="slack-status"><span class="dot" style="background:${dot}"></span>Connected${s.token_from_env ? ' · token from env var' : ''}</span>`
+      : `<span class="slack-status"><span class="dot" style="background:${dot}"></span>Not connected — paste a bot token (xoxb-…) below</span>`;
+    const tokenRow = s.token_from_env ? '' : `
+      <div class="slack-token-row">
+        <input type="password" id="slackToken" placeholder="xoxb-… bot token" autocomplete="off" />
+        <button class="btn ghost sm" id="slackTokenSave">Save</button>
+      </div>
+      <div class="text-3" style="font-size:11px;margin-bottom:12px;">Needs the <code>chat:write</code> scope. Invite the bot to each channel you add below.</div>`;
+    const channels = s.channels || [];
+    const chRows = channels.map((c) => `
+      <div class="slack-ch" data-ch-id="${c.id}">
+        <input class="tx" data-cf="label" value="${esc(c.label)}" placeholder="#it-alerts" />
+        <input class="tx" data-cf="channel_id" value="${esc(c.channel_id)}" placeholder="C0… or #name" />
+        <label class="glob"><input type="checkbox" data-cf="is_global" ${c.is_global ? 'checked' : ''}/> Everything</label>
+        <span class="slack-ch-actions">
+          <button data-ch-test title="Send a test message">Test</button>
+          <button data-ch-del title="Remove channel" style="color:var(--neg);">✕</button>
+        </span>
+      </div>`).join('');
+    slackHost.innerHTML = `
+      ${statusLine}
+      ${tokenRow}
+      <div class="slack-section-label">Notify on</div>
+      <div class="slack-toggles">
+        <label><input type="checkbox" data-evt="down" ${s.toggles.down ? 'checked' : ''}/> Service goes down / degraded</label>
+        <label><input type="checkbox" data-evt="recovery" ${s.toggles.recovery ? 'checked' : ''}/> Service recovers</label>
+        <label><input type="checkbox" data-evt="manual" ${s.toggles.manual ? 'checked' : ''}/> Manual incident posts &amp; updates</label>
+      </div>
+      <div class="slack-section-label">Channels</div>
+      ${channels.length ? chRows : '<div class="slack-empty">No channels yet. Add one, then connect apps to it below each service.</div>'}
+      <button class="slack-add-btn" id="slackAddCh">+ Add channel</button>
+    `;
+
+    const tokenSave = $('slackTokenSave');
+    if (tokenSave) tokenSave.onclick = async () => {
+      const v = $('slackToken').value.trim();
+      try { await statusApi('PUT', '/api/admin/status/slack/token', { token: v }); toast('Slack token saved.', 'ok'); await reload(); }
+      catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
+    };
+    slackHost.querySelectorAll('[data-evt]').forEach((el) => el.onchange = async () => {
+      try { await statusApi('PUT', '/api/admin/status/slack/toggles', { [el.dataset.evt]: el.checked }); }
+      catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
+    });
+    slackHost.querySelectorAll('[data-ch-id]').forEach((row) => {
+      const id = +row.dataset.chId;
+      row.querySelectorAll('[data-cf]').forEach((el) => {
+        const f = el.dataset.cf;
+        // Direct assignment (not addEventListener) so a repaint never stacks handlers.
+        el.onchange = async () => {
+          const val = el.type === 'checkbox' ? el.checked : el.value;
+          try { await statusApi('PATCH', `/api/admin/status/slack/channels/${id}`, { [f]: val }); if (f === 'is_global') await reload({ force: false }); }
+          catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
+        };
+      });
+      row.querySelector('[data-ch-test]').onclick = async () => {
+        try { await statusApi('POST', '/api/admin/status/slack/test', { id }); toast('Test sent — check Slack.', 'ok'); }
+        catch (e) { toast(`Test failed: ${e.message}`, 'err'); }
+      };
+      row.querySelector('[data-ch-del]').onclick = async () => {
+        const ok = await confirmDialog('Remove channel', 'Stop sending status alerts to this channel?', true, 'Remove');
+        if (!ok) return;
+        try { await statusApi('DELETE', `/api/admin/status/slack/channels/${id}`); toast('Channel removed.', 'ok'); await reload(); }
+        catch (e) { toast(`Remove failed: ${e.message}`, 'err'); }
+      };
+    });
+    $('slackAddCh').onclick = async () => {
+      const label = prompt('Channel label (e.g. "#it-alerts"):', '');
+      if (!label || !label.trim()) return;
+      const channel_id = prompt('Slack channel ID (C0…/G0…) or #name the bot can reach:', label.trim());
+      if (!channel_id || !channel_id.trim()) return;
+      try { await statusApi('POST', '/api/admin/status/slack/channels', { label: label.trim(), channel_id: channel_id.trim() }); toast('Channel added.', 'ok'); await reload(); }
+      catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
+    };
   }
 
   function svcRowHtml(s) {
@@ -10174,6 +10296,23 @@ function renderStatus(root) {
           value="${esc(s.icon_url || '')}" />
         <span class="status-svc-url-hint">Optional — overrides the auto-favicon. Square PNG/SVG works best.</span>
       </div>`;
+    // Per-service Slack routing — connect this app to one or more channels. Its
+    // alerts go to these plus any channel flagged "Everything".
+    const slk = statusState.slack;
+    const allChannels = (slk && slk.channels) || [];
+    const connected = new Set(((slk && slk.service_channels && slk.service_channels[s.id]) || []));
+    const slackRowHtml = allChannels.length ? `
+      <div class="status-svc-url-row">
+        <span class="status-svc-url-label">Slack</span>
+        <div class="status-svc-slack" data-slack-picker>
+          ${allChannels.map((c) => `
+            <label class="slack-chip ${connected.has(c.id) ? 'on' : ''}">
+              <input type="checkbox" data-ch="${c.id}" ${connected.has(c.id) ? 'checked' : ''}/>
+              ${esc(c.label)}${c.is_global ? ' · all' : ''}
+            </label>`).join('')}
+        </div>
+        <span class="status-svc-url-hint">Alerts for this app post to the ticked channels, plus any “Everything” channel.</span>
+      </div>` : '';
     return `
       <div class="status-svc-wrap" data-svc-id="${s.id}">
         <div class="status-svc-row" title="${lastChecked ? 'Last checked ' + esc(lastChecked) : ''}">
@@ -10194,6 +10333,7 @@ function renderStatus(root) {
         </div>
         ${iconRowHtml}
         ${urlRowHtml}
+        ${slackRowHtml}
       </div>
     `;
   }
@@ -10282,6 +10422,22 @@ function renderStatus(root) {
         } catch (e) { toast(`Test failed: ${e.message}`, 'err'); }
         finally { testBtn.disabled = false; testBtn.textContent = 'Test'; }
       };
+      // Per-service Slack channel routing — on any toggle, save the full set.
+      const picker = row.querySelector('[data-slack-picker]');
+      if (picker) picker.querySelectorAll('input[data-ch]').forEach((cb) => cb.onchange = async () => {
+        const channel_ids = Array.from(picker.querySelectorAll('input[data-ch]:checked')).map((x) => +x.dataset.ch);
+        cb.closest('.slack-chip')?.classList.toggle('on', cb.checked);
+        try {
+          await statusApi('PUT', `/api/admin/status/services/${id}/channels`, { channel_ids });
+          // Keep local state in sync so a background repaint shows the new set.
+          if (statusState.slack) { statusState.slack.service_channels = statusState.slack.service_channels || {}; statusState.slack.service_channels[id] = channel_ids; }
+        } catch (e) {
+          // Revert the optimistic toggle so the UI matches server truth.
+          cb.checked = !cb.checked;
+          cb.closest('.slack-chip')?.classList.toggle('on', cb.checked);
+          toast(`Save failed: ${e.message}`, 'err');
+        }
+      });
     });
   }
 
@@ -11596,7 +11752,11 @@ if (_qpGuide && /^\d+$/.test(_qpGuide)) {
 } else {
   navigate('overview');
 }
-setInterval(async () => { await loadData(); if (state.section !== 'editor') render(); }, 12000);
+// Skip the 12s global re-render for sections that own live, stateful DOM the
+// user is actively editing: the guide 'editor', and 'status' (which runs its
+// own non-destructive 30s refresh internally — a full re-render here would wipe
+// the URL/name fields mid-edit).
+setInterval(async () => { await loadData(); if (state.section !== 'editor' && state.section !== 'status') render(); }, 12000);
 </script>
 
 </body>

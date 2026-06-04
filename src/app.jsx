@@ -21401,7 +21401,6 @@ function StatusPage({ onBack }) {
   const allServices = React.useMemo(() => groups.flatMap((g) => g.services || []), [groups]);
   const incidents = payload?.incidents || [];
   const openIncidentList = incidents.filter((i) => i.state !== 'resolved');
-  const resolvedIncidentList = incidents.filter((i) => i.state === 'resolved').slice(0, 12);
 
   const operationalCount = allServices.filter((s) => s.state === 'operational').length;
   const degraded = allServices.filter((s) => s.state === 'degraded');
@@ -21633,49 +21632,6 @@ function StatusPage({ onBack }) {
           ))}
         </div>
 
-        {/* Past incidents */}
-        <SectionTitle kicker="Last 30 days" title="Incident history" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {resolvedIncidentList.map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} open={false} />
-          ))}
-          {/* Empty quiet day — typographic, no emoji */}
-          {resolvedIncidentList.length === 0 && (
-            <div style={{
-              background: "#F7F4EF",
-              border: "1px dashed #78684C", borderRadius: 10,
-              padding: "18px 20px",
-              display: "flex", alignItems: "center", gap: 14,
-              color: "#4A3F2E", fontSize: 13.5, fontWeight: 600,
-            }}>
-              <div style={{
-                width: 28, height: 28,
-                background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: "50%",
-                display: "grid", placeItems: "center",
-                fontFamily: "Archivo, sans-serif", fontSize: 16, fontWeight: 900, color: "#0A8A3E",
-                lineHeight: 1,
-              }}>·</div>
-              <span>No other incidents in the last 30 days — nice and quiet.</span>
-            </div>
-          )}
-        </div>
-
-        {/* In-page footer — pinned to the bottom via marginTop:auto on the
-            surrounding flex column. A standalone pill (matches the brand
-            buttons), no divider line. */}
-        <div style={{ marginTop: "auto", paddingTop: 64, textAlign: "center" }}>
-          <span style={{
-            display: "inline-block",
-            padding: "9px 18px",
-            background: "#FFFFFF",
-            border: "1px solid #211E1E",
-            borderRadius: 999,
-            boxShadow: "2px 2px 0 #211E1E",
-            fontFamily: "'Archivo', sans-serif",
-            fontSize: 10.5, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase",
-            color: "#211E1E",
-          }}>Built by the Slice IT Team</span>
-        </div>
       </div>
 
       {reportOpen && <ReportIssueModal onClose={() => setReportOpen(false)} services={allServices}/>}
