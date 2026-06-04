@@ -10095,14 +10095,14 @@ function renderStatus(root) {
 
       /* ── Slack panel ───────────────────────────────────────────────── */
       .slack-token-row { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
-      .slack-token-row input { flex:1; padding:8px 10px; font-size:12.5px; font-family:ui-monospace, SF Mono, Menlo, monospace; border:1.5px solid var(--border); border-radius:7px; }
+      .slack-token-row input { flex:1; padding:8px 10px; font-size:12.5px; font-family:ui-monospace, SF Mono, Menlo, monospace; border:1.5px solid var(--border); border-radius:7px; background:var(--canvas); color:var(--ink); }
       .slack-status { font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:6px; margin-bottom:12px; }
       .slack-status .dot { width:8px; height:8px; border-radius:50%; }
       .slack-toggles { display:flex; flex-direction:column; gap:7px; margin:6px 0 14px; }
       .slack-toggles label { display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink); cursor:pointer; }
       .slack-section-label { font-size:10.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink-3); margin:6px 0 8px; }
       .slack-ch { display:grid; grid-template-columns: 1fr 1fr auto auto; gap:6px; align-items:center; margin-bottom:6px; }
-      .slack-ch input.tx { padding:6px 8px; font-size:12px; border:1.5px solid var(--border); border-radius:6px; min-width:0; }
+      .slack-ch input.tx { padding:6px 8px; font-size:12px; border:1.5px solid var(--border); border-radius:6px; min-width:0; background:var(--canvas); color:var(--ink); }
       .slack-ch .glob { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--ink-3); white-space:nowrap; }
       .slack-ch-actions { display:flex; gap:4px; }
       .slack-ch-actions button { background:none; border:none; cursor:pointer; color:var(--ink-3); font-size:11px; padding:4px 6px; border-radius:4px; }
@@ -10112,9 +10112,9 @@ function renderStatus(root) {
       .slack-empty { font-size:12px; color:var(--ink-3); margin-bottom:8px; }
       /* per-service channel chips (in the service row) */
       .status-svc-slack { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-      .slack-chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--ink); background:#fff; border:1.5px solid var(--border); border-radius:999px; padding:3px 9px; cursor:pointer; }
+      .slack-chip { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:var(--ink); background:var(--canvas); border:1.5px solid var(--border); border-radius:999px; padding:3px 9px; cursor:pointer; }
       .slack-chip input { margin:0; }
-      .slack-chip.on { border-color:var(--ink); background:#FFF9E6; }
+      .slack-chip.on { border-color:#FDC831; background:rgba(253,200,49,0.18); color:var(--ink); }
     </style>
   `;
 
