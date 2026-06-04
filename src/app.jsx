@@ -8624,19 +8624,6 @@ const ROW_HOVER = {
   onMouseUp: (e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; },
 };
 
-// The hub_token that authenticates this session (the hub appends it to the
-// iframe URL). The network shim adds it as an X-Hub-Token header on fetch/XHR,
-// but a native <img src> or a download link can't carry headers — for those we
-// append it as ?hub_token=, which the server's hub auth also accepts (see
-// server/middleware/hubAuth.js getToken). Returns '' (no token) for non-embedded
-// loads, where cookie auth applies instead.
-function hubTokenQuery() {
-  try {
-    const t = new URLSearchParams(window.location.search).get('hub_token');
-    return t ? ('?hub_token=' + encodeURIComponent(t)) : '';
-  } catch { return ''; }
-}
-
 // fetch + JSON + error-unwrap. The network shim in main.jsx already prefixes the
 // deploy base and attaches the hub_token, so callers pass bare /api/... paths.
 // On a non-2xx the thrown error carries .status and .data (so callers can read
@@ -8730,7 +8717,7 @@ function ticketInitials(name) {
 // One chat message — YOU on the RIGHT in a clean white bubble (cheese avatar),
 // the IT Team on the LEFT in a cheese bubble (charcoal avatar) so their replies
 // stand out. Round avatars, brand hard-shadow bubbles, charcoal text on both.
-function ConversationMessage({ mine, name, time, body }) {
+function ConversationMessage({ mine, name, time, body, children }) {
   const initials = mine ? ticketInitials(name) : (name && !/^it team$/i.test(name) ? ticketInitials(name) : 'IT');
   const avatar = (
     <span style={{
@@ -8746,13 +8733,15 @@ function ConversationMessage({ mine, name, time, body }) {
         <div style={{ fontSize: 11.5, color: '#9A8E78', margin: '0 3px 3px', fontWeight: 600 }}>
           {mine ? 'You' : (name || 'IT Team')}{time ? ' · ' + time : ''}
         </div>
-        <div style={{
-          maxWidth: '100%', padding: '9px 13px', border: '1px solid #211E1E', borderRadius: 14,
-          fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          background: mine ? '#FFFFFF' : '#FDC831', color: '#211E1E',
-          boxShadow: '2px 2px 0 #211E1E',
-          borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
-        }}>{linkifyText(body, mine ? '#B92323' : '#9A1F1F')}</div>
+        {children != null ? children : (
+          <div style={{
+            maxWidth: '100%', padding: '9px 13px', border: '1px solid #211E1E', borderRadius: 14,
+            fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+            background: mine ? '#FFFFFF' : '#FDC831', color: '#211E1E',
+            boxShadow: '2px 2px 0 #211E1E',
+            borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
+          }}>{linkifyText(body, mine ? '#B92323' : '#9A1F1F')}</div>
+        )}
       </div>
     </div>
   );
@@ -8774,25 +8763,57 @@ function isImageAttachment(a, name) {
   return /\.(png|jpe?g|gif|webp|bmp|svg|heic|heif)$/i.test(String(name || ''));
 }
 
+// Load an attachment's bytes through the AUTHENTICATED fetch path (the network
+// shim in main.jsx prepends the deploy-base prefix and attaches the X-Hub-Token
+// header — the exact path every working /api call uses) and hand back a blob:
+// URL the browser can render or download. A native <img src>/link to the authed
+// content endpoint can't do this: it gets neither the prefix nor the token, so
+// it resolves against the hub root and 404s, and the iframe is cross-origin so
+// cookies don't help. For an attachment that already carries a public http(s)
+// URL (e.g. a Drive link) we use it directly — no fetch, no blob.
+function useAttachmentObjectUrl(source) {
+  const kind = source && source.kind;
+  const ref = source && (source.url || source.path);
+  const [state, setState] = React.useState(() =>
+    kind === 'direct' ? { url: source.url, loading: false, err: false } : { url: null, loading: !!ref, err: false });
+  React.useEffect(() => {
+    if (!source) { setState({ url: null, loading: false, err: false }); return; }
+    if (source.kind === 'direct') { setState({ url: source.url, loading: false, err: false }); return; }
+    let off = false; let obj = null;
+    setState({ url: null, loading: true, err: false });
+    fetch(source.path, { credentials: 'include', cache: 'no-store' })
+      .then((r) => { if (!r.ok) throw new Error('http ' + r.status); return r.blob(); })
+      .then((b) => { if (off) return; obj = URL.createObjectURL(b); setState({ url: obj, loading: false, err: false }); })
+      .catch(() => { if (!off) setState({ url: null, loading: false, err: true }); });
+    return () => { off = true; if (obj) URL.revokeObjectURL(obj); };
+  }, [kind, ref]);
+  return state;
+}
+
 // One attachment — an inline image preview that opens full on click, or a
-// download/open chip for non-images. If the image URL can't render (cross-origin
-// or not a direct image, e.g. a Drive viewer link), it falls back to the chip.
-function AttachmentItem({ name, url, size, isImage }) {
-  const [imgErr, setImgErr] = React.useState(false);
+// download/open chip for non-images. `source` is { kind:'direct', url } for a
+// public link or { kind:'proxy', path } for our authed content endpoint (loaded
+// via blob — see useAttachmentObjectUrl). Falls back to a name-only chip if the
+// bytes can't be loaded.
+function AttachmentItem({ name, source, size, isImage }) {
+  const { url, loading, err } = useAttachmentObjectUrl(source);
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
-  if (isImage && url && !imgErr) {
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 11px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none', boxShadow: '2px 2px 0 #211E1E' };
+  if (isImage && url && !err) {
     return (
       <a href={url} target="_blank" rel="noopener noreferrer" title={name} style={{ display: 'inline-block', border: '1px solid #211E1E', borderRadius: 8, overflow: 'hidden', background: '#FFFDF4', boxShadow: '2px 2px 0 #211E1E', maxWidth: 260 }}>
-        <img src={url} alt={name} onError={() => setImgErr(true)} style={{ display: 'block', maxWidth: 260, maxHeight: 200, objectFit: 'cover' }} />
+        <img src={url} alt={name} style={{ display: 'block', maxWidth: 260, maxHeight: 220, objectFit: 'cover' }} />
         <span style={{ display: 'block', padding: '5px 9px', fontSize: 11.5, color: '#211E1E', borderTop: '1px solid #211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
       </a>
     );
   }
-  const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 11px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none', boxShadow: '2px 2px 0 #211E1E' };
-  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{size != null && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#B92323', fontWeight: 800, fontSize: 11 }}>OPEN →</span>}</>;
+  if (loading) {
+    return <span style={{ ...chip, color: '#9A8E78' }}>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span><span style={{ fontSize: 11 }}>loading…</span></span>;
+  }
+  const inner = <>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span>{size != null && <span style={{ color: '#9A8E78', fontSize: 11 }}>{fmtBytes(size)}</span>}{url && <span style={{ color: '#B92323', fontWeight: 800, fontSize: 11 }}>{isImage ? 'OPEN →' : 'DOWNLOAD →'}</span>}</>;
   return url
-    ? <a href={url} target="_blank" rel="noopener noreferrer" style={chip}>{inner}</a>
-    : <span style={chip} title="Open this attachment from the ticket in SliceDesk">{inner}</span>;
+    ? <a href={url} target="_blank" rel="noopener noreferrer" download={isImage ? undefined : name} style={chip}>{inner}</a>
+    : <span style={chip} title={err ? 'Couldn’t load this attachment' : 'Open this attachment from the ticket in SliceDesk'}>{inner}</span>;
 }
 
 // Reusable file picker — a button + a chip list of staged files. Files aren't
@@ -9373,20 +9394,20 @@ function TicketDetailView({ id, onBack, initial }) {
   // is_internal contract and hide them here.
   const comments = (t && Array.isArray(t.comments) ? t.comments : []).filter((c) => !c.is_internal);
   // Attachment field-name helpers — the ticket module's shapes vary, so read
-  // defensively. attUrl prefers a direct http(s) link if the object carries one
-  // (e.g. a Drive webViewLink); otherwise it builds a same-origin URL to our own
-  // content proxy from the attachment id. A native <img>/download link can't get
-  // the X-Hub-Token header the network shim adds to fetch/XHR, and the shim
-  // doesn't rewrite <img src> either — so we prepend the deploy base ourselves
-  // (withBase) and carry auth as ?hub_token=, which the server also accepts.
+  // defensively. attSource resolves where the bytes come from: a public http(s)
+  // link if the object carries one (e.g. a Drive webViewLink) → used directly;
+  // otherwise our authed content endpoint addressed by attachment id, which
+  // AttachmentItem loads via the shimmed fetch (prefix + X-Hub-Token) into a
+  // blob. We pass the BARE /api path (no withBase, no token) on purpose — the
+  // network shim adds both, exactly like every other working API call.
   const attName = (a) => (a && (a.file_name || a.name || a.filename || a.title)) || 'attachment';
   const attSize = (a) => (a && (a.file_size != null ? a.file_size : (a.size != null ? a.size : a.bytes)));
-  const attUrl = (a) => {
+  const attSource = (a) => {
     if (!a) return null;
     const direct = a.url || a.download_url || a.file_url || a.href || a.webViewLink || a.web_view_link || a.webContentLink || a.drive_url || a.content_url || a.view_url;
-    if (typeof direct === 'string' && /^https?:\/\//.test(direct)) return direct;
+    if (typeof direct === 'string' && /^https?:\/\//.test(direct)) return { kind: 'direct', url: direct };
     const attId = a.id != null ? a.id : (a.attachment_id != null ? a.attachment_id : (a.file_id != null ? a.file_id : a.attId));
-    if (attId != null) return withBase('/api/tickets/' + encodeURIComponent(id) + '/attachments/' + encodeURIComponent(attId) + '/content') + hubTokenQuery();
+    if (attId != null) return { kind: 'proxy', path: '/api/tickets/' + encodeURIComponent(id) + '/attachments/' + encodeURIComponent(attId) + '/content' };
     return null;
   };
 
@@ -9413,7 +9434,29 @@ function TicketDetailView({ id, onBack, initial }) {
   const isResolved = statusLc === 'resolved';
   const isClosed = statusLc === 'closed';
   const isPendingApproval = !!t && ticketTypeMeta(t.type).kind === 'request' && statusLc === 'pending';
-  const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
+
+  // One chat timeline: text comments + attachment bubbles, each attributed to
+  // its author/uploader and ordered by time, so attachments read as part of the
+  // conversation rather than a separate list. Items without a timestamp trail.
+  const timeMs = (s) => { const v = s ? Date.parse(s) : NaN; return Number.isNaN(v) ? null : v; };
+  const attUploader = (a) => a.uploaded_by_name || a.author_name || a.uploader_name || a.uploaded_by || '';
+  const timeline = [
+    ...comments.map((c, i) => ({
+      kind: 'msg', tkey: 'c' + (c.id != null ? c.id : i), at: timeMs(c.created_at),
+      mine: !!(me && c.author_name && c.author_name.trim() === me.trim()),
+      name: c.author_name, time: c.created_at, body: c.body,
+    })),
+    ...attachments.map((a, i) => {
+      const up = attUploader(a);
+      return {
+        kind: 'att', tkey: 'a' + (a.id != null ? a.id : (a.attachment_id != null ? a.attachment_id : i)),
+        at: timeMs(a.created_at || a.uploaded_at),
+        mine: !!(me && up && String(up).trim() === me.trim()),
+        name: up, time: a.created_at || a.uploaded_at, att: a,
+      };
+    }),
+  ];
+  timeline.sort((x, y) => (x.at == null && y.at == null) ? 0 : x.at == null ? 1 : y.at == null ? -1 : x.at - y.at);
 
   return (
     <div>
@@ -9459,29 +9502,18 @@ function TicketDetailView({ id, onBack, initial }) {
             )}
           </div>
 
-          {/* Attachments on the ticket — image previews + download chips, from
-              the portal or the ticketing system. */}
-          {attachments.length > 0 && (
-            <div style={{ ...TK.card, padding: '18px 24px', marginBottom: 14 }}>
-              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Attachments ({attachments.length})</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' }}>
-                {attachments.map((a, i) => {
-                  const name = attName(a);
-                  return <AttachmentItem key={i} name={name} url={attUrl(a)} size={attSize(a)} isImage={isImageAttachment(a, name)} />;
-                })}
-              </div>
-            </div>
-          )}
-
           <div style={{ ...TK.card, padding: '20px 24px' }}>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 800, color: '#211E1E', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 14 }}>Conversation</div>
-            {comments.length === 0 && (
+            {timeline.length === 0 && (
               <div style={{ fontSize: 14, color: '#9A8E78' }}>No replies yet — write the first message below and the IT Team will see it on your ticket.</div>
             )}
-            {comments.map((c, i) => {
-              const mine = !!(me && c.author_name && c.author_name.trim() === me.trim());
-              return <ConversationMessage key={c.id || i} mine={mine} name={c.author_name} time={relativeTime(c.created_at)} body={c.body} />;
-            })}
+            {timeline.map((it) => it.kind === 'msg' ? (
+              <ConversationMessage key={it.tkey} mine={it.mine} name={it.name} time={it.time ? relativeTime(it.time) : ''} body={it.body} />
+            ) : (
+              <ConversationMessage key={it.tkey} mine={it.mine} name={it.name || 'IT Team'} time={it.time ? relativeTime(it.time) : ''}>
+                <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} />
+              </ConversationMessage>
+            ))}
 
             {/* Reply composer — posts a public comment (and any attachments) to the
                 ticket in SliceDesk. */}
