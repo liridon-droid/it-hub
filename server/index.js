@@ -324,16 +324,27 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   }
 });
 
-// Read an attachment's BYTES back out of a ticket so the portal can show it
-// inline. The ticket module owns the file (often in Google Drive) and its content
-// endpoint is module-key-authed — not a browser session — so the browser can't
-// fetch it directly. We proxy it here, same-origin, after gating ownership the
-// same way as GET. Auth for a native <img src>/download link rides on the
-// ?hub_token= query param (the network shim can't add headers to an <img> load);
-// requireSliceUser/hub auth accepts that param. Gated to the requester (or admin).
+// Serve an attachment's BYTES so the portal can show it inline. We re-read the
+// ticket to (a) gate to the requester/admin and (b) REUSE whatever that read
+// already carries: if the attachment object includes inline base64 or a public
+// URL, we serve straight from that — no dependency on a separate content
+// endpoint. Only if neither is present do we proxy the ticket module's content
+// endpoint (raw bytes / a signed {download_url} / base64-in-JSON). The browser
+// authenticates this like any /api call (X-Hub-Token via the shim, or ?hub_token=).
+const ATT_CONTENT_MISSING =
+  'The ticket module has no content endpoint for this attachment, and the ticket ' +
+  'read carried no inline bytes or URL. The module side (101) must implement ' +
+  'GET /tickets/:id/attachments/:attId/content (ATTACHMENTS_API_SPEC.md §2).';
 app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (req, res) => {
   const u = req.user;
   const isAdmin = u.role === 'admin' || u.role === 'super_admin';
+  const sendBytes = (src, mime, fileName) => {
+    const buf = Buffer.isBuffer(src) ? src : Buffer.from(src, 'base64');
+    res.setHeader('Content-Type', mime || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${String(fileName || 'attachment').replace(/[\r\n"]/g, '')}"`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    return res.send(buf);
+  };
   try {
     // Ownership gate — the module proxy has module-wide access, so without this a
     // user could read anyone's file by guessing ids (same rule as GET /tickets/:id).
@@ -342,39 +353,62 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
     if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
+
+    // Find this attachment in the ticket we just read; serve it directly if it
+    // already carries the bytes (base64) or a public URL — covers modules that
+    // inline content on read but never built a dedicated content endpoint.
+    const d = look.data || {};
+    const pool = [];
+    if (Array.isArray(d.attachments)) pool.push(...d.attachments);
+    if (Array.isArray(d.files)) pool.push(...d.files);
+    if (Array.isArray(d.comments)) d.comments.forEach((c) => {
+      if (c && Array.isArray(c.attachments)) pool.push(...c.attachments);
+      if (c && Array.isArray(c.files)) pool.push(...c.files);
+      if (c && Array.isArray(c.media)) pool.push(...c.media);
+    });
+    const meta = pool.find((a) => a && String(a.id ?? a.attachment_id ?? a.file_id ?? '') === String(req.params.attId)) || {};
+    const inlineB64 = meta.content_base64 || meta.content || meta.data;
+    if (typeof inlineB64 === 'string' && inlineB64.length > 64) {
+      return sendBytes(inlineB64, meta.mime_type || meta.content_type, meta.file_name || meta.name);
+    }
+    const metaLink = meta.url || meta.download_url || meta.file_url || meta.webContentLink || meta.webViewLink || meta.signed_url || meta.href;
+    if (typeof metaLink === 'string' && /^https?:\/\//.test(metaLink)) return res.redirect(302, metaLink);
+
     if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
       return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
     }
 
+    // Otherwise proxy the module's content endpoint (the spec's primary shape).
     const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module` +
       `/tickets/${encodeURIComponent(req.params.id)}/attachments/${encodeURIComponent(req.params.attId)}/content`;
     const upstream = await fetch(url, { headers: { Authorization: `Bearer ${moduleConfig.apiKey}` } });
     const ctype = upstream.headers.get('content-type') || '';
 
-    // The module (or the hub proxy in front of it) can answer in any of three
-    // shapes — handle all so the portal works whichever the ticket module picked.
     if (ctype.includes('application/json')) {
       const j = await upstream.json().catch(() => ({}));
-      if (!upstream.ok) return res.status(upstream.status).json({ error: j.error || `Ticket service returned ${upstream.status}` });
+      if (!upstream.ok) {
+        return res.status(upstream.status).json({
+          error: upstream.status === 404 ? ATT_CONTENT_MISSING : (j.error || `Ticket service returned ${upstream.status}`),
+          upstream_status: upstream.status,
+        });
+      }
       // (a) a short-lived signed download URL → bounce the browser straight at it.
       const link = j.download_url || j.url || j.href || j.signed_url;
       if (typeof link === 'string' && /^https?:\/\//.test(link)) return res.redirect(302, link);
       // (b) the bytes wrapped as base64 in a JSON envelope.
       const b64 = j.content_base64 || j.content || j.data;
-      if (typeof b64 === 'string' && b64) {
-        const buf = Buffer.from(b64, 'base64');
-        res.setHeader('Content-Type', j.mime_type || j.content_type || 'application/octet-stream');
-        res.setHeader('Content-Disposition', `inline; filename="${String(j.file_name || 'attachment').replace(/[\r\n"]/g, '')}"`);
-        res.setHeader('Cache-Control', 'private, max-age=3600');
-        return res.send(buf);
-      }
+      if (typeof b64 === 'string' && b64) return sendBytes(b64, j.mime_type || j.content_type, j.file_name);
       return res.status(502).json({ error: 'Attachment content unavailable', detail: 'Ticket service returned JSON with no file bytes or download URL.' });
     }
 
     // (c) raw bytes (the spec's primary shape) — stream them through unchanged.
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => '');
-      return res.status(upstream.status).json({ error: `Ticket service returned ${upstream.status}`, detail: text.slice(0, 200) });
+      return res.status(upstream.status).json({
+        error: upstream.status === 404 ? ATT_CONTENT_MISSING : `Ticket service returned ${upstream.status}`,
+        upstream_status: upstream.status,
+        detail: text.slice(0, 200),
+      });
     }
     const buf = Buffer.from(await upstream.arrayBuffer());
     res.setHeader('Content-Type', ctype || 'application/octet-stream');
