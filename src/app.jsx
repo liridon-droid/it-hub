@@ -8634,21 +8634,43 @@ function TicketsTab({ label, active, onClick, badge }) {
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
   const [selTicket, setSelTicket] = React.useState(null);
-  const [bucket, setBucket] = React.useState('all'); // all | open | resolved | closed
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
   React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
 
+  // Live list: load on mount/refresh, then silently re-poll every 15s so new
+  // tickets + status changes show up on their own — no manual Refresh needed.
   React.useEffect(() => {
     let off = false;
-    setSt((s) => ({ ...s, loading: true }));
-    ticketsApiJson('GET', '/api/tickets')
-      .then((j) => { if (!off) setSt({ loading: false, tickets: j.tickets || [], error: null }); })
-      .catch((e) => { if (!off) setSt({ loading: false, tickets: [], error: e.message }); });
-    return () => { off = true; };
+    const fetchTickets = (silent) => {
+      if (!silent) setSt((s) => ({ ...s, loading: true }));
+      ticketsApiJson('GET', '/api/tickets')
+        .then((j) => { if (!off) setSt({ loading: false, tickets: j.tickets || [], error: null }); })
+        .catch((e) => { if (!off && !silent) setSt({ loading: false, tickets: [], error: e.message }); });
+    };
+    fetchTickets(false);
+    const iv = setInterval(() => fetchTickets(true), 15000);
+    return () => { off = true; clearInterval(iv); };
   }, [refreshKey]);
 
-  if (selTicket) return <TicketDetailView id={selTicket.id} initial={selTicket} onBack={() => setSelTicket(null)} />;
+  // Search-only filter (status chips removed). Computed before the detail return
+  // so we can hand the detail view the ordered list for prev/next navigation.
+  const q = (query || '').trim().toLowerCase();
+  const shown = st.tickets.filter((t) => {
+    if (!q) return true;
+    const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+
+  if (selTicket) return (
+    <TicketDetailView
+      key={selTicket.id}
+      id={selTicket.id}
+      initial={selTicket}
+      list={shown}
+      onNavigate={setSelTicket}
+      onBack={() => setSelTicket(null)} />
+  );
 
   if (st.loading) return <TicketsNotice title="Loading your tickets…" />;
   if (st.error) {
@@ -8672,46 +8694,11 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     );
   }
 
-  const q = (query || '').trim().toLowerCase();
-  const counts = { all: st.tickets.length, open: 0, resolved: 0, closed: 0 };
-  for (const tk of st.tickets) counts[ticketBucket(tk.status)] += 1;
-  const shown = st.tickets.filter((t) => {
-    if (bucket !== 'all' && ticketBucket(t.status) !== bucket) return false;
-    if (!q) return true;
-    const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
-    return hay.includes(q);
-  });
-  const Chip = (key, label) => {
-    const on = bucket === key;
-    return (
-      <button key={key} onClick={() => setBucket(key)}
-        onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = '#FFF7DD'; }}
-        onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = '#FFFFFF'; }}
-        style={{
-          padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
-          fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
-          background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
-          display: 'inline-flex', alignItems: 'center', gap: 6, transition: 'background .12s ease',
-        }}>
-        {label}<span style={{ fontSize: 10, fontWeight: 900, opacity: on ? 0.9 : 0.5 }}>{counts[key]}</span>
-      </button>
-    );
-  };
-
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {Chip('all', 'All')}{Chip('open', 'Open')}{Chip('resolved', 'Resolved')}{Chip('closed', 'Closed')}
-        </div>
-        <button onClick={onRefresh}
-          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
-          style={{ ...textActionBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }}>↻ Refresh</button>
-      </div>
       {shown.length === 0 ? (
         <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
-          {q ? `No tickets match “${query}”${bucket !== 'all' ? ' in ' + bucket : ''}.` : `No ${bucket} tickets.`}
+          {`No tickets match “${query}”.`}
         </div>
       ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -8809,7 +8796,7 @@ function ApprovalsButton({ approval, ticket }) {
   );
 }
 
-function TicketDetailView({ id, onBack, initial }) {
+function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   const [st, setSt] = React.useState({ loading: !initial, ticket: initial || null, error: null });
   const [reply, setReply] = React.useState('');
   const [replyFiles, setReplyFiles] = React.useState([]);
@@ -8920,6 +8907,14 @@ function TicketDetailView({ id, onBack, initial }) {
     }
   };
 
+  // Keep the open ticket live — silently refetch every 15s so new replies and
+  // status changes from IT appear without a refresh. Pause while the user is
+  // mid-send / changing status so we don't clobber in-flight state.
+  React.useEffect(() => {
+    const iv = setInterval(() => { if (!sending && !statusBusy) load(); }, 15000);
+    return () => clearInterval(iv);
+  }, [load, sending, statusBusy]);
+
   const t = st.ticket;
   // Internal agent notes aren't for the requester — mirror the ticket system's
   // is_internal contract and hide them here.
@@ -8989,9 +8984,42 @@ function TicketDetailView({ id, onBack, initial }) {
   ];
   timeline.sort((x, y) => (x.at == null && y.at == null) ? 0 : x.at == null ? 1 : y.at == null ? -1 : x.at - y.at);
 
+  // Prev/next across the list we came from (the search-filtered My Tickets list).
+  const navList = Array.isArray(list) ? list : [];
+  const navIdx = navList.findIndex((x) => x && String(x.id) === String(id));
+  const prevTicket = navIdx > 0 ? navList[navIdx - 1] : null;
+  const nextTicket = navIdx >= 0 && navIdx < navList.length - 1 ? navList[navIdx + 1] : null;
+  const go = (tk) => { if (tk && onNavigate) onNavigate(tk); };
+
+  // Close / Reopen buttons — rendered top-right (top bar). isClosed → Reopen;
+  // isResolved → both; otherwise just Close.
+  const closeReopenButtons = () => {
+    const sm = { padding: '7px 13px', fontSize: 11.5 };
+    const reopenBtn = <button key="r" className="btn btn-primary" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
+    const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : (isResolved ? 'Close' : 'Close ticket'))}</button>;
+    if (isClosed) return reopenBtn;
+    if (isResolved) return [reopenBtn, closeBtn];
+    return closeBtn;
+  };
+
+  const navBtn = (enabled) => ({ padding: '7px 12px', fontSize: 11.5, opacity: enabled ? 1 : 0.4, cursor: enabled ? 'pointer' : 'default' });
+
   return (
     <div>
-      <TicketsBackBar onBack={onBack} label="Back to my tickets" />
+      {/* Top action bar: Back (left) · Prev / Next + Close / Reopen (right). */}
+      <div style={{ position: 'sticky', top: 10, zIndex: 8, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <button onClick={onBack} className="kb-back-btn"><span className="kb-back-arrow">←</span>Back to my tickets</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {navList.length > 1 && (
+            <>
+              <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'}>← Prev</button>
+              <span style={{ fontSize: 11.5, color: '#9A8E78', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{navIdx >= 0 ? navIdx + 1 : '—'} / {navList.length}</span>
+              <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'}>Next →</button>
+            </>
+          )}
+          {t && closeReopenButtons()}
+        </div>
+      </div>
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
       {t && (
@@ -9006,20 +9034,12 @@ function TicketDetailView({ id, onBack, initial }) {
                 <TicketStatusBadge status={t.status} type={t.type} />
                 <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
               </div>
-              {/* Actions — Approvals dropdown (left), then Close / Reopen. */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+              {/* Approvals dropdown (Close / Reopen now live in the top action bar). */}
+              {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <ApprovalsButton approval={approval} ticket={t} />
-                )}
-                {(() => {
-                  const sm = { padding: '7px 13px', fontSize: 11.5 };
-                  const reopenBtn = <button key="r" className="btn btn-primary" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
-                  const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : (isResolved ? 'Close' : 'Close ticket'))}</button>;
-                  if (isClosed) return reopenBtn;
-                  if (isResolved) return [reopenBtn, closeBtn];
-                  return closeBtn;
-                })()}
-              </div>
+                </div>
+              )}
             </div>
             {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
             <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 8px' }}>{t.subject}</h2>
