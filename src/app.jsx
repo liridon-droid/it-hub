@@ -9010,18 +9010,16 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
 
   return (
     <div>
-      {/* Top action bar — sticky + compact. Back on the LEFT; Close/Reopen then
-          the ticket nav on the RIGHT. All buttons share the same outline style
-          (no odd accent colour) and have fixed widths so nothing reflows. A
-          near-opaque blurred background lets the ticket content scroll cleanly
-          UNDER the bar instead of bleeding through. */}
+      {/* Top action bar — sticky + compact, styled as a card to match the other
+          panels (solid white, dark outline, offset shadow) so it reads as part
+          of the UI and content scrolls cleanly UNDER it. Back on the LEFT;
+          Close/Reopen then the ticket nav on the RIGHT. All buttons share the
+          same outline style and have fixed widths so nothing reflows. */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 20,
+        ...TK.card,
+        position: 'sticky', top: 10, zIndex: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-        padding: '9px 0', marginBottom: 12,
-        background: 'rgba(255,253,247,0.92)',
-        backdropFilter: 'blur(8px) saturate(160%)', WebkitBackdropFilter: 'blur(8px) saturate(160%)',
-        borderBottom: '1px solid #EFEAE0',
+        padding: '10px 14px', marginBottom: 14,
       }}>
         <button onClick={onBack} className="btn btn-outline" style={{ padding: '5px 11px', fontSize: 11 }}>← Back</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -9029,7 +9027,6 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
           {navList.length > 1 && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'} aria-label="Previous ticket">←</button>
-              <span style={{ fontSize: 11, color: '#9A8E78', fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: 30, textAlign: 'center' }}>{navIdx >= 0 ? navIdx + 1 : '—'}/{navList.length}</span>
               <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'} aria-label="Next ticket">→</button>
             </div>
           )}
