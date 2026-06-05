@@ -10061,6 +10061,10 @@ function renderStatus(root) {
       .status-update-row .when { font-family:ui-monospace, SF Mono, Menlo, monospace; color:var(--ink-3); }
       .status-update-row .label { font-size:9.5px; font-weight:800; letter-spacing:0.06em; text-transform:uppercase; color:var(--ink); margin-bottom:2px; }
       .status-incident-actions { display:flex; flex-direction:column; gap:6px; min-width:140px; }
+      .status-history > summary { padding:8px 18px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-3); background:var(--sidebar); border-bottom:1px solid var(--border); cursor:pointer; list-style:none; user-select:none; }
+      .status-history > summary::-webkit-details-marker { display:none; }
+      .status-history > summary::before { content:'▸  '; }
+      .status-history[open] > summary::before { content:'▾  '; }
 
       /* ── Add-app modal ─────────────────────────────────────────────── */
       .status-add-modal-overlay {
@@ -10376,25 +10380,33 @@ function renderStatus(root) {
         <span class="status-svc-url-hint">${um.hint}</span>
       </div>` : '';
 
-    // Webhook row — the inbound URL the vendor POSTs to. Copy + rotate.
+    // Webhook row — shown on EVERY service. For source=webhook it's the primary
+    // (push-only) mechanism; for a polled/manual source it's an optional add-on
+    // (poll stays as a self-healing safety net, webhook adds instant pushes).
     const wh = statusState.webhooks && statusState.webhooks[s.id];
     const whUrl = wh && wh.token ? statusWebhookUrl(wh.token) : '';
     const whLast = wh && wh.last_at ? new Date(wh.last_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : null;
-    const webhookRowHtml = isWebhook ? `
+    const whHint = isWebhook
+      ? `Paste into the vendor's status page → <b>Subscribe&nbsp;→&nbsp;Webhook</b>. Push-only — this app isn't polled, so it relies on these events.`
+      : isManual
+        ? `Optional — let the vendor push real-time updates via <b>Subscribe&nbsp;→&nbsp;Webhook</b>. (Manual isn't polled, so pushes drive the state.)`
+        : `Optional — also paste into the vendor's <b>Subscribe&nbsp;→&nbsp;Webhook</b> for real-time pushes on top of the 60s poll (the poll stays a self-healing safety net).`;
+    const webhookRowHtml = `
       <div class="status-svc-url-row status-webhook-row">
-        <span class="status-svc-url-label">Webhook URL</span>
+        <span class="status-svc-url-label">${whUrl ? 'Webhook URL' : 'Webhook'}</span>
         ${whUrl ? `
           <input class="tx status-svc-url-input" data-webhook-url readonly value="${esc(whUrl)}" onclick="this.select()" />
           <span class="status-svc-url-btns">
             <button class="btn ghost xs" data-webhook-copy title="Copy URL">Copy</button>
             <button class="btn ghost xs" data-webhook-roll title="Generate a new URL (invalidates the old one)">Rotate</button>
+            ${isWebhook ? '' : `<button class="btn ghost xs" data-webhook-del title="Turn off inbound webhook (polling continues)">Disable</button>`}
           </span>
-          <span class="status-svc-url-hint">Paste this into the vendor's status page → <b>Subscribe&nbsp;→&nbsp;Webhook</b>. They'll POST incident &amp; component updates here in real time.${whLast ? ` Last received <b>${esc(whLast)}</b>.` : ' <i>No events received yet.</i>'}</span>
+          <span class="status-svc-url-hint">${whHint}${whLast ? ` Last received <b>${esc(whLast)}</b>.` : ' <i>No events received yet.</i>'}</span>
         ` : `
-          <button class="btn ghost xs" data-webhook-gen>Generate webhook URL</button>
-          <span class="status-svc-url-hint">Creates a unique inbound URL to paste into the vendor's status page.</span>
+          <button class="btn ghost xs" data-webhook-gen>${isWebhook ? 'Generate webhook URL' : 'Enable inbound webhook'}</button>
+          <span class="status-svc-url-hint">${whHint}</span>
         `}
-      </div>` : '';
+      </div>`;
 
     // Icon-URL row — always visible, lets admins point at a custom logo
     // (PNG/SVG) when the auto-favicon is too low-res or off-brand. Empty
@@ -10594,6 +10606,13 @@ function renderStatus(root) {
         try { await statusApi('POST', `/api/admin/status/services/${id}/webhook`); toast('New webhook URL generated.', 'ok'); await reload(); }
         catch (e) { toast(`Failed: ${e.message}`, 'err'); }
       };
+      const delWhBtn = row.querySelector('[data-webhook-del]');
+      if (delWhBtn) delWhBtn.onclick = async () => {
+        const ok = await confirmDialog('Disable inbound webhook', 'The current URL stops working. Polling (if set) keeps running, so the app stays monitored.', true, 'Disable');
+        if (!ok) return;
+        try { await statusApi('DELETE', `/api/admin/status/services/${id}/webhook`); toast('Inbound webhook disabled.', 'ok'); await reload(); }
+        catch (e) { toast(`Failed: ${e.message}`, 'err'); }
+      };
       // Reference links — add (kind + url) / remove. Each change PATCHes the
       // whole links array, then repaints to show the chips.
       const linksHost = row.querySelector('[data-links-host]');
@@ -10680,13 +10699,25 @@ function renderStatus(root) {
       incidentsHost.innerHTML = `<div class="status-empty-group">No incidents on file. Hit "New incident" to post one.</div>`;
       return;
     }
+    // Three buckets keyed off resolved_at: open (no timer), resolved within the
+    // last hour ("recently resolved"), and everything older → collapsed History.
+    // The timer starts at resolution, so a still-open incident never moves down.
+    const HOUR = 60 * 60 * 1000;
+    const now = Date.now();
+    const isRecent = (i) => i.state === 'resolved' && i.resolved_at && (now - new Date(i.resolved_at).getTime()) <= HOUR;
     const open = incidents.filter((i) => i.state !== 'resolved');
-    const resolved = incidents.filter((i) => i.state === 'resolved').slice(0, 5);
+    const recent = incidents.filter(isRecent);
+    const history = incidents.filter((i) => i.state === 'resolved' && !isRecent(i)).slice(0, 30);
     const sectionHtml = (title, list) => list.length === 0 ? '' : `
       <div style="padding:8px 18px 4px; font-size:11px; font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-3); background:var(--sidebar); border-bottom:1px solid var(--border);">${title}</div>
       ${list.map((inc) => incidentRowHtml(inc, services)).join('')}
     `;
-    incidentsHost.innerHTML = sectionHtml('Open', open) + sectionHtml('Recently resolved', resolved);
+    const historyHtml = history.length === 0 ? '' : `
+      <details class="status-history">
+        <summary>History · ${history.length} resolved &gt; 1h ago</summary>
+        ${history.map((inc) => incidentRowHtml(inc, services)).join('')}
+      </details>`;
+    incidentsHost.innerHTML = sectionHtml('Open', open) + sectionHtml('Recently resolved · last hour', recent) + historyHtml;
     bindIncidentRows();
   }
 
