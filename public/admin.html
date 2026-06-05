@@ -9800,7 +9800,7 @@ const STATUS_VENDOR_PRESETS = [
   { name: 'Mailchimp',      vendor: 'Email',           domain: 'mailchimp.com',      source: 'statuspage', source_url: 'https://status.mailchimp.com/api/v2/summary.json' },
   { name: 'Dropbox',        vendor: 'Storage',         domain: 'dropbox.com',        source: 'statuspage', source_url: 'https://status.dropbox.com/api/v2/summary.json' },
   { name: 'Box',            vendor: 'Storage',         domain: 'box.com',            source: 'statuspage', source_url: 'https://status.box.com/api/v2/summary.json' },
-  { name: 'Google Workspace', vendor: 'Mail & calendar', domain: 'workspace.google.com', source: 'manual', source_url: '' },
+  { name: 'Google Workspace', vendor: 'Mail & calendar', domain: 'workspace.google.com', source: 'statuspage', source_url: 'https://www.google.com/appsstatus/dashboard/incidents.json', links: [{ kind: 'status', label: 'Status page', url: 'https://www.google.com/appsstatus/dashboard/' }] },
   { name: 'OpenAI',         vendor: 'AI',              domain: 'openai.com',         source: 'statuspage', source_url: 'https://status.openai.com/api/v2/summary.json' },
   { name: 'Anthropic',      vendor: 'AI',              domain: 'anthropic.com',      source: 'statuspage', source_url: 'https://status.claude.com/api/v2/summary.json' },
   // Finance / back-office — all verified Statuspage feeds except Adyen/PayPal,

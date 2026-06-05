@@ -46,7 +46,7 @@ const DEFAULT_GROUPS = [
     slug: 'productivity', label: 'Productivity',
     services: [
       { name: 'Google Workspace', vendor: 'Mail & calendar', domain: 'workspace.google.com',
-        source: 'manual' },
+        source: 'statuspage', source_url: 'https://www.google.com/appsstatus/dashboard/incidents.json' },
       { name: 'Slack', vendor: 'Chat', domain: 'slack.com',
         source: 'statuspage', source_url: 'https://slack-status.com/api/v2.0.0/current' },
       { name: 'Zoom', vendor: 'Meetings', domain: 'zoom.us',
@@ -438,8 +438,13 @@ function classifyFeed(items) {
   for (const it of scan) {
     // The first <strong> is the most-recent update label on Statuspage feeds.
     const head = ((it.content.match(/<strong>\s*([^<]+?)\s*<\/strong>/i) || [])[1] || it.title || '').toLowerCase();
-    const text = `${head} ${it.title} ${stripTags(it.content)}`.toLowerCase();
-    if (FEED_RESOLVED_RE.test(head)) continue;             // this incident is over → check older ones
+    const title = (it.title || '').toLowerCase();
+    const text = `${head} ${title} ${stripTags(it.content)}`.toLowerCase();
+    // Resolved when the latest update label says so (Statuspage puts it in the
+    // body as <strong>Resolved</strong>) OR the entry title is marked resolved
+    // (Google prefixes its <title> with "RESOLVED:"). Either → this incident is
+    // over, move on to older ones.
+    if (FEED_RESOLVED_RE.test(head) || /\b(resolved|completed|recovered)\b/.test(title)) continue;
     if (/\b(maintenance|scheduled)\b/.test(head) && !FEED_DOWN_RE.test(text)) continue;
     if (FEED_DOWN_RE.test(text))     return { state: 'down', state_note: it.title || 'Outage reported' };
     if (FEED_DEGRADED_RE.test(text)) return { state: 'degraded', state_note: it.title || 'Incident reported' };
@@ -504,15 +509,28 @@ async function resolveSource(rawUrl) {
   try { u = new URL(rawUrl); } catch { return { error: 'invalid URL' }; }
   const blocked = probeUrlBlockedReason(u.href);
   if (blocked) return { error: blocked };
+
+  // Candidates, in priority order: the pasted URL (honoring its extension), then
+  // sibling files in the SAME directory — this is what makes sub-path dashboards
+  // like Google's /appsstatus/dashboard/incidents.json resolve — then the
+  // origin-root Statuspage.io conventions.
   const origin = u.origin;
-  // Test the pasted URL itself first, then well-known endpoints off the origin.
-  const candidates = [
-    { source: 'statuspage', url: u.href, kind: 'json' },
-    { source: 'rss',        url: u.href, kind: 'feed' },
-    { source: 'statuspage', url: `${origin}/api/v2/summary.json`, kind: 'json' },
-    { source: 'rss',        url: `${origin}/history.atom`, kind: 'feed' },
-    { source: 'rss',        url: `${origin}/history.rss`, kind: 'feed' },
-  ];
+  const dir = u.href.replace(/[^/]*(\?.*)?$/, ''); // strip filename + query → ".../"
+  const path = u.pathname.toLowerCase();
+  const cands = [];
+  const json = (url) => cands.push({ kind: 'json', url });
+  const feed = (url) => cands.push({ kind: 'feed', url });
+  if (/\.json(\?|$)/.test(path)) json(u.href);
+  else if (/\.(atom|rss|xml)(\?|$)/.test(path)) feed(u.href);
+  else { json(u.href); feed(u.href); }
+  ['incidents.json', 'summary.json', 'status.json'].forEach((f) => json(dir + f));
+  ['feed.atom', 'en/feed.atom', 'history.atom', 'history.rss'].forEach((f) => feed(dir + f));
+  json(`${origin}/api/v2/summary.json`);
+  feed(`${origin}/history.atom`);
+  feed(`${origin}/history.rss`);
+  const seen = new Set();
+  const candidates = cands.filter((c) => !seen.has(c.url) && seen.add(c.url));
+
   for (const c of candidates) {
     try {
       const r = await fetchWithTimeout(c.url, {
@@ -521,10 +539,13 @@ async function resolveSource(rawUrl) {
         timeoutMs: 5000,
       });
       if (!r.ok) { drain(r); continue; }
-      const body = (await r.text()).slice(0, 200_000);
+      const body = await r.text();
+      if (body.length > 8_000_000) continue; // sanity cap; don't choke on a huge doc
       if (c.kind === 'json') {
+        // Parse the FULL body — vendor feeds can be large (Google's incidents.json
+        // is ~420 KB); truncating it first makes JSON.parse fail and mislabels it.
         try { if (looksLikeStatusJson(JSON.parse(body))) return { source: 'statuspage', source_url: c.url }; } catch { /* not json */ }
-      } else if (/<rss\b|<feed\b|<entry\b|<item\b/i.test(body)) {
+      } else if (/<rss\b|<feed\b|<entry\b|<item\b/i.test(body.slice(0, 100_000))) {
         return { source: 'rss', source_url: c.url };
       }
     } catch { /* try next candidate */ }
