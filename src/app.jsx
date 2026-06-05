@@ -8059,7 +8059,7 @@ function PageShell({ title, kicker, onClose, children, icon, backLabel = "Back" 
           <button onClick={onClose} className="btn btn-outline" style={{ flexShrink: 0 }}>← {backLabel}</button>
         </div>
       </div>
-      <div style={{ maxWidth: 760, width: "100%", margin: "0 auto", padding: "28px 32px 64px", boxSizing: "border-box" }}>
+      <div style={{ maxWidth: 1120, width: "100%", margin: "0 auto", padding: "28px 32px 64px", boxSizing: "border-box" }}>
         <div style={{ ...TK.card, padding: "22px 24px" }}>{children}</div>
       </div>
     </div>
@@ -9568,7 +9568,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   if (view === 'form' && item) {
     return (
       <Shell title={item.name} kicker="Service request" icon={item.icon_url} onClose={onClose} maxWidth={680}>
-        <button onClick={() => { setErr(''); setView('list'); }} style={{ ...backLink, marginTop: 0 }}>← All items</button>
+        <button onClick={() => { setErr(''); setView('list'); }} className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, marginBottom: 14 }}>← All items</button>
         {item.description && <p style={{ fontSize: 13.5, color: '#55503F', margin: '0 0 6px', lineHeight: 1.5 }}>{item.description}</p>}
         {item.approval_required && (
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 9px', background: '#FFEFDD', color: '#9A4A00', border: '1px solid #9A4A00', borderRadius: 999, fontSize: 11, fontWeight: 800, fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 4 }}>
@@ -9672,9 +9672,12 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {shown.map((it) => (
-              <button key={it.id} onClick={() => pickItem(it)} disabled={itemBusy} style={{
+              <button key={it.id} onClick={() => pickItem(it)} disabled={itemBusy}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
+                style={{
                 ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '14px 16px',
-                display: 'flex', flexDirection: 'column', gap: 6, minHeight: 96,
+                display: 'flex', flexDirection: 'column', gap: 6, minHeight: 96, transition: TK.rowTransition,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
                   {it.icon_url
