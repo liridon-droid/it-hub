@@ -8342,10 +8342,10 @@ function ConversationMessage({ mine, name, time, body, children }) {
           <div style={{
             maxWidth: '100%', padding: '9px 13px', border: '1px solid #211E1E', borderRadius: 14,
             fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            background: mine ? '#FFFFFF' : '#211E1E', color: mine ? '#211E1E' : '#FFFFFF',
-            boxShadow: mine ? '2px 2px 0 #211E1E' : '2px 2px 0 #FDC831',
+            background: mine ? '#FFFFFF' : '#EFEAE0', color: '#211E1E',
+            boxShadow: '2px 2px 0 #211E1E',
             borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
-          }}>{linkifyText(body, mine ? '#B92323' : '#FDC831')}</div>
+          }}>{linkifyText(body, '#B92323')}</div>
         )}
       </div>
     </div>
