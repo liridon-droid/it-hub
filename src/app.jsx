@@ -2619,6 +2619,7 @@ const STAGE_TO_PATH = {
   knowledge: "/knowledge",
   status: "/status",
   tickets: "/tickets",
+  request: "/request",
   onboarding: "/onboarding",
   "onboarding-filed": "/onboarding",
   offboarding: "/offboarding",
@@ -2630,6 +2631,7 @@ const PATH_TO_STAGE = {
   "/knowledge": "knowledge",
   "/status": "status",
   "/tickets": "tickets",
+  "/request": "request",
   "/onboarding": "onboarding",
   "/offboarding": "offboarding",
   "/notifications": "notifications",
@@ -2705,7 +2707,10 @@ function App() {
   // Catalog request modal raised from the chat flow (App-level so the answer
   // page can open it). { itemId } preselects the matched app's request form.
   const [catalogReq, setCatalogReq] = useState(null);
-  const openCatalog = (opts = {}) => setCatalogReq(opts);
+  // "Request something" is its own page now (stage 'request'), not a modal.
+  // Remember which stage we opened it from so closing returns there.
+  const requestReturnRef = React.useRef('landing');
+  const openCatalog = (opts = {}) => { requestReturnRef.current = stage; setCatalogReq(opts || {}); setStage('request'); };
   // Cache the service catalog for the session so chat-intent matching doesn't
   // refetch on every ticket click.
   const catalogCacheRef = React.useRef(null);
@@ -2876,7 +2881,6 @@ function App() {
       <GlobalKeyframes />
       <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
       {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} />}
-      {catalogReq && <CatalogRequestModal initialItemId={catalogReq.itemId} onClose={() => setCatalogReq(null)} onCreated={() => {}} />}
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -2941,7 +2945,16 @@ function App() {
         key={ticketsNav}
         initialTab={ticketsTab}
         onBack={goHome}
-        onReportIssue={() => setTicketDraft({ subject: "", description: "", type: "incident", priority: "medium" })} />
+        onReportIssue={() => setTicketDraft({ subject: "", description: "", type: "incident", priority: "medium" })}
+        onRequest={() => openCatalog()} />
+      }
+
+      {stage === "request" &&
+      <CatalogRequestModal
+        asPage
+        initialItemId={catalogReq && catalogReq.itemId}
+        onClose={() => setStage(requestReturnRef.current || "landing")}
+        onCreated={() => {}} />
       }
 
       {stage === "notifications" &&
@@ -8019,6 +8032,40 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
   ), document.body);
 }
 
+// Page version of ModalShell — same prop API ({ title, kicker, icon, onClose,
+// children }) but rendered as a full page that matches the My Tickets chrome
+// (yellow page, cream header band with title + Back, centred content card)
+// instead of a modal overlay. Content width is fixed so it never jumps between
+// the flow's steps. `maxWidth` is accepted for API parity but ignored here.
+function PageShell({ title, kicker, onClose, children, icon, backLabel = "Back" }) {
+  const logo = !icon ? null : (
+    <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 10, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "2px 2px 0 #211E1E" }}>
+      {typeof icon === "string"
+        ? <img src={icon} alt="" width="28" height="28" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        : icon}
+    </span>
+  );
+  return (
+    <div className="page" style={{ background: "#FDC831", display: "flex", flexDirection: "column" }}>
+      <div style={{ background: "#F7F4EF", borderBottom: "1px solid #211E1E", padding: "34px 32px" }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+            {logo}
+            <div style={{ minWidth: 0 }}>
+              {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 8 }}>{kicker}</div>}
+              <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 34, fontWeight: 900, margin: 0, letterSpacing: "-0.03em", color: "#211E1E", lineHeight: 1.05 }}>{title}</h1>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn btn-outline" style={{ flexShrink: 0 }}>← {backLabel}</button>
+        </div>
+      </div>
+      <div style={{ maxWidth: 760, width: "100%", margin: "0 auto", padding: "28px 32px 64px", boxSizing: "border-box" }}>
+        <div style={{ ...TK.card, padding: "22px 24px" }}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
 const btnPrimary = {
   padding: "10px 16px",
   background: "#211E1E", color: "#FDC831",
@@ -8547,9 +8594,8 @@ function TicketsBackBar({ onBack, label }) {
 }
 
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
-function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
+function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
-  const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   // When a ticket/approval detail is open, hide the page chrome (title, tabs,
   // search, actions) for a clean focused reading page — just the detail + its
@@ -8585,7 +8631,7 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <button onClick={onBack} className="btn btn-outline">← Back</button>
               <button onClick={() => onReportIssue && onReportIssue()} className="btn btn-outline">Report an issue</button>
-              <button onClick={() => setCatalogOpen(true)} className="btn btn-primary">Request something</button>
+              <button onClick={() => onRequest && onRequest()} className="btn btn-primary">Request something</button>
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
@@ -8626,12 +8672,11 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue }) {
       <div style={{ flex: 1, padding: detailOpen ? '20px 32px 64px' : '28px 32px 64px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
           {tab === 'mine'
-            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={() => setCatalogOpen(true)} query={query} onViewingChange={setDetailOpen} />
+            ? <MyTicketsView refreshKey={refreshKey} onRefresh={refresh} onReportIssue={onReportIssue} onRequest={onRequest} query={query} onViewingChange={setDetailOpen} />
             : <ApprovalsView refreshKey={refreshKey} onActed={refresh} query={query} onViewingChange={setDetailOpen} />}
         </div>
       </div>
 
-      {catalogOpen && <CatalogRequestModal onClose={() => setCatalogOpen(false)} onCreated={refresh} />}
     </div>
   );
 }
@@ -9360,7 +9405,10 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 
 // ── Request flow — browse the service catalog, fill the item's form, submit ──
 // Falls back to a freeform service_request when the catalog is empty/unreachable.
-function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
+function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage = false }) {
+  // Render as a full page (PageShell) or a modal (ModalShell) — same prop API,
+  // so the views below don't care which chrome wraps them.
+  const Shell = asPage ? PageShell : ModalShell;
   const [view, setView] = React.useState('list'); // list | form | done | freeform
   const [catalog, setCatalog] = React.useState(null); // null = loading
   const [catErr, setCatErr] = React.useState(''); // catalog failed to load
@@ -9463,7 +9511,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
   if (view === 'done') {
     const pending = result && String(result.status || '').toLowerCase() === 'pending';
     return (
-      <ModalShell title="Request submitted" kicker="Service request" icon={item && item.icon_url} onClose={onClose} maxWidth={620}>
+      <Shell title="Request submitted" kicker="Service request" icon={item && item.icon_url} onClose={onClose} maxWidth={620}>
         <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 8px', lineHeight: 1.55 }}>
           Your request <strong>{result && (result.ticket_number || result.id)}</strong> is in.
         </p>
@@ -9476,14 +9524,14 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button className="btn btn-primary" onClick={onClose}>Done</button>
         </div>
-      </ModalShell>
+      </Shell>
     );
   }
 
   // Freeform fallback
   if (view === 'freeform') {
     return (
-      <ModalShell title="Request something" kicker={catalog && catalog.length ? 'Custom request' : 'Service request'} onClose={onClose} maxWidth={620}>
+      <Shell title="Request something" kicker={catalog && catalog.length ? 'Custom request' : 'Service request'} onClose={onClose} maxWidth={620}>
         <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 4px', lineHeight: 1.5 }}>
           Tell us what you need access to — an app, a service, hardware, or anything else. IT will pick it up.
         </p>
@@ -9498,14 +9546,14 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
           {catalog && catalog.length > 0 && <button className="btn btn-outline" onClick={() => { setErr(''); setView('list'); }} disabled={busy}>← Catalog</button>}
           <button className="btn btn-primary" onClick={submitFreeform} disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
         </div>
-      </ModalShell>
+      </Shell>
     );
   }
 
   // Item form
   if (view === 'form' && item) {
     return (
-      <ModalShell title={item.name} kicker="Service request" icon={item.icon_url} onClose={onClose} maxWidth={680}>
+      <Shell title={item.name} kicker="Service request" icon={item.icon_url} onClose={onClose} maxWidth={680}>
         <button onClick={() => { setErr(''); setView('list'); }} style={{ ...backLink, marginTop: 0 }}>← All items</button>
         {item.description && <p style={{ fontSize: 13.5, color: '#55503F', margin: '0 0 6px', lineHeight: 1.5 }}>{item.description}</p>}
         {item.approval_required && (
@@ -9534,13 +9582,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn btn-primary" onClick={submitCatalog} disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
         </div>
-      </ModalShell>
+      </Shell>
     );
   }
 
   // Catalog list
   return (
-    <ModalShell title="Request something" kicker="Service catalog — access to apps & services" onClose={onClose} maxWidth={760}>
+    <Shell title="Request something" kicker="Service catalog — access to apps & services" onClose={onClose} maxWidth={760}>
       {catalog === null && !catErr && <div style={{ padding: '24px 4px', color: '#78684C', fontSize: 14 }}>Loading the catalog…</div>}
       {itemBusy && <div style={{ padding: '8px 4px', color: '#78684C', fontSize: 13 }}>Opening…</div>}
       {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '0 0 12px' }}>{err}</p>}
@@ -9594,7 +9642,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null }) {
           </div>
         </>
       )}
-    </ModalShell>
+    </Shell>
   );
 }
 
