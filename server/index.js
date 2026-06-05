@@ -325,16 +325,24 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
 });
 
 // Serve an attachment's BYTES so the portal can show it inline. We re-read the
-// ticket to (a) gate to the requester/admin and (b) REUSE whatever that read
-// already carries: if the attachment object includes inline base64 or a public
-// URL, we serve straight from that — no dependency on a separate content
-// endpoint. Only if neither is present do we proxy the ticket module's content
-// endpoint (raw bytes / a signed {download_url} / base64-in-JSON). The browser
-// authenticates this like any /api call (X-Hub-Token via the shim, or ?hub_token=).
-const ATT_CONTENT_MISSING =
-  'The ticket module has no content endpoint for this attachment, and the ticket ' +
-  'read carried no inline bytes or URL. The module side (101) must implement ' +
-  'GET /tickets/:id/attachments/:attId/content (ATTACHMENTS_API_SPEC.md §2).';
+// ticket to (a) gate the caller to the requester/admin of THIS ticket and
+// (b) confirm the attachment is actually on this ticket. Then, in order:
+//   1. if the ticket read already carries the bytes (base64) or a URL, serve
+//      straight from that — no second hop;
+//   2. otherwise proxy the ticket module's EXISTING key-authed by-id download
+//      (GET /api/module/attachments/:attId/download) and re-serve it inline.
+// The module owns the Google Drive delegation + per-queue creds, so we never
+// touch Drive ourselves. Crucially, we only ever hit that by-id download for an
+// attId we verified belongs to this ticket in step (b): the download route is
+// keyed by attachment id alone (NOT ticket-scoped), so proxying it blind would
+// let a user read another ticket's file by guessing ids (IDOR). That check needs
+// the module to return an `attachments` array on the ticket read
+// (ATTACHMENTS_API_SPEC.md §1). The browser authenticates this like any /api
+// call (X-Hub-Token via the shim, or ?hub_token=).
+const ATT_NOT_IN_TICKET =
+  "That attachment isn't listed on this ticket. If GET /tickets/:id doesn't " +
+  'return an `attachments` array, the module side (101) needs to add it ' +
+  '(ATTACHMENTS_API_SPEC.md §1) before by-id download can be used safely.';
 app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (req, res) => {
   const u = req.user;
   const isAdmin = u.role === 'admin' || u.role === 'super_admin';
@@ -366,21 +374,32 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
       if (c && Array.isArray(c.files)) pool.push(...c.files);
       if (c && Array.isArray(c.media)) pool.push(...c.media);
     });
-    const meta = pool.find((a) => a && String(a.id ?? a.attachment_id ?? a.file_id ?? '') === String(req.params.attId)) || {};
-    const inlineB64 = meta.content_base64 || meta.content || meta.data;
-    if (typeof inlineB64 === 'string' && inlineB64.length > 64) {
-      return sendBytes(inlineB64, meta.mime_type || meta.content_type, meta.file_name || meta.name);
+    const meta = pool.find((a) => a && String(a.id ?? a.attachment_id ?? a.file_id ?? '') === String(req.params.attId));
+    if (meta) {
+      // The ticket read carried this attachment — serve straight from it when it
+      // includes the bytes (base64) or a public/signed URL (no second hop).
+      const inlineB64 = meta.content_base64 || meta.content || meta.data;
+      if (typeof inlineB64 === 'string' && inlineB64.length > 64) {
+        return sendBytes(inlineB64, meta.mime_type || meta.content_type, meta.file_name || meta.name);
+      }
+      const metaLink = meta.url || meta.download_url || meta.file_url || meta.webContentLink || meta.webViewLink || meta.signed_url || meta.href;
+      if (typeof metaLink === 'string' && /^https?:\/\//.test(metaLink)) return res.redirect(302, metaLink);
+    } else {
+      // attId is NOT on this ticket (or the ticket read returns no attachments
+      // list). Refuse rather than proxy the by-id download — that route isn't
+      // ticket-scoped, so hitting it for an unverified id would be an IDOR.
+      return res.status(404).json({ error: ATT_NOT_IN_TICKET });
     }
-    const metaLink = meta.url || meta.download_url || meta.file_url || meta.webContentLink || meta.webViewLink || meta.signed_url || meta.href;
-    if (typeof metaLink === 'string' && /^https?:\/\//.test(metaLink)) return res.redirect(302, metaLink);
 
     if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
       return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
     }
 
-    // Otherwise proxy the module's content endpoint (the spec's primary shape).
+    // Reuse the ticket module's EXISTING key-authed by-id download (Option A) —
+    // it owns the Drive delegation + per-queue creds, so we never touch Drive.
+    // Only reached for an attId verified to belong to this ticket above.
     const url = `${moduleConfig.hubApiBase}/api/ext/modules/${moduleConfig.ticketModuleId}/api/module` +
-      `/tickets/${encodeURIComponent(req.params.id)}/attachments/${encodeURIComponent(req.params.attId)}/content`;
+      `/attachments/${encodeURIComponent(req.params.attId)}/download`;
     const upstream = await fetch(url, { headers: { Authorization: `Bearer ${moduleConfig.apiKey}` } });
     const ctype = upstream.headers.get('content-type') || '';
 
@@ -388,7 +407,7 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
       const j = await upstream.json().catch(() => ({}));
       if (!upstream.ok) {
         return res.status(upstream.status).json({
-          error: upstream.status === 404 ? ATT_CONTENT_MISSING : (j.error || `Ticket service returned ${upstream.status}`),
+          error: j.error || `Ticket service returned ${upstream.status}`,
           upstream_status: upstream.status,
         });
       }
@@ -397,25 +416,22 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
       if (typeof link === 'string' && /^https?:\/\//.test(link)) return res.redirect(302, link);
       // (b) the bytes wrapped as base64 in a JSON envelope.
       const b64 = j.content_base64 || j.content || j.data;
-      if (typeof b64 === 'string' && b64) return sendBytes(b64, j.mime_type || j.content_type, j.file_name);
+      if (typeof b64 === 'string' && b64) return sendBytes(b64, j.mime_type || j.content_type, j.file_name || meta.file_name);
       return res.status(502).json({ error: 'Attachment content unavailable', detail: 'Ticket service returned JSON with no file bytes or download URL.' });
     }
 
-    // (c) raw bytes (the spec's primary shape) — stream them through unchanged.
+    // (c) raw bytes — re-serve inline with our OWN headers (filename from the
+    // ticket), so it views in-browser regardless of the download endpoint's
+    // attachment disposition. (No need for Dave's ?disposition=inline tweak.)
     if (!upstream.ok) {
       const text = await upstream.text().catch(() => '');
       return res.status(upstream.status).json({
-        error: upstream.status === 404 ? ATT_CONTENT_MISSING : `Ticket service returned ${upstream.status}`,
+        error: `Ticket service returned ${upstream.status}`,
         upstream_status: upstream.status,
         detail: text.slice(0, 200),
       });
     }
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    res.setHeader('Content-Type', ctype || 'application/octet-stream');
-    const cd = upstream.headers.get('content-disposition');
-    if (cd) res.setHeader('Content-Disposition', cd);
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    return res.send(buf);
+    return sendBytes(Buffer.from(await upstream.arrayBuffer()), ctype || meta.mime_type || meta.content_type, meta.file_name || meta.name);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.attachment.content');
   }
