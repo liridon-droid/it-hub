@@ -8100,6 +8100,10 @@ function NewTicketModal({ onClose, draft = {} }) {
   const [attachWarn, setAttachWarn] = React.useState("");
   const [error, setError] = React.useState("");
   const who = (typeof window !== "undefined" && window.PORTAL_CURRENT_USER) || "";
+  // This modal is reused two ways: a fresh "Report an issue", or a review of a
+  // ticket pre-filled from chat / a guide. Adapt the header so a fresh report
+  // doesn't say "Pre-filled from your chat".
+  const prefilled = !!((draft.subject && draft.subject.trim()) || (draft.description && draft.description.trim()));
 
   const submit = async () => {
     if (!subject.trim()) { setError("Please add a short subject."); return; }
@@ -8136,7 +8140,7 @@ function NewTicketModal({ onClose, draft = {} }) {
 
   if (result) {
     return (
-      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose} maxWidth={760}>
+      <ModalShell title="Ticket created" kicker="IT Support" onClose={onClose} maxWidth={640}>
         <style>{btnCss}</style>
         <p style={{ fontSize: 15, color: "#211E1E", margin: "0 0 22px", lineHeight: 1.5 }}>
           Your ticket <strong>{result.ticket_number || result.id}</strong> has been created with the IT Team — you'll get updates as it progresses.
@@ -8149,40 +8153,46 @@ function NewTicketModal({ onClose, draft = {} }) {
     );
   }
 
+  const hint = { fontSize: 12, color: "#9A8E78", margin: "-2px 0 7px", lineHeight: 1.4 };
   return (
-    <ModalShell title="Review & submit your ticket" kicker="Pre-filled from your chat — edit anything, then send" onClose={onClose} maxWidth={880}>
+    <ModalShell
+      title={prefilled ? "Review & submit your ticket" : "Report an issue"}
+      kicker={prefilled ? "Pre-filled — edit anything, then send" : "Tell us what's broken and we'll route it to the right person"}
+      onClose={onClose} maxWidth={640}>
       <style>{btnCss}</style>
-      <label style={{ ...label, marginTop: 0 }}>Subject</label>
-      <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Short summary of the issue" autoFocus />
-      <label style={label}>Details for the IT Team</label>
-      <textarea style={{ ...field, minHeight: 300, resize: "vertical", lineHeight: 1.55 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What's happening? What did you expect?" />
-      <div style={{ display: "flex", gap: 14 }}>
-        <div style={{ flex: 1 }}>
-          <label style={label}>Type</label>
+      <label style={{ ...label, marginTop: 0 }}>What's the issue?</label>
+      <input style={field} value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="e.g. Zoom won't open after the latest update" autoFocus />
+      <label style={label}>Tell us more</label>
+      <div style={hint}>What happened, what you expected, and anything you've already tried.</div>
+      <textarea style={{ ...field, minHeight: 150, resize: "vertical", lineHeight: 1.55 }} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Steps to reproduce, the exact error, when it started…" />
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 180px" }}>
+          <label style={label}>What kind?</label>
           <select style={field} value={type} onChange={(e) => setType(e.target.value)}>
             <option value="incident">Something's broken</option>
             <option value="service_request">I need something</option>
           </select>
         </div>
-        <div style={{ flex: 1 }}>
-          <label style={label}>Priority</label>
+        <div style={{ flex: "1 1 180px" }}>
+          <label style={label}>How urgent?</label>
           <select style={field} value={priority} onChange={(e) => setPriority(e.target.value)}>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="low">Low — whenever</option>
+            <option value="medium">Medium — soon</option>
+            <option value="high">High — blocking me</option>
+            <option value="critical">Critical — many people / can't work</option>
           </select>
         </div>
       </div>
-      <label style={label}>Attachments <span style={{ fontWeight: 500, color: "#9A8E78" }}>(optional — screenshots, docs)</span></label>
+      <label style={label}>Attachments <span style={{ fontWeight: 500, color: "#9A8E78" }}>(optional)</span></label>
+      <div style={hint}>A screenshot or screen recording helps us help you faster.</div>
       <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
       {error && <p style={{ color: "#B92323", fontSize: 13.5, margin: "16px 0 0" }}>{error}</p>}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 24, flexWrap: "wrap" }}>
         {who && <span style={{ fontSize: 12.5, color: "#78684C", fontWeight: 600 }}>Submitting as {who}</span>}
         <div style={{ marginLeft: "auto", display: "flex", gap: 12 }}>
           <button className="tkt-btn is-secondary" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="tkt-btn is-primary" onClick={submit} disabled={busy}>
-            {busy ? busyLabel : "Submit ticket"}
+            {busy ? busyLabel : "Send to IT"}
           </button>
         </div>
       </div>
@@ -9424,6 +9434,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   const [ffDesc, setFfDesc] = React.useState('');
   const [attachFiles, setAttachFiles] = React.useState([]);
   const [attachWarn, setAttachWarn] = React.useState('');
+  // Catalog browse: free-text search + a category filter, so a long catalog is
+  // easy to scan instead of one big undifferentiated grid.
+  const [catQuery, setCatQuery] = React.useState('');
+  const [catFilter, setCatFilter] = React.useState('all');
 
   const pickItem = React.useCallback(async (it) => {
     setItemBusy(true); setErr('');
@@ -9615,10 +9629,49 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         </div>
       )}
 
-      {catalog && catalog.length > 0 && (
+      {catalog && catalog.length > 0 && (() => {
+        const cats = Array.from(new Set(catalog.map((c) => c.category_name).filter(Boolean)));
+        const q = catQuery.trim().toLowerCase();
+        const shown = catalog.filter((c) => {
+          if (catFilter !== 'all' && c.category_name !== catFilter) return false;
+          if (!q) return true;
+          return [c.name, c.description, c.category_name].filter(Boolean).join(' ').toLowerCase().includes(q);
+        });
+        const chip = (key, label) => {
+          const on = catFilter === key;
+          return (
+            <button key={key} onClick={() => setCatFilter(key)} style={{
+              padding: '5px 11px', borderRadius: 999, cursor: 'pointer', border: '1px solid #211E1E',
+              fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.03em', textTransform: 'uppercase',
+              background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
+            }}>{label}</button>
+          );
+        };
+        return (
         <>
+          {/* Search */}
+          <div style={{ position: 'relative', marginBottom: cats.length > 1 ? 12 : 16 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <input value={catQuery} onChange={(e) => setCatQuery(e.target.value)} placeholder="Search apps & services…" autoFocus
+              style={{ width: '100%', padding: '10px 32px 10px 36px', border: '1px solid #211E1E', borderRadius: 8, background: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }} />
+            {catQuery && <button onClick={() => setCatQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9A8E78', fontWeight: 900, fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>}
+          </div>
+          {/* Category filter */}
+          {cats.length > 1 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+              {chip('all', 'All')}
+              {cats.map((c) => chip(c, c))}
+            </div>
+          )}
+          {shown.length === 0 ? (
+            <div style={{ ...TK.card, padding: '22px 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 700, marginBottom: 6 }}>Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}.</div>
+              <div style={{ fontSize: 13, color: '#78684C', marginBottom: 14 }}>Try a different search, or ask for it directly.</div>
+              <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request</button>
+            </div>
+          ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
-            {catalog.map((it) => (
+            {shown.map((it) => (
               <button key={it.id} onClick={() => pickItem(it)} disabled={itemBusy} style={{
                 ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '14px 16px',
                 display: 'flex', flexDirection: 'column', gap: 6, minHeight: 96,
@@ -9637,11 +9690,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
               </button>
             ))}
           </div>
+          )}
           <div style={{ marginTop: 16, fontSize: 12.5, color: '#78684C' }}>
             Don’t see what you need? <button onClick={() => { setErr(''); setView('freeform'); }} style={textActionBtn}>Make a custom request →</button>
           </div>
         </>
-      )}
+        );
+      })()}
     </Shell>
   );
 }
