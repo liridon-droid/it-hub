@@ -540,11 +540,12 @@ async function resolveSource(rawUrl) {
 const CONFIRM_SAMPLES = 2;
 
 async function pollOne(pool, service) {
-  // Manual + webhook services aren't polled — their state is admin-set or pushed
-  // in by the vendor. We still record a heartbeat sample of the current state
-  // each pass so the 10-day bars + uptime stay populated for them too (otherwise
-  // they'd read as "no data" forever).
-  if (service.source === 'manual' || service.source === 'webhook') {
+  // manual / webhook / render services aren't polled by the hub — their state is
+  // admin-set (manual) or pushed in via the inbound webhook (webhook = the vendor,
+  // render = our headless render worker). We still record a heartbeat sample of
+  // the current state each pass so there's a recent check on file (the admin
+  // Probes view reads these).
+  if (service.source === 'manual' || service.source === 'webhook' || service.source === 'render') {
     await pool.query(
       `INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`,
       [service.id, service.state],
@@ -1025,25 +1026,6 @@ async function fetchStatusPayload(pool) {
        FROM status_services
        ORDER BY group_id, position, id`,
   );
-  // 10-day daily history per service — one cell per day, worst state of the
-  // day wins so a single bad sample colors the bar. 0 = ok, 1 = degraded, 2 = down.
-  const history = await pool.query(
-    `SELECT service_id,
-            (NOW()::date - checked_at::date)::int AS days_ago,
-            MAX(CASE state WHEN 'down' THEN 2 WHEN 'degraded' THEN 1 ELSE 0 END) AS worst
-       FROM status_checks
-      WHERE checked_at >= NOW() - INTERVAL '10 days'
-      GROUP BY service_id, days_ago`,
-  );
-  // Compute 10-day uptime per service: % of samples that were operational.
-  const uptime = await pool.query(
-    `SELECT service_id,
-            COUNT(*)::int AS samples,
-            SUM(CASE state WHEN 'operational' THEN 1 ELSE 0 END)::int AS ok
-       FROM status_checks
-      WHERE checked_at >= NOW() - INTERVAL '10 days'
-      GROUP BY service_id`,
-  );
   const incidents = await pool.query(
     `SELECT i.id, i.service_id, s.name AS service_name, i.title, i.severity,
             i.state, i.started_at, i.resolved_at, i.auto_created,
@@ -1057,21 +1039,6 @@ async function fetchStatusPayload(pool) {
       GROUP BY i.id, s.name
       ORDER BY i.started_at DESC`,
   );
-
-  // Roll history rows up by service into a 10-element array (index 0 = today).
-  // Days with no samples stay null so the UI can show "no data" honestly rather
-  // than painting an un-checked day green.
-  const HISTORY_DAYS = 10;
-  const histByService = new Map();
-  for (const r of history.rows) {
-    const list = histByService.get(r.service_id) || new Array(HISTORY_DAYS).fill(null);
-    if (r.days_ago >= 0 && r.days_ago < HISTORY_DAYS) list[r.days_ago] = r.worst;
-    histByService.set(r.service_id, list);
-  }
-  const uptimeByService = new Map();
-  for (const r of uptime.rows) {
-    uptimeByService.set(r.service_id, r.samples > 0 ? (r.ok / r.samples) * 100 : null);
-  }
 
   const groupsOut = groups.rows.map((g) => ({
     id: g.id,
@@ -1096,9 +1063,6 @@ async function fetchStatusPayload(pool) {
         position: s.position,
         links: Array.isArray(s.links) ? s.links : [],
         webhook_last_at: s.webhook_last_at,
-        // Reverse so index 0 = oldest, last = today (matches what the bars expect).
-        history: (histByService.get(s.id) || new Array(HISTORY_DAYS).fill(null)).slice().reverse(),
-        uptime: uptimeByService.get(s.id) ?? null,
       })),
   }));
   // Strays — services whose group was deleted — get bucketed at the end.
@@ -1114,8 +1078,6 @@ async function fetchStatusPayload(pool) {
         position: s.position,
         links: Array.isArray(s.links) ? s.links : [],
         webhook_last_at: s.webhook_last_at,
-        history: (histByService.get(s.id) || new Array(HISTORY_DAYS).fill(null)).slice().reverse(),
-        uptime: uptimeByService.get(s.id) ?? null,
       })),
     });
   }
@@ -1139,10 +1101,11 @@ async function fetchStatusPayload(pool) {
 }
 
 const VALID_STATES = new Set(['operational', 'degraded', 'down']);
-const VALID_SOURCES = new Set(['manual', 'probe', 'statuspage', 'rss', 'page', 'webhook']);
-// Sources that actively poll a URL and so can't function without one. 'manual'
-// is admin-set and 'webhook' is push-driven, so neither needs a source_url.
-const SOURCES_NEEDING_URL = new Set(['probe', 'statuspage', 'rss', 'page']);
+const VALID_SOURCES = new Set(['manual', 'probe', 'statuspage', 'rss', 'page', 'webhook', 'render']);
+// Sources that need a URL on the service. 'render' carries the page URL the
+// headless render worker loads (the hub never polls it directly). 'manual' is
+// admin-set and 'webhook' is push-driven, so neither needs a source_url.
+const SOURCES_NEEDING_URL = new Set(['probe', 'statuspage', 'rss', 'page', 'render']);
 const VALID_SEVERITIES = new Set(['minor', 'major', 'critical']);
 const VALID_INC_STATES = new Set(['investigating', 'identified', 'monitoring', 'resolved']);
 const VALID_LINK_KINDS = new Set(['status', 'rss', 'help', 'docs', 'twitter', 'other']);
@@ -1236,7 +1199,9 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
         return res.status(400).json({ error: 'source_url is required for probe, vendor-status, RSS, and page sources' });
       }
       const sourceUrl = SOURCES_NEEDING_URL.has(source) ? String(b.source_url).slice(0, 500) : null;
-      const webhookToken = source === 'webhook' ? genWebhookToken() : null;
+      // webhook (vendor push) and render (our worker pushes after headless-rendering
+      // the page) both receive state via the inbound webhook, so both get a token.
+      const webhookToken = (source === 'webhook' || source === 'render') ? genWebhookToken() : null;
       const links = sanitizeLinks(b.links);
       const r = await pool.query(
         `INSERT INTO status_services
@@ -1257,7 +1222,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           webhookToken,
         ],
       );
-      // Seed an initial sample so the new service's history/uptime isn't blank.
+      // Seed an initial sample so there's a check on file from the start.
       await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [r.rows[0].id, state]);
       res.json(r.rows[0]);
     } catch (e) { next(e); }
@@ -1306,15 +1271,16 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
         await pool.query(`UPDATE status_services SET source_url = NULL WHERE id = $1`, [req.params.id]);
         row.source_url = null;
       }
-      // Switching a service to "webhook" mints its inbound token on demand so the
-      // admin immediately has a URL to paste into the vendor's status page.
-      if (row.source === 'webhook' && !row.webhook_token) {
+      // Switching to "webhook" (or "render") mints the inbound token on demand —
+      // webhook so the admin has a URL to paste into the vendor's status page,
+      // render so the render worker has a target to push to.
+      if ((row.source === 'webhook' || row.source === 'render') && !row.webhook_token) {
         const tok = genWebhookToken();
         await pool.query(`UPDATE status_services SET webhook_token = $2 WHERE id = $1`, [req.params.id, tok]);
         row.webhook_token = tok;
       }
-      // For manual services, record the admin's toggle as a sample so the history
-      // bar reflects it immediately rather than waiting for the next heartbeat.
+      // For manual services, record the admin's toggle as a sample so the recent
+      // check on file reflects it immediately rather than waiting for the heartbeat.
       if (row.source === 'manual' && state) {
         await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [req.params.id, row.state]);
       }
@@ -1457,7 +1423,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
                       LIMIT 50
                    ) t) AS recent
            FROM status_services s
-          WHERE s.source IN ('probe','statuspage','rss','page','webhook')
+          WHERE s.source IN ('probe','statuspage','rss','page','webhook','render')
           ORDER BY s.name`,
       );
       res.json({ probes: r.rows });

@@ -56,6 +56,30 @@ services:
       it-hub-postgres:
         condition: service_healthy
 
+  # Headless render worker — monitors JS-only status pages (e.g. Adyen) that have
+  # no feed/JSON/webhook. Reads `source='render'` targets from the DB, renders
+  # each in headless Chromium on a slow cadence, and POSTs the result to the
+  # hub's inbound webhook (internal URL). Optional: only needed if you use the
+  # "Rendered page (JS)" source. Chromium lives here, not in it-hub-server.
+  it-hub-render-worker:
+    build:
+      context: ./render-worker
+      dockerfile: Dockerfile
+    container_name: it-hub-render-worker
+    environment:
+      - DATABASE_URL=postgresql://portal2:portal2@it-hub-postgres:5432/portal2
+      - HUB_INTERNAL_URL=http://it-hub-server:3001
+      # How often to render each target (ms). Rendering is heavy → keep it slow.
+      - RENDER_INTERVAL_MS=${RENDER_INTERVAL_MS:-300000}
+      # Extra "all clear" phrases for vendors whose wording differs ('|'-separated).
+      - RENDER_OK_PHRASES=${RENDER_OK_PHRASES:-}
+    depends_on:
+      it-hub-postgres:
+        condition: service_healthy
+      it-hub-server:
+        condition: service_started
+    restart: unless-stopped
+
   it-hub-postgres:
     image: pgvector/pgvector:pg16
     container_name: it-hub-postgres

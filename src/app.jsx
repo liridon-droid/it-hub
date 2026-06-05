@@ -1022,9 +1022,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
               s.state === "operational" ? { bg: "#D4F4D4", dot: "#0A8A3E", label: "Up" } :
               s.state === "degraded" ? { bg: "#FFE8A3", dot: "#B8860B", label: "Slow" } :
               { bg: "#FFD4D0", dot: "#B92323", label: "Down" };
-            // Both the API and the static fallback expose `uptime` (number 0–100);
-            // the chip below renders "—" when it's absent.
-            const uptimePct = (Number.isFinite(s.uptime) ? s.uptime : null);
             return (
               <div key={s.name} className="surface surface-interactive" style={{ padding: "12px 14px", borderRadius: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -1047,18 +1044,6 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
                       <span style={{ fontSize: 14, fontWeight: 700, color: "#000000", letterSpacing: "-0.012em" }}>{s.name}</span>
                       <span style={{ fontSize: 11, color: "#5C4916", fontWeight: 500 }}>·</span>
                       <span style={{ fontSize: 11, color: "#5C4916", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.04em" }}>{s.vendor}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                      {/* compact sparkline */}
-                      <div style={{ display: "flex", gap: 1.5, flex: 1 }}>
-                        {Array.from({ length: 20 }).map((_, i) => {
-                          const bad = s.state === "degraded" && i >= 17;
-                          const down = s.state === "down" && i >= 18;
-                          const c = down ? "#B92323" : bad ? "#B8860B" : "#0A8A3E";
-                          return <span key={i} style={{ flex: 1, height: 8, background: c, borderRadius: 1.5 }} />;
-                        })}
-                      </div>
-                      <span style={{ fontSize: 10.5, color: "#2E2410", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{uptimePct != null ? `${Number(uptimePct).toFixed(2)}%` : '—'}</span>
                     </div>
                   </div>
                   <span className="pill-flat" style={{ background: tone.bg, fontSize: 10, padding: "2px 8px", fontWeight: 700, flexShrink: 0 }}>
@@ -21302,10 +21287,9 @@ const inputStyle = {
 // ====================================================================
 //
 // Backed by /api/status — the server monitors each service (polling a status
-// API / RSS feed / probe / page, or receiving vendor webhooks) and records
-// samples to status_checks; that table powers the 10-day history bars and
-// uptime numbers. The page polls this endpoint every 30s so an open tab
-// reflects state changes without a manual refresh.
+// API / RSS feed / probe / page, or receiving vendor webhooks) and exposes the
+// current state per service. The page polls this endpoint every 30s so an open
+// tab reflects state changes without a manual refresh.
 
 // Map a service to its icon URL. Default to Google's S2 favicon service
 // (no API key, broad coverage). Admin can override via icon_url.
@@ -21553,7 +21537,7 @@ function StatusPage({ onBack }) {
         {/* Services — top-level axis, grouped tables */}
         <SectionTitle
           kicker="All services"
-          title="Uptime across the stack"
+          title="Service status"
           right={<StatusLegend />}
         />
 
@@ -21597,7 +21581,7 @@ function StatusPage({ onBack }) {
           </FilterChip>
         </div>
 
-        {/* Single top-level 90-day axis */}
+        {/* Service list */}
         <div style={{
           background: "#FFFFFF",
           border: "1px solid #211E1E", borderRadius: 14,
@@ -21608,7 +21592,7 @@ function StatusPage({ onBack }) {
           {/* Column header */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "44px 1.4fr 1fr 2fr 140px 40px",
+            gridTemplateColumns: "44px 1.4fr 1fr 40px",
             gap: 16,
             padding: "12px 22px",
             background: "#F7F4EF", borderBottom: "1px solid #211E1E",
@@ -21618,11 +21602,6 @@ function StatusPage({ onBack }) {
             <div/>
             <div>Service</div>
             <div>Status</div>
-            <div style={{ display: "flex", justifyContent: "space-between", paddingRight: 4 }}>
-              <span>10 days ago</span>
-              <span>Today</span>
-            </div>
-            <div style={{ textAlign: "right" }}>Uptime</div>
             <div/>
           </div>
 
@@ -21732,57 +21711,13 @@ function StatusLegend() {
   );
 }
 
-// How many days of daily history the public page shows. The server hands us
-// one cell per calendar day (worst state wins); we render the most recent N.
-const STATUS_WINDOW_DAYS = 10;
-
-// Convert bar index → label like "Mar 12" relative to today.
-function bucketLabel(indexFromEnd) {
-  const d = new Date();
-  d.setDate(d.getDate() - indexFromEnd);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-// Single-letter weekday (M T W T F S S) for the day-bar caption.
-function weekdayLetter(indexFromEnd) {
-  const d = new Date();
-  d.setDate(d.getDate() - indexFromEnd);
-  return d.toLocaleDateString("en-US", { weekday: "narrow" });
-}
-
-// Day-bar palette. A day's value is 0=up, 1=degraded, 2=down, or null when we
-// have no sample for it — and "no data" gets an honest hatched grey rather than
-// a misleading green, so a brand-new or paused service never looks 100% healthy.
-const DAY_TONE = {
-  up:       { bar: "#0A8A3E", label: "Operational" },
-  degraded: { bar: "#FDC831", label: "Degraded" },
-  down:     { bar: "#DA3327", label: "Down" },
-  none:     { bar: "#E2DCCE", label: "No data" },
-};
-function dayKey(v) {
-  if (v == null) return "none";
-  return v === 0 ? "up" : v === 1 ? "degraded" : "down";
-}
-
 function ServiceRow({ service, isLast, expanded, onToggle }) {
-  const [hover, setHover] = React.useState(-1);
   const [iconBroken, setIconBroken] = React.useState(false);
   const stateTone = service.state === "operational" ? { bg: "#D4F4D4", ink: "#0A8A3E", label: "Operational" }
     : service.state === "degraded" ? { bg: "#FFE8A3", ink: "#8A6A14", label: "Degraded" }
     : { bg: "#FFD4D0", ink: "#8A1E17", label: "Down" };
 
-  const uptime = Number.isFinite(service.uptime) ? service.uptime : null;
-  const isOutlier = uptime != null && uptime < 99;
-  const uptimeColor = isOutlier ? "#DA3327" : "#211E1E";
   const responseMs = service.response_ms;
-
-  // The server returns a per-day history array (oldest first, today last) where
-  // each cell is 0|1|2 or null for a day with no samples. Show the most recent
-  // STATUS_WINDOW_DAYS, padding the front with null when the service is too new.
-  const rawHist = Array.isArray(service.history) ? service.history : [];
-  const hist = rawHist.length >= STATUS_WINDOW_DAYS
-    ? rawHist.slice(-STATUS_WINDOW_DAYS)
-    : new Array(STATUS_WINDOW_DAYS - rawHist.length).fill(null).concat(rawHist);
 
   const initials = (service.name || "?")
     .split(/\s+/).filter(Boolean).slice(0, 2)
@@ -21796,7 +21731,7 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         style={{
           display: "grid",
-          gridTemplateColumns: "44px 1.4fr 1fr 2fr 140px 40px",
+          gridTemplateColumns: "44px 1.4fr 1fr 40px",
           gap: 16, alignItems: "center",
           padding: "18px 22px",
           borderBottom: isLast && !expanded ? "none" : "1.5px solid #E7E1D4",
@@ -21857,67 +21792,6 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
             </div>
           )}
         </div>
-        <div style={{ position: "relative" }}>
-          {/* One bar per day, oldest → today. Tall, rounded, hover-lifts, with a
-              weekday caption beneath so 10 days reads like a little calendar. */}
-          <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}>
-            {hist.map((v, i) => {
-              const fromEnd = hist.length - 1 - i;
-              const key = dayKey(v);
-              const tone = DAY_TONE[key];
-              const isHover = hover === i;
-              const isToday = fromEnd === 0;
-              return (
-                <div key={i}
-                  onMouseEnter={(e) => { e.stopPropagation(); setHover(i); }}
-                  onMouseLeave={() => setHover(-1)}
-                  style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, cursor: "pointer" }}
-                  title={`${bucketLabel(fromEnd)} — ${tone.label}`}
-                >
-                  <div style={{
-                    width: "100%", height: 34, borderRadius: 6,
-                    background: tone.bar,
-                    border: "1.5px solid #211E1E",
-                    backgroundImage: key === "none"
-                      ? "repeating-linear-gradient(45deg, rgba(33,30,30,0.10) 0 3px, transparent 3px 6px)"
-                      : "linear-gradient(180deg, rgba(255,255,255,0.30), rgba(0,0,0,0.05))",
-                    boxShadow: isHover ? "0 3px 0 #211E1E" : "0 1.5px 0 rgba(33,30,30,0.22)",
-                    transform: isHover ? "translateY(-3px)" : "none",
-                    transition: "transform .12s var(--ease), box-shadow .12s var(--ease)",
-                  }}/>
-                  <span style={{
-                    fontFamily: "Archivo, sans-serif", fontSize: 9, fontWeight: 800,
-                    letterSpacing: "0.02em", lineHeight: 1,
-                    color: isToday ? "#211E1E" : isHover ? "#4A3F2E" : "#A89A7A",
-                    transition: "color .12s",
-                  }}>{weekdayLetter(fromEnd)}</span>
-                </div>
-              );
-            })}
-          </div>
-          {hover >= 0 && (
-            <div style={{
-              position: "absolute", top: -34,
-              left: `${((hover + 0.5) / hist.length) * 100}%`,
-              transform: "translateX(-50%)",
-              background: "#211E1E", color: "#FFFFFF",
-              padding: "5px 9px", borderRadius: 6,
-              fontFamily: "Archivo, sans-serif", fontSize: 11, fontWeight: 700,
-              whiteSpace: "nowrap", pointerEvents: "none", zIndex: 2,
-              boxShadow: "2px 2px 0 rgba(0,0,0,0.18)",
-              display: "flex", alignItems: "center", gap: 6,
-            }}>
-              <span style={{ width: 7, height: 7, borderRadius: 2, background: DAY_TONE[dayKey(hist[hover])].bar, border: "1px solid rgba(255,255,255,0.5)" }}/>
-              {bucketLabel(hist.length - 1 - hover)} — {DAY_TONE[dayKey(hist[hover])].label}
-            </div>
-          )}
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 22, color: uptimeColor, letterSpacing: "-0.01em", lineHeight: 1 }}>
-            {uptime != null ? `${uptime.toFixed(2)}%` : "—"}
-          </div>
-          <div style={{ fontSize: 10.5, color: "#78684C", fontWeight: 600, marginTop: 3 }}>10-day uptime</div>
-        </div>
         <div style={{
           width: 28, height: 28,
           background: "#FDC831", border: "1px solid #211E1E", borderRadius: 4,
@@ -21938,7 +21812,6 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
           borderBottom: isLast ? "none" : "1.5px solid #E7E1D4",
         }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 12 }}>
-            <MiniStat label="10-day uptime" value={uptime != null ? `${uptime.toFixed(2)}%` : "—"} />
             <MiniStat label="Last response" value={responseMs != null ? `${responseMs}ms` : "—"} />
             <MiniStat label="Last checked"
               value={service.last_checked_at ? relativeTime(service.last_checked_at) : "—"} />

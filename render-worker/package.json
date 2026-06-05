@@ -1,0 +1,14 @@
+{
+  "name": "it-hub-render-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Headless render worker — monitors JS-only status pages and pushes results to the it-hub inbound webhook.",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1",
+    "playwright": "1.48.0"
+  }
+}

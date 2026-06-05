@@ -9759,6 +9759,7 @@ const STATUS_SOURCE_OPTIONS = [
   { id: 'webhook',    label: 'Webhook (push)',  hint: 'Vendor pushes incidents to a URL we mint — real time, no polling.' },
   { id: 'probe',      label: 'HTTP probe',      hint: 'We GET the URL every minute. 5xx = down, 4xx or >2.5s = degraded.' },
   { id: 'page',       label: 'Page keyword',    hint: 'Scan a plain status page for outage wording. Last resort.' },
+  { id: 'render',     label: 'Rendered page (JS)', hint: 'For JS-only status pages with no feed (e.g. Adyen). The render worker loads the page headless every few minutes and reports status.' },
 ];
 
 // Curated vendor catalog for the "Add app" modal. Picking a preset auto-fills
@@ -9809,8 +9810,10 @@ const STATUS_VENDOR_PRESETS = [
   { name: 'Zip',            vendor: 'Procurement',     domain: 'ziphq.com',          source: 'statuspage', source_url: 'https://status.ziphq.com/api/v2/summary.json' },
   { name: 'Lob',            vendor: 'Mail / print API',domain: 'lob.com',            source: 'statuspage', source_url: 'https://lob.statuspage.io/api/v2/summary.json' },
   { name: 'FloQast',        vendor: 'Accounting',      domain: 'floqast.com',        source: 'statuspage', source_url: 'https://status.floqast.com/api/v2/summary.json' },
-  { name: 'Adyen',          vendor: 'Payments',        domain: 'adyen.com',          source: 'manual',     source_url: '', links: [{ kind: 'status', label: 'Status page', url: 'https://status.adyen.com' }] },
-  { name: 'PayPal',         vendor: 'Payments',        domain: 'paypal.com',         source: 'manual',     source_url: '', links: [{ kind: 'status', label: 'Status page', url: 'https://www.paypal-status.com' }] },
+  // JS-only status pages (no feed/JSON/webhook) → 'render' source, handled by the
+  // render worker. Falls back to manual if that worker isn't deployed.
+  { name: 'Adyen',          vendor: 'Payments',        domain: 'adyen.com',          source: 'render',     source_url: 'https://status.adyen.com/', links: [{ kind: 'status', label: 'Status page', url: 'https://status.adyen.com' }] },
+  { name: 'PayPal',         vendor: 'Payments',        domain: 'paypal.com',         source: 'render',     source_url: 'https://www.paypal-status.com/', links: [{ kind: 'status', label: 'Status page', url: 'https://www.paypal-status.com' }] },
 ];
 const STATUS_STATE_OPTIONS = [
   { id: 'operational', label: 'Operational' },
@@ -9863,6 +9866,7 @@ function statusUrlMeta(source) {
   if (source === 'statuspage') return { label: 'Status API', placeholder: 'https://www.cloudflarestatus.com/api/v2/summary.json', hint: "Status JSON endpoint — Statuspage.io <code>summary.json</code>, Slack, Heroku, Google, or Apple. Not sure of the exact URL? Paste the vendor's status page and hit <b>Detect</b>." };
   if (source === 'rss')        return { label: 'Feed URL',   placeholder: 'https://www.githubstatus.com/history.atom', hint: "RSS or Atom incident feed — usually <code>/history.atom</code> or <code>/history.rss</code> on the vendor's status page." };
   if (source === 'page')       return { label: 'Page URL',   placeholder: 'https://status.vendor.com', hint: 'Any status page — we scan its text for outage wording every 60s. Coarse; prefer a status API, feed, or webhook when one exists.' };
+  if (source === 'render')     return { label: 'Page URL',   placeholder: 'https://status.adyen.com/', hint: "A JS-rendered status page with no feed. The render worker loads it headless every few minutes and reads the overall status. Requires the it-hub-render-worker service to be running." };
   return { label: 'Probe URL', placeholder: 'https://your-service.example.com/health', hint: 'Anything reachable over HTTPS. We poll every 60s with a 6s timeout.' };
 }
 
@@ -9988,6 +9992,7 @@ function renderStatus(root) {
             <li><b>Webhook (push)</b> — we mint a unique inbound URL. Paste it into the vendor's status page (<i>Subscribe → Webhook</i>) and they push incident + component changes to us in real time.</li>
             <li><b>HTTP probe</b> — we GET your URL every 60s. 5xx → down, 4xx or &gt;2.5s → degraded.</li>
             <li><b>Page keyword</b> — scan a plain status page's text for outage wording. Last resort when there's no API, feed, or webhook.</li>
+            <li><b>Rendered page (JS)</b> — for JS-only pages with no feed (e.g. Adyen). The separate <code>it-hub-render-worker</code> loads the page headless every few minutes and pushes the result. Requires that worker to be running.</li>
             <li><b>Manual</b> — IT toggles state by hand. For things we can't probe (rooms, badge readers, etc.).</li>
           </ul>
           <div class="text-3" style="font-size:11.5px;margin-top:10px;line-height:1.5;">
@@ -10363,7 +10368,8 @@ function renderStatus(root) {
     const sourceMeta = STATUS_SOURCE_OPTIONS.find((o) => o.id === s.source) || STATUS_SOURCE_OPTIONS[0];
     const isManual = s.source === 'manual';
     const isWebhook = s.source === 'webhook';
-    const needsUrl = !isManual && !isWebhook; // statuspage / rss / page / probe
+    const isRender = s.source === 'render';
+    const needsUrl = !isManual && !isWebhook; // statuspage / rss / page / probe / render (render needs the page URL)
     const lastChecked = s.last_checked_at ? new Date(s.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
 
     // URL row — poll sources only. Label/placeholder/hint vary by source; a
@@ -10391,7 +10397,7 @@ function renderStatus(root) {
       : isManual
         ? `Optional — let the vendor push real-time updates via <b>Subscribe&nbsp;→&nbsp;Webhook</b>. (Manual isn't polled, so pushes drive the state.)`
         : `Optional — also paste into the vendor's <b>Subscribe&nbsp;→&nbsp;Webhook</b> for real-time pushes on top of the 60s poll (the poll stays a self-healing safety net).`;
-    const webhookRowHtml = `
+    const webhookRowHtml = isRender ? '' : `
       <div class="status-svc-url-row status-webhook-row">
         <span class="status-svc-url-label">${whUrl ? 'Webhook URL' : 'Webhook'}</span>
         ${whUrl ? `
@@ -10657,7 +10663,7 @@ function renderStatus(root) {
     });
   }
 
-  const PROBE_SOURCE_LABEL = { statuspage: 'Vendor status feed', rss: 'RSS / Atom feed', page: 'Page keyword scan', probe: 'HTTP probe', webhook: 'Webhook (push)' };
+  const PROBE_SOURCE_LABEL = { statuspage: 'Vendor status feed', rss: 'RSS / Atom feed', page: 'Page keyword scan', probe: 'HTTP probe', webhook: 'Webhook (push)', render: 'Rendered page (JS)' };
   function paintProbes(probes) {
     if (!probes.length) {
       probesHost.innerHTML = `<div class="text-3" style="font-size:12px;">Nothing live-monitored yet — set a service's source to a status feed, RSS, webhook, probe, or page scan to see results here.</div>`;
@@ -11083,9 +11089,9 @@ function renderStatus(root) {
         close();
         await reload();
         // For polled additions, kick a poll so the new row shows live state
-        // within seconds rather than waiting for the next 60s tick. Manual +
-        // webhook services aren't polled, so skip.
-        if (payload.source !== 'manual' && payload.source !== 'webhook') {
+        // within seconds rather than waiting for the next 60s tick. Manual,
+        // webhook, and render services aren't hub-polled, so skip.
+        if (!['manual', 'webhook', 'render'].includes(payload.source)) {
           statusApi('POST', '/api/admin/status/poll').then(reload).catch(() => {});
         }
       } catch (e) {
