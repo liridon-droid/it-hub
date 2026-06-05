@@ -8991,34 +8991,45 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   const nextTicket = navIdx >= 0 && navIdx < navList.length - 1 ? navList[navIdx + 1] : null;
   const go = (tk) => { if (tk && onNavigate) onNavigate(tk); };
 
-  // Close / Reopen buttons — rendered top-right (top bar). isClosed → Reopen;
-  // isResolved → both; otherwise just Close.
+  // Close / Reopen buttons — rendered top-right (top bar), compact. isClosed →
+  // Reopen; isResolved → both; otherwise just Close.
   const closeReopenButtons = () => {
-    const sm = { padding: '7px 13px', fontSize: 11.5 };
+    const sm = { padding: '5px 11px', fontSize: 11 };
     const reopenBtn = <button key="r" className="btn btn-primary" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
-    const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : (isResolved ? 'Close' : 'Close ticket'))}</button>;
+    const closeBtn = <button key="c" className="btn btn-outline" style={sm} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? 'Closing…' : (isPendingApproval ? 'Cancel request' : 'Close')}</button>;
     if (isClosed) return reopenBtn;
     if (isResolved) return [reopenBtn, closeBtn];
     return closeBtn;
   };
 
-  const navBtn = (enabled) => ({ padding: '7px 12px', fontSize: 11.5, opacity: enabled ? 1 : 0.4, cursor: enabled ? 'pointer' : 'default' });
+  // Compact arrow buttons for prev/next.
+  const navBtn = (enabled) => ({ padding: '4px 10px', fontSize: 13, lineHeight: 1, fontWeight: 800, opacity: enabled ? 1 : 0.35, cursor: enabled ? 'pointer' : 'default' });
 
   return (
     <div>
-      {/* Top action bar: Back (left) · Prev / Next + Close / Reopen (right). */}
-      <div style={{ position: 'sticky', top: 10, zIndex: 8, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <button onClick={onBack} className="kb-back-btn"><span className="kb-back-arrow">←</span>Back to my tickets</button>
+      {/* Top action bar — sticky + compact. Navigation (Back + Prev/Next) grouped
+          on the LEFT; Close / Reopen on the RIGHT. A near-opaque blurred
+          background means the ticket content scrolls cleanly UNDER the bar
+          instead of bleeding through the gaps between buttons. */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 20,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+        padding: '9px 0', marginBottom: 12,
+        background: 'rgba(255,253,247,0.9)',
+        backdropFilter: 'blur(8px) saturate(160%)', WebkitBackdropFilter: 'blur(8px) saturate(160%)',
+        borderBottom: '1px solid #EFEAE0',
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <button onClick={onBack} className="kb-back-btn"><span className="kb-back-arrow">←</span>Back</button>
           {navList.length > 1 && (
-            <>
-              <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'}>← Prev</button>
-              <span style={{ fontSize: 11.5, color: '#9A8E78', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{navIdx >= 0 ? navIdx + 1 : '—'} / {navList.length}</span>
-              <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'}>Next →</button>
-            </>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'} aria-label="Previous ticket">←</button>
+              <span style={{ fontSize: 11, color: '#9A8E78', fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: 32, textAlign: 'center' }}>{navIdx >= 0 ? navIdx + 1 : '—'}/{navList.length}</span>
+              <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'} aria-label="Next ticket">→</button>
+            </div>
           )}
-          {t && closeReopenButtons()}
         </div>
+        {t && <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>{closeReopenButtons()}</div>}
       </div>
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
