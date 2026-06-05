@@ -435,8 +435,12 @@ function classifyFeed(items) {
   if (!items.length) return { state: 'operational' };
   const sorted = items.slice().sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
   const now = Date.now();
-  const active = sorted.filter((it) => !it.date || (now - it.date.getTime()) <= FEED_ACTIVE_WINDOW_MS);
-  const scan = active.length ? active : [sorted[0]];
+  // Only entries inside the active window count. If EVERY dated entry is older
+  // than that, nothing is current → operational. (Previously we fell back to the
+  // single newest stale entry, which made AWS's all.rss — whose latest items are
+  // weeks-old resolved incidents — read as a perpetual "degraded".)
+  const scan = sorted.filter((it) => !it.date || (now - it.date.getTime()) <= FEED_ACTIVE_WINDOW_MS);
+  if (!scan.length) return { state: 'operational' };
   for (const it of scan) {
     // The first <strong> is the most-recent update label on Statuspage feeds.
     const head = ((it.content.match(/<strong>\s*([^<]+?)\s*<\/strong>/i) || [])[1] || it.title || '').toLowerCase();
@@ -448,9 +452,13 @@ function classifyFeed(items) {
     // over, move on to older ones.
     if (FEED_RESOLVED_RE.test(head) || /\b(resolved|completed|recovered)\b/.test(title)) continue;
     if (/\b(maintenance|scheduled)\b/.test(head) && !FEED_DOWN_RE.test(text)) continue;
-    if (FEED_DOWN_RE.test(text))     return { state: 'down', state_note: it.title || 'Outage reported' };
-    if (FEED_DEGRADED_RE.test(text)) return { state: 'degraded', state_note: it.title || 'Incident reported' };
-    return { state: 'degraded', state_note: it.title || 'Active incident' }; // unresolved + recent, unknown words
+    // Prefer the entry title, but many feeds (AWS) leave it blank and put the
+    // detail in the body — fall back to the first line of the content so the
+    // alert carries real information instead of a generic "incident".
+    const note = it.title || firstLine(it.content) || null;
+    if (FEED_DOWN_RE.test(text))     return { state: 'down', state_note: note || 'Outage reported' };
+    if (FEED_DEGRADED_RE.test(text)) return { state: 'degraded', state_note: note || 'Incident reported' };
+    return { state: 'degraded', state_note: note || 'Active incident' }; // unresolved + recent, unknown words
   }
   return { state: 'operational' };
 }
