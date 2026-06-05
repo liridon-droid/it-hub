@@ -10369,6 +10369,7 @@ function renderStatus(root) {
     const isManual = s.source === 'manual';
     const isWebhook = s.source === 'webhook';
     const isRender = s.source === 'render';
+    const isRss = s.source === 'rss';
     const needsUrl = !isManual && !isWebhook; // statuspage / rss / page / probe / render (render needs the page URL)
     const lastChecked = s.last_checked_at ? new Date(s.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
 
@@ -10384,6 +10385,15 @@ function renderStatus(root) {
           <button class="btn ghost xs" data-test-url title="Poll this URL right now">Test</button>
         </span>
         <span class="status-svc-url-hint">${um.hint}</span>
+      </div>` : '';
+
+    // Scope filter — only for broad RSS feeds (e.g. AWS all.rss). Saved via the
+    // generic [data-f] handler (debounced PATCH of match_filter).
+    const filterRowHtml = isRss ? `
+      <div class="status-svc-url-row">
+        <span class="status-svc-url-label">Filter</span>
+        <input class="tx status-svc-url-input" data-f="match_filter" placeholder="e.g. us-east-1, us-east-2 — leave blank for all" value="${esc(s.match_filter || '')}" />
+        <span class="status-svc-url-hint">Optional — for broad feeds (like AWS <code>all.rss</code>) only alert when an entry mentions one of these comma-separated terms. Case-insensitive substring; add region codes <i>and</i> names, e.g. <code>us-east-1, n. virginia</code>.</span>
       </div>` : '';
 
     // Webhook row — shown on EVERY service. For source=webhook it's the primary
@@ -10483,6 +10493,7 @@ function renderStatus(root) {
         </div>
         ${iconRowHtml}
         ${urlRowHtml}
+        ${filterRowHtml}
         ${webhookRowHtml}
         ${linksRowHtml}
         ${slackRowHtml}

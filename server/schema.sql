@@ -130,6 +130,11 @@ CREATE TABLE IF NOT EXISTS status_services (
 ALTER TABLE status_services ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'::jsonb;
 ALTER TABLE status_services ADD COLUMN IF NOT EXISTS webhook_token TEXT;
 ALTER TABLE status_services ADD COLUMN IF NOT EXISTS webhook_last_at TIMESTAMPTZ;
+-- Optional scope filter for broad/aggregate feeds (e.g. AWS all.rss): a
+-- comma-separated list of terms; only feed entries mentioning one of them are
+-- considered, so an incident in a region you don't use never fires. NULL/empty
+-- = no filter (consider everything).
+ALTER TABLE status_services ADD COLUMN IF NOT EXISTS match_filter TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS status_services_webhook_token_idx
   ON status_services (webhook_token) WHERE webhook_token IS NOT NULL;
 

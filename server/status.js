@@ -431,7 +431,7 @@ const FEED_DOWN_RE = /\b(major outage|complete outage|total outage|service unava
 const FEED_DEGRADED_RE = /\b(investigating|identified|monitoring|degraded|degradation|elevated|partial|disruption|outage|errors?|latency|slow|impact(ed|ing)?)\b/;
 const FEED_RESOLVED_RE = /\b(resolved|completed|operational|recovered|back to normal)\b/;
 
-function classifyFeed(items) {
+function classifyFeed(items, filter) {
   if (!items.length) return { state: 'operational' };
   const sorted = items.slice().sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
   const now = Date.now();
@@ -439,7 +439,17 @@ function classifyFeed(items) {
   // than that, nothing is current → operational. (Previously we fell back to the
   // single newest stale entry, which made AWS's all.rss — whose latest items are
   // weeks-old resolved incidents — read as a perpetual "degraded".)
-  const scan = sorted.filter((it) => !it.date || (now - it.date.getTime()) <= FEED_ACTIVE_WINDOW_MS);
+  let scan = sorted.filter((it) => !it.date || (now - it.date.getTime()) <= FEED_ACTIVE_WINDOW_MS);
+  // Optional scope filter (e.g. "us-east-1, us-east-2"): for a broad aggregate
+  // feed like AWS all.rss, only consider entries that mention one of these terms,
+  // so an incident in a region/service you don't use never fires.
+  const terms = String(filter || '').toLowerCase().split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  if (terms.length) {
+    scan = scan.filter((it) => {
+      const t = `${it.title} ${stripTags(it.content)}`.toLowerCase();
+      return terms.some((term) => t.includes(term));
+    });
+  }
   if (!scan.length) return { state: 'operational' };
   for (const it of scan) {
     // The first <strong> is the most-recent update label on Statuspage feeds.
@@ -479,7 +489,7 @@ async function probeFeed(service) {
     const dt = Date.now() - t0;
     if (!r.ok) { drain(r); return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
     const xml = (await r.text()).slice(0, 500_000);
-    const parsed = classifyFeed(parseFeed(xml));
+    const parsed = classifyFeed(parseFeed(xml), service.match_filter);
     return { ...parsed, response_ms: dt, http_status: r.status };
   } catch (err) {
     return { state: 'down', error: err.message || 'fetch failed' };
@@ -999,7 +1009,7 @@ function runOnePollPass(pool) {
     // pass. vendor/domain/icon_url come along so Slack alerts can render the
     // app icon + label without a second query.
     const { rows } = await pool.query(
-      `SELECT id, name, vendor, domain, icon_url, source, source_url, state, state_note FROM status_services`,
+      `SELECT id, name, vendor, domain, icon_url, source, source_url, state, state_note, match_filter FROM status_services`,
     );
     if (rows.length === 0) return;
     // Parallel — each service has its own 6s timeout, so a single slow vendor
@@ -1055,7 +1065,7 @@ async function fetchStatusPayload(pool) {
   const services = await pool.query(
     `SELECT id, group_id, name, vendor, domain, icon_url, source, source_url,
             state, state_note, response_ms, last_checked_at, last_error, position,
-            links, webhook_last_at
+            links, webhook_last_at, match_filter
        FROM status_services
        ORDER BY group_id, position, id`,
   );
@@ -1096,6 +1106,7 @@ async function fetchStatusPayload(pool) {
         position: s.position,
         links: Array.isArray(s.links) ? s.links : [],
         webhook_last_at: s.webhook_last_at,
+        match_filter: s.match_filter,
       })),
   }));
   // Strays — services whose group was deleted — get bucketed at the end.
@@ -1111,6 +1122,7 @@ async function fetchStatusPayload(pool) {
         position: s.position,
         links: Array.isArray(s.links) ? s.links : [],
         webhook_last_at: s.webhook_last_at,
+        match_filter: s.match_filter,
       })),
     });
   }
@@ -1279,6 +1291,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
            state_note  = COALESCE($10, state_note),
            position    = COALESCE($11, position),
            links       = COALESCE($12::jsonb, links),
+           match_filter = COALESCE($13, match_filter),
            updated_at  = NOW()
          WHERE id = $1 RETURNING *`,
         [
@@ -1294,6 +1307,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           b.state_note != null ? String(b.state_note).slice(0, 200) : null,
           b.position != null ? Number(b.position) : null,
           linksJson,
+          b.match_filter != null ? String(b.match_filter).slice(0, 200) : null,
         ],
       );
       if (r.rows.length === 0) return res.status(404).json({ error: 'not found' });
