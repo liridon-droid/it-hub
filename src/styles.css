@@ -1059,6 +1059,10 @@ html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; scrollbar-g
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Always reserve the vertical scrollbar gutter so the content width is
+     identical whether a page/ticket is tall enough to scroll or not — no
+     horizontal "jump" when navigating between short and long tickets. */
+  scrollbar-gutter: stable;
   min-height: 0;
   display: grid;
   grid-template-rows: 1fr auto;
