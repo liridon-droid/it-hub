@@ -8068,7 +8068,7 @@ function PageShell({ title, kicker, onClose, children, icon, backLabel = "Back" 
 
 const btnPrimary = {
   padding: "10px 16px",
-  background: "#211E1E", color: "#FDC831",
+  background: "#211E1E", color: "#FFFFFF",
   border: "1px solid #211E1E", borderRadius: 4,
   boxShadow: "2px 2px 0 #FDC831",
   fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12,
@@ -8129,7 +8129,7 @@ function NewTicketModal({ onClose, draft = {} }) {
   const label = { display: "block", fontSize: 12.5, fontWeight: 700, color: "#55503F", marginBottom: 6, marginTop: 16 };
   const btnCss = `
     .tkt-btn { padding: 12px 22px; border-radius: 7px; font-family: 'Archivo', sans-serif; font-weight: 800; font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1); }
-    .tkt-btn.is-primary { background: #211E1E; color: #FDC831; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #FDC831; }
+    .tkt-btn.is-primary { background: #211E1E; color: #FFFFFF; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #FDC831; }
     .tkt-btn.is-primary:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 5px 5px 0 #FDC831; }
     .tkt-btn.is-primary:active:not(:disabled) { transform: translate(1px,1px); box-shadow: 2px 2px 0 #FDC831; }
     .tkt-btn.is-secondary { background: #FFFFFF; color: #211E1E; border: 1px solid #211E1E; box-shadow: 3px 3px 0 #211E1E; }
@@ -24551,7 +24551,7 @@ function FeedbackPanel({
         .fb-textarea:focus { box-shadow: 2px 2px 0 #FDC831, 0 0 0 3px rgba(253,200,49,0.25); }
         .fb-submit {
           padding: 10px 22px;
-          background: #211E1E; color: #FDC831;
+          background: #211E1E; color: #FFFFFF;
           border: 1px solid #211E1E; border-radius: 8px;
           box-shadow: 2px 2px 0 #FDC831, 0 4px 10px rgba(33,30,30,0.10);
           font-family: 'Archivo', sans-serif;
