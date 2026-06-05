@@ -3003,7 +3003,24 @@ function App() {
             guide={guide}
             fromQuery={query}
             onClose={() => setGuide(null)}
-            onFileTicket={(ctx) => { setGuide(null); setFiledTicket({ team: ctx.team || "IT Team", source: ctx.source }); }}
+            onFileTicket={(ctx) => {
+              // "File a ticket →" from a guide: close the guide, go to My Tickets,
+              // and open the report-issue form prefilled with the guide + the
+              // feedback the user just gave (what was off / their note).
+              const c = ctx || {};
+              const reasons = Array.isArray(c.reasons) ? c.reasons : [];
+              const parts = [];
+              if (c.guideTitle) parts.push(`I followed the guide “${c.guideTitle}” but it didn't resolve my issue.`);
+              if (reasons.length) parts.push(`What was off: ${reasons.join(', ')}.`);
+              if (c.note) parts.push(c.note);
+              setGuide(null);
+              openTickets('mine');
+              setTicketDraft({
+                subject: c.guideTitle ? `Still stuck after: ${c.guideTitle}` : '',
+                description: parts.join('\n\n'),
+                type: 'incident', priority: 'medium',
+              });
+            }}
             onOpenGuide={(g) => setGuide(g)}
             onOpenScreenshot={() => openScreenshot()}
           />)}
@@ -24129,7 +24146,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 } catch {}
               }
             }}
-            onFileTicket={() => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team' })}
+            onFileTicket={(fb) => onFileTicket && onFileTicket({ source: 'guide', team: 'IT Team', guideTitle: title, ...(fb || {}) })}
             relatedGuides={related}
             onOpenGuide={onOpenGuide}
           />
@@ -24589,7 +24606,7 @@ function FeedbackPanel({
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
             <button type="button" className="fb-submit" onClick={submitDetails}>Send feedback</button>
             <button type="button" className="fb-ticket"
-              onClick={() => { submitDetails(); onFileTicket && onFileTicket(); }}>
+              onClick={() => { submitDetails(); onFileTicket && onFileTicket({ reasons: [...picked], note: note.trim() }); }}>
               File a ticket →
             </button>
             <span style={{
