@@ -1,16 +1,26 @@
 // ─── Status platform ───────────────────────────────────────────────────────
 // Owns the service catalog, pollers, incidents, and HTTP routes for the
-// /status surfaces (public + admin). Replaces the old localStorage-only mock
-// and the StatusGator-integration that never actually polled anything.
+// /status surfaces (public + admin). A from-scratch StatusGator-style
+// aggregator: it actually polls (and now also *receives*) status from many
+// kinds of vendor source.
 //
-// Three poll sources are supported:
+// Status sources supported:
 //   - 'manual'     IT toggles state in admin; we do not poll.
-//   - 'probe'      HTTP HEAD/GET against any URL (your own services or any
-//                  third-party endpoint that returns a meaningful status code).
-//   - 'statuspage' Atlassian Statuspage.io summary.json. Cloudflare, GitHub,
-//                  Slack, Zoom, Figma, OneLogin, Notion, GitLab, npm, Stripe
-//                  and ~hundreds of other vendors expose this exact shape, so
-//                  one parser covers most of the SaaS world.
+//   - 'probe'      HTTP HEAD/GET against any URL — up/down by status code + latency.
+//   - 'statuspage' Vendor status JSON. One parser sniffs the common shapes:
+//                  Atlassian Statuspage.io summary.json (Cloudflare, GitHub,
+//                  Figma, Stripe, OpenAI…), Slack's active_incidents feed,
+//                  Heroku v4, Google Workspace incidents.json, and Apple's
+//                  system_status — so one source covers most of the SaaS world.
+//   - 'rss'        RSS / Atom incident feed (history.atom / history.rss). The
+//                  newest entry's latest update drives the state. Unlocks any
+//                  vendor that publishes a feed but no JSON API.
+//   - 'page'       Plain web page keyword scan — degraded/down when the page
+//                  mentions an outage. Last-resort for human-only status pages.
+//   - 'webhook'    Push, not poll. We mint a per-service inbound URL; the
+//                  vendor's Statuspage POSTs incident/component events to it in
+//                  real time (see /api/status/webhook/:token).
+import crypto from 'node:crypto';
 
 // Default catalog — used the first time the server boots into an empty DB.
 // Mirrors what the old localStorage mock seeded so users don't see the
@@ -72,6 +82,12 @@ const MONITORED_EXTRA = [
   { name: 'GoDaddy',      domain: 'godaddy.com',   source: 'statuspage', source_url: 'https://status.godaddy.com/api/v2/summary.json' },
   { name: 'ShareFile',    domain: 'sharefile.com', source: 'statuspage', source_url: 'https://status.sharefile.com/api/v2/summary.json' },
   { name: 'Cisco Meraki', domain: 'meraki.com',    source: 'statuspage', source_url: 'https://status.meraki.net/api/v2/summary.json' },
+  // Finance / back-office stack — all verified Atlassian Statuspage feeds.
+  { name: 'NetSuite',     domain: 'netsuite.com',  source: 'statuspage', source_url: 'https://status.netsuite.com/api/v2/summary.json' },
+  { name: 'Navan',        domain: 'navan.com',     source: 'statuspage', source_url: 'https://status.navan.com/api/v2/summary.json' },
+  { name: 'Zip',          domain: 'ziphq.com',     source: 'statuspage', source_url: 'https://status.ziphq.com/api/v2/summary.json' },
+  { name: 'Lob',          domain: 'lob.com',       source: 'statuspage', source_url: 'https://lob.statuspage.io/api/v2/summary.json' },
+  { name: 'FloQast',      domain: 'floqast.com',   source: 'statuspage', source_url: 'https://status.floqast.com/api/v2/summary.json' },
   // No clean machine-readable feed yet → manual (IT toggles). Real auto-status
   // for these needs a per-vendor parser (AWS Health / Google / Apple formats).
   { name: 'AWS',               domain: 'aws.amazon.com',      source: 'manual' },
@@ -225,20 +241,96 @@ async function probeHttp(service) {
   }
 }
 
-// Atlassian Statuspage.io summary.json — used by hundreds of vendors. Slack
-// publishes a slightly different shape at slack-status.com/api/v2.0.0/current
-// (status: "ok|active|incident") so we sniff and handle both.
-function parseStatuspageSummary(json) {
+// ── Text helpers (shared by the JSON, feed, and page parsers) ────────────────
+// Minimal, dependency-free XML/HTML decoding. Status feeds are small and well
+// behaved, so a tolerant string parser beats pulling in an XML library.
+function decodeEntities(s) {
+  return String(s == null ? '' : s)
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#0*39;|&apos;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
+    .replace(/&amp;/gi, '&'); // last, so "&amp;lt;" doesn't double-decode
+}
+function stripTags(s) {
+  return decodeEntities(String(s == null ? '' : s).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+}
+function firstLine(s) {
+  const t = stripTags(s);
+  const i = t.search(/[.\n]/);
+  return (i > 0 ? t.slice(0, i) : t).slice(0, 160);
+}
+
+// True when a parsed JSON body looks like one of the vendor status shapes we
+// understand — used by the auto-detect resolver to pick 'statuspage'.
+function looksLikeStatusJson(j) {
+  if (!j || typeof j !== 'object') return false;
+  if (Array.isArray(j)) return j.length > 0 && j[0] && ('service_name' in j[0] || 'external_desc' in j[0] || 'status_impact' in j[0]);
+  if (j.status && typeof j.status === 'object' && 'indicator' in j.status) return true;
+  if (Array.isArray(j.status)) return true;
+  if (Array.isArray(j.active_incidents)) return true;
+  if (Array.isArray(j.components)) return true;
+  if (Array.isArray(j.services) && j.services[0] && 'events' in j.services[0]) return true;
+  return false;
+}
+
+// Google Workspace appsstatus — a bare ARRAY of incidents. Ongoing ones have a
+// null/absent `end`; severity is low|medium|high and status_impact carries words
+// like SERVICE_OUTAGE / SERVICE_DISRUPTION.
+function parseGoogleIncidents(arr) {
+  const ongoing = arr.filter((i) => i && (i.end == null || i.end === ''));
+  if (!ongoing.length) return { state: 'operational' };
+  const sev = ongoing.map((i) => {
+    const s = String(i.severity || '').toLowerCase();
+    const impact = String(i.status_impact || '').toLowerCase();
+    if (s === 'high' || /outage/.test(impact)) return 2;
+    return 1; // medium/low/disruption → degraded
+  });
+  const first = ongoing[0];
+  const note = `${first.service_name ? first.service_name + ': ' : ''}${firstLine(first.external_desc) || 'Ongoing incident'}`;
+  return { state: Math.max(...sev) >= 2 ? 'down' : 'degraded', state_note: note };
+}
+
+// Apple system_status — { services: [ { serviceName, events: [ … ] } ] }. The
+// JSON is loose, so treat any service carrying an unresolved issue event as bad.
+function parseAppleServices(services) {
+  const bad = [];
+  for (const s of services) {
+    const events = Array.isArray(s.events) ? s.events : [];
+    for (const e of events) {
+      const msgType = String(e.messageType || e.eventStatus || '').toLowerCase();
+      const ongoing = !e.epochEndDate && !/resolved|completed/.test(msgType);
+      const blob = `${msgType} ${String(e.statusType || '')} ${String(e.message || '')}`.toLowerCase();
+      if (ongoing && /(outage|issue|degrad|disrupt|unavailable)/.test(blob)) {
+        bad.push({ name: s.serviceName || 'Service', outage: /outage|unavailable/.test(blob) });
+      }
+    }
+  }
+  if (!bad.length) return { state: 'operational' };
+  return { state: bad.some((b) => b.outage) ? 'down' : 'degraded', state_note: bad[0].name };
+}
+
+// Vendor status JSON → effective state. Sniffs the shape and dispatches. Covers
+// Atlassian Statuspage.io, Slack, Heroku v4, Google Workspace, and Apple.
+function parseStatusJson(json) {
   if (!json || typeof json !== 'object') return { state: 'operational' };
 
-  // Slack-style — { status: "ok" | "active" | "incident" }
-  if (typeof json.status === 'string' && ['ok', 'active', 'incident'].includes(json.status)) {
-    if (json.status === 'incident') return { state: 'degraded', state_note: 'Active incident reported' };
-    return { state: 'operational' };
+  // Google Workspace — top-level array of incidents.
+  if (Array.isArray(json)) return parseGoogleIncidents(json);
+
+  // Slack — { status:"ok"|"active", active_incidents:[ {title,status,services} ] }.
+  // FIX: the old code treated status:"active" as healthy. The real signal is
+  // active_incidents — a non-empty list of unresolved incidents means trouble.
+  if (Array.isArray(json.active_incidents)) {
+    const live = json.active_incidents.filter((i) => String(i && i.status || '').toLowerCase() !== 'resolved');
+    if (!live.length) return { state: 'operational' };
+    const blob = live.map((i) => `${i.title || i.name || ''} ${i.type || ''}`).join(' ').toLowerCase();
+    const down = /outage|unavailable|down/.test(blob);
+    return { state: down ? 'down' : 'degraded', state_note: live[0].title || live[0].name || 'Active incident reported' };
   }
 
-  // Heroku v4 — { status: [ { system, status: "green"|"yellow"|"red" }, … ] }.
-  // Worst component wins. (This shape was previously misread as always-up.)
+  // Heroku v4 — { status: [ { system, status:"green"|"yellow"|"red" }, … ] }.
   if (Array.isArray(json.status)) {
     const colors = json.status.map((c) => String(c && c.status || '').toLowerCase());
     if (colors.includes('red'))    return { state: 'down', state_note: 'Vendor reports a major outage' };
@@ -246,12 +338,17 @@ function parseStatuspageSummary(json) {
     return { state: 'operational' };
   }
 
-  // Atlassian Statuspage.io summary.json — { status: { indicator, description } }.
+  // Apple — { services: [ { serviceName, events:[…] } ] }.
+  if (Array.isArray(json.services) && json.services[0] && 'events' in json.services[0]) {
+    return parseAppleServices(json.services);
+  }
+
+  // Atlassian Statuspage.io summary.json — { status:{ indicator, description } }.
   // When the top-level indicator is clean, fall back to the worst component so a
   // partial outage that hasn't tripped the overall indicator still shows.
   const indicator = json?.status?.indicator;
   let description = json?.status?.description || null;
-  if (indicator === 'minor')                       return { state: 'degraded', state_note: description };
+  if (indicator === 'minor')                             return { state: 'degraded', state_note: description };
   if (indicator === 'major' || indicator === 'critical') return { state: 'down', state_note: description };
   if (indicator === 'none' || indicator == null) {
     const comps = Array.isArray(json.components) ? json.components : [];
@@ -285,11 +382,155 @@ async function probeStatuspage(service) {
       return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` };
     }
     const json = await r.json();
-    const parsed = parseStatuspageSummary(json);
+    const parsed = parseStatusJson(json);
     return { ...parsed, response_ms: dt, http_status: r.status };
   } catch (err) {
     return { state: 'down', error: err.message || 'fetch failed' };
   }
+}
+
+// ── RSS / Atom incident feeds ────────────────────────────────────────────────
+// StatusGator's core trick: most status pages publish a history feed even when
+// they have no JSON API. We read the newest entries and infer current state from
+// the latest update line. Statuspage feeds put the most-recent update FIRST in
+// the entry body, wrapped in <strong>…</strong> (e.g. "<strong>Resolved</strong>
+// - …"), so that word is the current status of that incident.
+const FEED_ACTIVE_WINDOW_MS = 3 * 24 * 60 * 60 * 1000; // only entries < 3 days old count as "active"
+
+function feedTag(block, names) {
+  for (const n of names) {
+    const m = block.match(new RegExp(`<${n}\\b[^>]*>([\\s\\S]*?)<\\/${n}>`, 'i'));
+    if (m) return m[1];
+  }
+  return '';
+}
+
+// Parse RSS <item>s or Atom <entry>s into { title, date, content } records,
+// newest-first as the feed presents them (capped so a huge feed can't blow up).
+function parseFeed(xml) {
+  const isAtom = /<feed[\s>]/i.test(xml);
+  const tag = isAtom ? 'entry' : 'item';
+  const re = new RegExp(`<${tag}\\b[\\s\\S]*?<\\/${tag}>`, 'gi');
+  const out = [];
+  let m;
+  while ((m = re.exec(xml)) && out.length < 25) {
+    const block = m[0];
+    const title = stripTags(feedTag(block, ['title']));
+    const dateRaw = isAtom ? feedTag(block, ['updated', 'published']) : feedTag(block, ['pubDate', 'updated', 'dc:date']);
+    const d = new Date(stripTags(dateRaw));
+    // Keep the raw (entity-decoded but tag-bearing) body so we can read <strong>.
+    const content = decodeEntities(isAtom ? feedTag(block, ['content', 'summary']) : feedTag(block, ['description', 'content:encoded', 'summary']));
+    out.push({ title, date: Number.isNaN(d.getTime()) ? null : d, content });
+  }
+  return out;
+}
+
+const FEED_DOWN_RE = /\b(major outage|outage|unavailable|service disruption|is down|are down)\b/;
+const FEED_DEGRADED_RE = /\b(investigating|identified|monitoring|degraded|degradation|elevated|partial|disruption|errors?|latency|slow|impact(ed|ing)?)\b/;
+const FEED_RESOLVED_RE = /\b(resolved|completed|operational|recovered|back to normal)\b/;
+
+function classifyFeed(items) {
+  if (!items.length) return { state: 'operational' };
+  const sorted = items.slice().sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+  const now = Date.now();
+  const active = sorted.filter((it) => !it.date || (now - it.date.getTime()) <= FEED_ACTIVE_WINDOW_MS);
+  const scan = active.length ? active : [sorted[0]];
+  for (const it of scan) {
+    // The first <strong> is the most-recent update label on Statuspage feeds.
+    const head = ((it.content.match(/<strong>\s*([^<]+?)\s*<\/strong>/i) || [])[1] || it.title || '').toLowerCase();
+    const text = `${head} ${it.title} ${stripTags(it.content)}`.toLowerCase();
+    if (FEED_RESOLVED_RE.test(head)) continue;             // this incident is over → check older ones
+    if (/\b(maintenance|scheduled)\b/.test(head) && !FEED_DOWN_RE.test(text)) continue;
+    if (FEED_DOWN_RE.test(text))     return { state: 'down', state_note: it.title || 'Outage reported' };
+    if (FEED_DEGRADED_RE.test(text)) return { state: 'degraded', state_note: it.title || 'Incident reported' };
+    return { state: 'degraded', state_note: it.title || 'Active incident' }; // unresolved + recent, unknown words
+  }
+  return { state: 'operational' };
+}
+
+async function probeFeed(service) {
+  if (!service.source_url) return { state: 'down', error: 'no source_url configured' };
+  const blocked = probeUrlBlockedReason(service.source_url);
+  if (blocked) return { state: 'down', error: blocked };
+  const t0 = Date.now();
+  try {
+    const r = await fetchWithTimeout(service.source_url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/atom+xml, application/rss+xml, application/xml;q=0.9, text/xml;q=0.8, */*;q=0.5',
+        'User-Agent': 'Slice-IT-Hub/1.0 status-poller',
+      },
+    });
+    const dt = Date.now() - t0;
+    if (!r.ok) { drain(r); return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
+    const xml = (await r.text()).slice(0, 500_000);
+    const parsed = classifyFeed(parseFeed(xml));
+    return { ...parsed, response_ms: dt, http_status: r.status };
+  } catch (err) {
+    return { state: 'down', error: err.message || 'fetch failed' };
+  }
+}
+
+// ── Plain-page keyword scan ──────────────────────────────────────────────────
+// Last resort for vendors with only a human-readable status page. Coarse by
+// design: strip tags, then look for outage / degraded phrasing.
+const PAGE_DOWN_RE = /(major outage|complete outage|service unavailable|all systems down|is currently down)/;
+const PAGE_DEGRADED_RE = /(degraded|partial outage|partial service|some (users|customers)|elevated errors?|increased errors?|investigating|identified|monitoring|service disruption|intermittent|slow performance)/;
+
+async function probePage(service) {
+  if (!service.source_url) return { state: 'down', error: 'no source_url configured' };
+  const blocked = probeUrlBlockedReason(service.source_url);
+  if (blocked) return { state: 'down', error: blocked };
+  const t0 = Date.now();
+  try {
+    let r = await fetchWithTimeout(service.source_url, { method: 'GET', headers: { 'User-Agent': 'Slice-IT-Hub/1.0 status-poller', 'Accept': 'text/html,*/*' } });
+    const dt = Date.now() - t0;
+    if (r.status >= 500) { drain(r); return { state: 'down', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
+    if (!r.ok && r.status !== 401 && r.status !== 403) { drain(r); return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` }; }
+    const text = stripTags((await r.text()).slice(0, 300_000)).toLowerCase();
+    if (PAGE_DOWN_RE.test(text))     return { state: 'down', state_note: 'Status page reports an outage', response_ms: dt, http_status: r.status };
+    if (PAGE_DEGRADED_RE.test(text)) return { state: 'degraded', state_note: 'Status page reports degraded service', response_ms: dt, http_status: r.status };
+    return { state: 'operational', response_ms: dt, http_status: r.status };
+  } catch (err) {
+    return { state: 'down', error: err.message || 'fetch failed' };
+  }
+}
+
+// ── Auto-detect ──────────────────────────────────────────────────────────────
+// Given any status URL an admin pasted, figure out the best machine-readable
+// source: a Statuspage JSON, an Atom/RSS feed, or (failing that) a page scan.
+async function resolveSource(rawUrl) {
+  let u;
+  try { u = new URL(rawUrl); } catch { return { error: 'invalid URL' }; }
+  const blocked = probeUrlBlockedReason(u.href);
+  if (blocked) return { error: blocked };
+  const origin = u.origin;
+  // Test the pasted URL itself first, then well-known endpoints off the origin.
+  const candidates = [
+    { source: 'statuspage', url: u.href, kind: 'json' },
+    { source: 'rss',        url: u.href, kind: 'feed' },
+    { source: 'statuspage', url: `${origin}/api/v2/summary.json`, kind: 'json' },
+    { source: 'rss',        url: `${origin}/history.atom`, kind: 'feed' },
+    { source: 'rss',        url: `${origin}/history.rss`, kind: 'feed' },
+  ];
+  for (const c of candidates) {
+    try {
+      const r = await fetchWithTimeout(c.url, {
+        method: 'GET',
+        headers: { 'Accept': c.kind === 'json' ? 'application/json' : 'application/atom+xml, application/xml, */*', 'User-Agent': 'Slice-IT-Hub/1.0 status-detect' },
+        timeoutMs: 5000,
+      });
+      if (!r.ok) { drain(r); continue; }
+      const body = (await r.text()).slice(0, 200_000);
+      if (c.kind === 'json') {
+        try { if (looksLikeStatusJson(JSON.parse(body))) return { source: 'statuspage', source_url: c.url }; } catch { /* not json */ }
+      } else if (/<rss\b|<feed\b|<entry\b|<item\b/i.test(body)) {
+        return { source: 'rss', source_url: c.url };
+      }
+    } catch { /* try next candidate */ }
+  }
+  // Nothing machine-readable found — fall back to a keyword scan of the page.
+  return { source: 'page', source_url: u.href };
 }
 
 // How many consecutive agreeing readings we need before flipping the effective
@@ -299,10 +540,11 @@ async function probeStatuspage(service) {
 const CONFIRM_SAMPLES = 2;
 
 async function pollOne(pool, service) {
-  // Manual services are admin-owned — we never probe them, but we still record
-  // a heartbeat sample of their current state so the 10-day bars + uptime are
-  // populated for them too (otherwise they'd read as "no data" forever).
-  if (service.source === 'manual') {
+  // Manual + webhook services aren't polled — their state is admin-set or pushed
+  // in by the vendor. We still record a heartbeat sample of the current state
+  // each pass so the 10-day bars + uptime stay populated for them too (otherwise
+  // they'd read as "no data" forever).
+  if (service.source === 'manual' || service.source === 'webhook') {
     await pool.query(
       `INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`,
       [service.id, service.state],
@@ -311,6 +553,8 @@ async function pollOne(pool, service) {
   }
   const observed =
     service.source === 'statuspage' ? await probeStatuspage(service) :
+    service.source === 'rss'        ? await probeFeed(service) :
+    service.source === 'page'       ? await probePage(service) :
     service.source === 'probe'      ? await probeHttp(service) :
     null;
   if (!observed) return;
@@ -355,11 +599,13 @@ async function applyState(pool, service, observed) {
 }
 
 const isBadState = (s) => s === 'degraded' || s === 'down';
+const severityForState = (s) => (s === 'down' ? 'major' : 'minor');
+const capitalize = (s) => { const t = String(s || ''); return t ? t[0].toUpperCase() + t.slice(1) : t; };
 
-// Open an auto-incident when a monitored service drops, escalate it if the
-// severity worsens, and auto-resolve it on recovery. Only auto-created
-// incidents are touched here — admin-authored ones are never mutated.
-async function handleAutoIncident(pool, service, fromState, toState) {
+// Open a fresh auto-incident for a service, or escalate/append to the one that's
+// already open. Returns { opened, incidentId }. Shared by the poller and the
+// inbound webhook so both converge on a single incident per service.
+async function raiseAutoIncident(pool, service, { toState, severity, body } = {}) {
   const open = await pool.query(
     `SELECT id FROM status_incidents
       WHERE service_id = $1 AND auto_created = true AND resolved_at IS NULL
@@ -367,46 +613,155 @@ async function handleAutoIncident(pool, service, fromState, toState) {
     [service.id],
   );
   const openId = open.rows[0]?.id;
+  if (!openId) {
+    const inc = await pool.query(
+      `INSERT INTO status_incidents (service_id, title, severity, state, auto_created)
+       VALUES ($1, $2, $3, 'investigating', true) RETURNING id`,
+      [service.id, `${service.name} is ${toState}`, severity || severityForState(toState)],
+    );
+    await pool.query(
+      `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Identified', $2)`,
+      [inc.rows[0].id, body || `Automated monitoring detected ${service.name} is ${toState}. The IT Team has been alerted.`],
+    );
+    return { opened: true, incidentId: inc.rows[0].id };
+  }
+  await pool.query(
+    `UPDATE status_incidents SET severity = $2, updated_at = NOW() WHERE id = $1`,
+    [openId, severity || severityForState(toState)],
+  );
+  await pool.query(
+    `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Update', $2)`,
+    [openId, body || `${service.name} status changed to ${toState}.`],
+  );
+  return { opened: false, incidentId: openId };
+}
+
+// Resolve the open auto-incident for a service, if any. Returns its id or null.
+async function clearAutoIncident(pool, service, { body } = {}) {
+  const open = await pool.query(
+    `SELECT id FROM status_incidents
+      WHERE service_id = $1 AND auto_created = true AND resolved_at IS NULL
+      ORDER BY started_at DESC LIMIT 1`,
+    [service.id],
+  );
+  const openId = open.rows[0]?.id;
+  if (!openId) return null;
+  await pool.query(
+    `UPDATE status_incidents SET state = 'resolved', resolved_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    [openId],
+  );
+  await pool.query(
+    `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Resolved', $2)`,
+    [openId, body || `Automated monitoring sees ${service.name} back to operational.`],
+  );
+  return openId;
+}
+
+// React to a confirmed state transition on a polled service: open/escalate or
+// resolve the auto-incident, and fire the matching Slack alert. Only auto-created
+// incidents are touched here — admin-authored ones are never mutated. (This is
+// only ever called on an actual change, so fromState !== toState.)
+async function handleAutoIncident(pool, service, fromState, toState) {
+  if (isBadState(toState)) {
+    const severity = severityForState(toState);
+    const res = await raiseAutoIncident(pool, service, { toState, severity });
+    if (await slackEventEnabled(pool, 'down')) {
+      await notifyServiceAlert(pool, service, { state: toState, severity, note: service.state_note, kind: res.opened ? 'opened' : 'changed' });
+    }
+  } else {
+    const id = await clearAutoIncident(pool, service);
+    if (id && await slackEventEnabled(pool, 'recovery')) {
+      await notifyServiceAlert(pool, service, { state: 'operational', kind: 'recovery' });
+    }
+  }
+}
+
+// ── Inbound webhook ingest ───────────────────────────────────────────────────
+// Map an Atlassian-Statuspage webhook payload to an effective state + an update
+// note. Statuspage sends two event shapes — incident_update (has `incident`) and
+// component_update (has `component`) — plus an unsigned validation ping on
+// subscribe, which we treat as a no-op (returns null).
+function parseStatuspageWebhook(body) {
+  if (!body || typeof body !== 'object') return null;
+
+  if (body.incident && typeof body.incident === 'object') {
+    const inc = body.incident;
+    const status = String(inc.status || '').toLowerCase(); // investigating|identified|monitoring|resolved|postmortem
+    const impact = String(inc.impact || inc.impact_override || '').toLowerCase(); // none|minor|major|critical
+    const updates = Array.isArray(inc.incident_updates) ? inc.incident_updates : [];
+    const latest = updates[0] || {};
+    const resolved = status === 'resolved' || status === 'completed' || status === 'postmortem';
+    const state = resolved ? 'operational' : (impact === 'critical' || impact === 'major') ? 'down' : 'degraded';
+    const severity = impact === 'critical' ? 'critical' : impact === 'major' ? 'major' : 'minor';
+    return {
+      state, severity,
+      note: stripTags(inc.name || '') || 'Incident',
+      body: stripTags(latest.body || inc.name || '') || `${inc.name || 'Incident'} — ${status}`,
+      label: capitalize(status) || 'Update',
+    };
+  }
+
+  if (body.component && typeof body.component === 'object') {
+    const c = body.component;
+    const st = String((body.component_update && body.component_update.new_status) || c.status || '').toLowerCase();
+    const state = /major_outage/.test(st) ? 'down'
+      : /partial_outage|degraded_performance/.test(st) ? 'degraded'
+      : 'operational'; // operational / under_maintenance / unknown → operational
+    const human = st.replace(/_/g, ' ');
+    return {
+      state, severity: severityForState(state),
+      note: `${c.name || 'Component'}: ${human}`,
+      body: `${c.name || 'Component'} is now ${human}.`,
+      label: state === 'operational' ? 'Resolved' : 'Update',
+    };
+  }
+
+  return null; // validation ping / shape we don't handle
+}
+
+// Apply a parsed webhook event. Pushes are authoritative (no confirm window):
+// update state immediately, record a sample, drive the incident timeline with
+// the vendor's own wording, and alert Slack.
+async function ingestWebhookEvent(pool, service, ev) {
+  const fromState = service.state;
+  const toState = ev.state;
+
+  await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [service.id, toState]);
+  await pool.query(
+    `UPDATE status_services
+        SET state = $2, state_note = $3, last_checked_at = NOW(), updated_at = NOW()
+      WHERE id = $1`,
+    [service.id, toState, toState === 'operational' ? null : (ev.note || null)],
+  );
+
+  if (toState === fromState) {
+    // No state change, but keep an open incident's timeline live with the
+    // vendor's latest note (e.g. "Monitoring" while still degraded).
+    if (isBadState(toState) && ev.body) {
+      const open = await pool.query(
+        `SELECT id FROM status_incidents WHERE service_id = $1 AND auto_created = true AND resolved_at IS NULL ORDER BY started_at DESC LIMIT 1`,
+        [service.id],
+      );
+      if (open.rows[0]) {
+        await pool.query(`INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, $2, $3)`, [open.rows[0].id, ev.label || 'Update', ev.body]);
+        await pool.query(`UPDATE status_incidents SET updated_at = NOW() WHERE id = $1`, [open.rows[0].id]);
+        if (await slackEventEnabled(pool, 'manual')) {
+          await notifyServiceAlert(pool, service, { state: toState, severity: ev.severity, note: ev.body, kind: 'update' });
+        }
+      }
+    }
+    return;
+  }
 
   if (isBadState(toState)) {
-    const severity = toState === 'down' ? 'major' : 'minor';
-    const icon = toState === 'down' ? ':red_circle:' : ':large_yellow_circle:';
-    const notifyDown = await slackEventEnabled(pool, 'down');
-    if (!openId) {
-      const inc = await pool.query(
-        `INSERT INTO status_incidents (service_id, title, severity, state, auto_created)
-         VALUES ($1, $2, $3, 'investigating', true) RETURNING id`,
-        [service.id, `${service.name} is ${toState}`, severity],
-      );
-      await pool.query(
-        `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Identified', $2)`,
-        [inc.rows[0].id, `Automated monitoring detected ${service.name} is ${toState}. The IT Team has been alerted.`],
-      );
-      // Notify only when an incident is actually opened (not on every poll).
-      if (notifyDown) await notifySlack(pool, { serviceId: service.id, text: `${icon} *${slackText(service.name)}* is *${toState}*. Monitoring opened an incident.` });
-    } else if (fromState !== toState) {
-      await pool.query(
-        `UPDATE status_incidents SET severity = $2, updated_at = NOW() WHERE id = $1`,
-        [openId, severity],
-      );
-      await pool.query(
-        `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Update', $2)`,
-        [openId, `${service.name} status changed to ${toState}.`],
-      );
-      // Separate message for an escalation/severity change on an open incident.
-      if (notifyDown) await notifySlack(pool, { serviceId: service.id, text: `${icon} *${slackText(service.name)}* status changed to *${toState}*.` });
+    const res = await raiseAutoIncident(pool, service, { toState, severity: ev.severity, body: ev.body || ev.note });
+    if (await slackEventEnabled(pool, 'down')) {
+      await notifyServiceAlert(pool, service, { state: toState, severity: ev.severity, note: ev.note, kind: res.opened ? 'opened' : 'changed' });
     }
-  } else if (openId) {
-    await pool.query(
-      `UPDATE status_incidents SET state = 'resolved', resolved_at = NOW(), updated_at = NOW() WHERE id = $1`,
-      [openId],
-    );
-    await pool.query(
-      `INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, 'Resolved', $2)`,
-      [openId, `Automated monitoring sees ${service.name} back to operational.`],
-    );
+  } else {
+    const id = await clearAutoIncident(pool, service, { body: ev.body });
     if (await slackEventEnabled(pool, 'recovery')) {
-      await notifySlack(pool, { serviceId: service.id, text: `:large_green_circle: *${slackText(service.name)}* has recovered — back to operational.` });
+      await notifyServiceAlert(pool, service, { state: 'operational', note: ev.note, kind: 'recovery' });
     }
   }
 }
@@ -444,11 +799,107 @@ function slackText(s) {
   return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-async function postToSlack(token, channel, text) {
+// Coloured status emoji used in the headline + plain-text fallback.
+function stateEmoji(state) {
+  return state === 'down' ? ':red_circle:' : state === 'degraded' ? ':large_yellow_circle:' : ':large_green_circle:';
+}
+
+// Public icon URL for a service, for the Slack thumbnail. Mirrors the web UI:
+// admin-set icon_url wins, else Google's favicon service (public, key-less, so
+// Slack can fetch it). sz=128 reads crisp at Slack's thumbnail size. Slack
+// rejects a message whose image_url isn't a fetchable http(s) URL, so a custom
+// icon_url that isn't (e.g. a data: URI) falls back to the favicon; returns ''
+// only when there's nothing usable (caller then omits the image accessory).
+function serviceIconForSlack(service) {
+  if (service.icon_url && /^https?:\/\//i.test(service.icon_url)) return service.icon_url;
+  const domain = service.domain || (service.name ? `${service.name.toLowerCase().replace(/\s+/g, '')}.com` : '');
+  return domain ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128` : '';
+}
+function imageAccessory(service) {
+  const url = serviceIconForSlack(service);
+  return url ? { type: 'image', image_url: url, alt_text: service.name || 'service' } : undefined;
+}
+
+// Build the premium service alert — "clean header + icon + context": a bold
+// headline, a divider, a section with the app icon as a thumbnail + the detail,
+// and a subtle context footer. Returns { text, blocks } (text is the fallback
+// used for notifications + accessibility). No colour bar, no button — by design.
+function buildServiceAlert({ service, state, severity, note, kind, statusUrl }) {
+  const emoji = stateEmoji(state);
+  const stateWord = state === 'down' ? 'down' : state === 'degraded' ? 'degraded' : 'operational';
+  const name = slackText(service.name);
+  const headline =
+    kind === 'recovery' ? `${emoji}  *${name}* has recovered`
+    : kind === 'update'  ? `${emoji}  *${name}* — incident update`
+    : kind === 'changed' ? `${emoji}  *${name}* is now *${stateWord}*`
+    :                      `${emoji}  *${name}* is *${stateWord}*`;
+
+  const detail = note ? slackText(note)
+    : state === 'operational' ? 'All checks are passing again.'
+    : 'Reported by status monitoring.';
+  const sub = service.vendor ? ` _(${slackText(service.vendor)})_` : '';
+
+  const ts = Math.floor(Date.now() / 1000);
+  const when = `<!date^${ts}^{time}|just now>`;
+  const sevLabel = state === 'operational' ? null : (severity === 'major' || severity === 'critical') ? 'Major' : 'Minor';
+  const lead =
+    kind === 'recovery' ? `Recovered ${when}`
+    : kind === 'update'  ? `Updated ${when}${sevLabel ? ` · ${sevLabel}` : ''}`
+    :                      `Detected ${when}${sevLabel ? ` · ${sevLabel}` : ''}`;
+  const footer = statusUrl ? `<${statusUrl}|Slice IT Hub> · status monitoring` : 'Slice IT Hub · status monitoring';
+
+  const svcSection = { type: 'section', text: { type: 'mrkdwn', text: `*${name}*${sub}\n${detail}` } };
+  const acc = imageAccessory(service);
+  if (acc) svcSection.accessory = acc;
+  const blocks = [
+    { type: 'section', text: { type: 'mrkdwn', text: headline } },
+    { type: 'divider' },
+    svcSection,
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${lead}  ·  ${footer}` }] },
+  ];
+  const stateLabel = state === 'down' ? 'Down' : state === 'degraded' ? 'Degraded' : 'Operational';
+  const text = `${emoji} ${service.name} is ${stateLabel}${note ? ` — ${note}` : ''}`;
+  return { text, blocks };
+}
+
+// Build an alert for an admin-authored incident (created / updated / resolved).
+// Same visual language; shows the linked service's icon when there is one.
+function buildIncidentAlert({ service, title, severity, state, body, kind, statusUrl }) {
+  const resolved = state === 'resolved';
+  const emoji = resolved ? ':large_green_circle:' : kind === 'created' ? ':rotating_light:' : ':speech_balloon:';
+  const t = slackText(title);
+  const headline =
+    kind === 'created' ? `${emoji}  *New incident:* ${t}`
+    : resolved         ? `${emoji}  *Resolved:* ${t}`
+    :                    `${emoji}  *Incident update:* ${t}`;
+  const sevLabel = severity ? capitalize(severity) : null;
+  const ts = Math.floor(Date.now() / 1000);
+  const lead = `${resolved ? 'Resolved' : 'Updated'} <!date^${ts}^{time}|just now>${sevLabel ? ` · ${sevLabel}` : ''}${state ? ` · ${capitalize(state)}` : ''}`;
+  const footer = statusUrl ? `<${statusUrl}|Slice IT Hub> · status monitoring` : 'Slice IT Hub · status monitoring';
+
+  const section = {
+    type: 'section',
+    text: { type: 'mrkdwn', text: body ? slackText(body) : t },
+  };
+  if (service && service.name) { const acc = imageAccessory(service); if (acc) section.accessory = acc; }
+
+  const blocks = [
+    { type: 'section', text: { type: 'mrkdwn', text: headline } },
+    { type: 'divider' },
+    section,
+    { type: 'context', elements: [{ type: 'mrkdwn', text: `${lead}  ·  ${footer}` }] },
+  ];
+  const text = `${emoji} ${title}${body ? ` — ${body}` : ''}`;
+  return { text, blocks };
+}
+
+// Post a message (string or { text, blocks }) to one channel.
+async function postToSlack(token, channel, message) {
+  const payload = typeof message === 'string' ? { text: message } : message;
   const r = await fetchWithTimeout('https://slack.com/api/chat.postMessage', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json; charset=utf-8', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ channel, text, unfurl_links: false }),
+    body: JSON.stringify({ channel, unfurl_links: false, unfurl_media: false, ...payload }),
     timeoutMs: 8000,
   });
   const j = await r.json().catch(() => ({}));
@@ -457,9 +908,9 @@ async function postToSlack(token, channel, text) {
 }
 
 // Resolve the target channels for a service (its connected channels ∪ every
-// global channel) and post `text` to each. No-ops silently when Slack isn't
+// global channel) and post `message` to each. No-ops silently when Slack isn't
 // configured or no channel is wired up, so it's always safe to call.
-async function notifySlack(pool, { serviceId, text }) {
+async function notifySlack(pool, { serviceId, message, text }) {
   try {
     const token = await getSlackToken(pool);
     if (!token) return;
@@ -472,13 +923,34 @@ async function notifySlack(pool, { serviceId, text }) {
       [serviceId || null],
     );
     if (rows.length === 0) return;
+    const msg = message || { text };
     await Promise.allSettled(rows.map((r) =>
-      postToSlack(token, r.channel_id, text).catch((e) => {
+      postToSlack(token, r.channel_id, msg).catch((e) => {
         console.warn(`[status] slack post to ${r.channel_id} failed: ${e.message}`);
       })));
   } catch (e) {
     console.warn('[status] notifySlack failed:', e.message);
   }
+}
+
+// Convenience wrappers — fetch the optional public status URL (for the footer
+// link), build the premium message, and route it. Used by the poller, the
+// webhook ingest, and the admin incident routes so every alert looks the same.
+async function notifyServiceAlert(pool, service, opts) {
+  const statusUrl = await getConfig(pool, 'public_status_url');
+  await notifySlack(pool, { serviceId: service.id, message: buildServiceAlert({ service, statusUrl, ...opts }) });
+}
+async function notifyIncidentAlert(pool, { serviceId, service, ...opts }) {
+  const statusUrl = await getConfig(pool, 'public_status_url');
+  await notifySlack(pool, { serviceId, message: buildIncidentAlert({ service, statusUrl, ...opts }) });
+}
+
+// Minimal service row (id/name/vendor/domain/icon_url) for building an incident
+// alert's icon when the incident is tied to a service. Returns null when not.
+async function serviceLite(pool, id) {
+  if (!id) return null;
+  const { rows } = await pool.query(`SELECT id, name, vendor, domain, icon_url FROM status_services WHERE id = $1`, [id]);
+  return rows[0] || null;
 }
 
 // A single shared in-flight pass. The 60s tick and the admin "poll now" / "Test"
@@ -489,9 +961,11 @@ let pollPassInFlight = null;
 function runOnePollPass(pool) {
   if (pollPassInFlight) return pollPassInFlight;
   pollPassInFlight = (async () => {
-    // Includes manual services so they get a heartbeat sample each pass.
+    // Includes manual + webhook services so they get a heartbeat sample each
+    // pass. vendor/domain/icon_url come along so Slack alerts can render the
+    // app icon + label without a second query.
     const { rows } = await pool.query(
-      `SELECT id, name, source, source_url, state, state_note FROM status_services`,
+      `SELECT id, name, vendor, domain, icon_url, source, source_url, state, state_note FROM status_services`,
     );
     if (rows.length === 0) return;
     // Parallel — each service has its own 6s timeout, so a single slow vendor
@@ -546,7 +1020,8 @@ async function fetchStatusPayload(pool) {
   );
   const services = await pool.query(
     `SELECT id, group_id, name, vendor, domain, icon_url, source, source_url,
-            state, state_note, response_ms, last_checked_at, last_error, position
+            state, state_note, response_ms, last_checked_at, last_error, position,
+            links, webhook_last_at
        FROM status_services
        ORDER BY group_id, position, id`,
   );
@@ -619,6 +1094,8 @@ async function fetchStatusPayload(pool) {
         last_checked_at: s.last_checked_at,
         last_error: s.last_error,
         position: s.position,
+        links: Array.isArray(s.links) ? s.links : [],
+        webhook_last_at: s.webhook_last_at,
         // Reverse so index 0 = oldest, last = today (matches what the bars expect).
         history: (histByService.get(s.id) || new Array(HISTORY_DAYS).fill(null)).slice().reverse(),
         uptime: uptimeByService.get(s.id) ?? null,
@@ -635,6 +1112,8 @@ async function fetchStatusPayload(pool) {
         state: s.state, state_note: s.state_note, response_ms: s.response_ms,
         last_checked_at: s.last_checked_at, last_error: s.last_error,
         position: s.position,
+        links: Array.isArray(s.links) ? s.links : [],
+        webhook_last_at: s.webhook_last_at,
         history: (histByService.get(s.id) || new Array(HISTORY_DAYS).fill(null)).slice().reverse(),
         uptime: uptimeByService.get(s.id) ?? null,
       })),
@@ -660,9 +1139,38 @@ async function fetchStatusPayload(pool) {
 }
 
 const VALID_STATES = new Set(['operational', 'degraded', 'down']);
-const VALID_SOURCES = new Set(['manual', 'probe', 'statuspage']);
+const VALID_SOURCES = new Set(['manual', 'probe', 'statuspage', 'rss', 'page', 'webhook']);
+// Sources that actively poll a URL and so can't function without one. 'manual'
+// is admin-set and 'webhook' is push-driven, so neither needs a source_url.
+const SOURCES_NEEDING_URL = new Set(['probe', 'statuspage', 'rss', 'page']);
 const VALID_SEVERITIES = new Set(['minor', 'major', 'critical']);
 const VALID_INC_STATES = new Set(['investigating', 'identified', 'monitoring', 'resolved']);
+const VALID_LINK_KINDS = new Set(['status', 'rss', 'help', 'docs', 'twitter', 'other']);
+
+// Mint an unguessable inbound-webhook secret. This token IS the auth for the
+// public /api/status/webhook/:token endpoint (Statuspage webhooks aren't
+// signed), so it must be long + URL-safe.
+function genWebhookToken() {
+  return crypto.randomBytes(24).toString('base64url');
+}
+
+// Validate + normalise the admin-supplied reference-links array. Caps count and
+// field lengths, drops anything without a usable http(s) URL.
+function sanitizeLinks(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (const raw of input.slice(0, 12)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const url = String(raw.url || '').trim().slice(0, 500);
+    if (!/^https?:\/\//i.test(url)) continue;
+    const kind = VALID_LINK_KINDS.has(raw.kind) ? raw.kind : 'other';
+    const label = String(raw.label || '').trim().slice(0, 60) || ({
+      status: 'Status page', rss: 'RSS feed', help: 'Help center', docs: 'Docs', twitter: 'Updates on X', other: 'Link',
+    }[kind]);
+    out.push({ label, url, kind });
+  }
+  return out;
+}
 
 export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdmin }) {
   // Public-style read endpoint — anyone signed in can hit it.
@@ -722,15 +1230,18 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       if (!b.name) return res.status(400).json({ error: 'name required' });
       const source = VALID_SOURCES.has(b.source) ? b.source : 'manual';
       const state = VALID_STATES.has(b.state) ? b.state : 'operational';
-      // probe/statuspage are useless without a URL to poll; manual never uses one.
-      if (source !== 'manual' && !(b.source_url && String(b.source_url).trim())) {
-        return res.status(400).json({ error: 'source_url is required for probe and vendor-status sources' });
+      // Polled sources are useless without a URL; manual is admin-set and webhook
+      // is push-driven, so neither carries one.
+      if (SOURCES_NEEDING_URL.has(source) && !(b.source_url && String(b.source_url).trim())) {
+        return res.status(400).json({ error: 'source_url is required for probe, vendor-status, RSS, and page sources' });
       }
-      const sourceUrl = source === 'manual' ? null : String(b.source_url).slice(0, 500);
+      const sourceUrl = SOURCES_NEEDING_URL.has(source) ? String(b.source_url).slice(0, 500) : null;
+      const webhookToken = source === 'webhook' ? genWebhookToken() : null;
+      const links = sanitizeLinks(b.links);
       const r = await pool.query(
         `INSERT INTO status_services
-           (group_id, name, vendor, domain, icon_url, source, source_url, state, state_note, position)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+           (group_id, name, vendor, domain, icon_url, source, source_url, state, state_note, position, links, webhook_token)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12) RETURNING *`,
         [
           b.group_id || null,
           String(b.name).slice(0, 120),
@@ -742,6 +1253,8 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           state,
           b.state_note ? String(b.state_note).slice(0, 200) : null,
           Number(b.position) || 0,
+          JSON.stringify(links),
+          webhookToken,
         ],
       );
       // Seed an initial sample so the new service's history/uptime isn't blank.
@@ -754,6 +1267,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       const b = req.body || {};
       const source = b.source != null && VALID_SOURCES.has(b.source) ? b.source : null;
       const state = b.state != null && VALID_STATES.has(b.state) ? b.state : null;
+      const linksJson = b.links !== undefined ? JSON.stringify(sanitizeLinks(b.links)) : null;
       const r = await pool.query(
         `UPDATE status_services SET
            group_id    = COALESCE($2, group_id),
@@ -766,6 +1280,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
            state       = COALESCE($9, state),
            state_note  = COALESCE($10, state_note),
            position    = COALESCE($11, position),
+           links       = COALESCE($12::jsonb, links),
            updated_at  = NOW()
          WHERE id = $1 RETURNING *`,
         [
@@ -780,20 +1295,28 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           state,
           b.state_note != null ? String(b.state_note).slice(0, 200) : null,
           b.position != null ? Number(b.position) : null,
+          linksJson,
         ],
       );
       if (r.rows.length === 0) return res.status(404).json({ error: 'not found' });
       const row = r.rows[0];
-      if (row.source === 'manual') {
-        // Manual services don't poll a URL — keep the field clean so the admin
-        // UI and pollers don't get confused.
-        if (row.source_url) {
-          await pool.query(`UPDATE status_services SET source_url = NULL WHERE id = $1`, [req.params.id]);
-          row.source_url = null;
-        }
-        // Record the admin's toggle as a sample so the history bar reflects it
-        // immediately rather than waiting for the next heartbeat pass.
-        if (state) await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [req.params.id, row.state]);
+      // Manual + webhook services don't poll a URL — keep the field clean so the
+      // admin UI and pollers don't get confused.
+      if ((row.source === 'manual' || row.source === 'webhook') && row.source_url) {
+        await pool.query(`UPDATE status_services SET source_url = NULL WHERE id = $1`, [req.params.id]);
+        row.source_url = null;
+      }
+      // Switching a service to "webhook" mints its inbound token on demand so the
+      // admin immediately has a URL to paste into the vendor's status page.
+      if (row.source === 'webhook' && !row.webhook_token) {
+        const tok = genWebhookToken();
+        await pool.query(`UPDATE status_services SET webhook_token = $2 WHERE id = $1`, [req.params.id, tok]);
+        row.webhook_token = tok;
+      }
+      // For manual services, record the admin's toggle as a sample so the history
+      // bar reflects it immediately rather than waiting for the next heartbeat.
+      if (row.source === 'manual' && state) {
+        await pool.query(`INSERT INTO status_checks (service_id, state) VALUES ($1, $2)`, [req.params.id, row.state]);
       }
       res.json(row);
     } catch (e) { next(e); }
@@ -830,7 +1353,12 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
         await client.query('COMMIT');
         const created = inc.rows[0];
         if (await slackEventEnabled(pool, 'manual')) {
-          await notifySlack(pool, { serviceId: created.service_id, text: `:memo: *New incident:* ${slackText(created.title)} — _${created.severity}_` });
+          const svc = await serviceLite(pool, created.service_id);
+          await notifyIncidentAlert(pool, {
+            serviceId: created.service_id, service: svc,
+            title: created.title, severity: created.severity, state: created.state,
+            body: b.first_update ? String(b.first_update).slice(0, 1000) : null, kind: 'created',
+          });
         }
         res.json(created);
       } catch (e) {
@@ -870,8 +1398,12 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       // Notify on an admin state change (e.g. manually resolving an incident) so
       // it mirrors the automated recovery path.
       if (state && await slackEventEnabled(pool, 'manual')) {
-        const emoji = state === 'resolved' ? ':white_check_mark:' : ':speech_balloon:';
-        await notifySlack(pool, { serviceId: updated.service_id, text: `${emoji} Incident *${slackText(updated.title)}* → *${state}*` });
+        const svc = await serviceLite(pool, updated.service_id);
+        await notifyIncidentAlert(pool, {
+          serviceId: updated.service_id, service: svc,
+          title: updated.title, severity: updated.severity, state: updated.state,
+          kind: state === 'resolved' ? 'resolved' : 'update',
+        });
       }
       res.json(updated);
     } catch (e) { next(e); }
@@ -896,9 +1428,16 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       // Bump the parent so /api/status sorts correctly when this update lands.
       await pool.query(`UPDATE status_incidents SET updated_at = NOW() WHERE id = $1`, [req.params.id]);
       if (await slackEventEnabled(pool, 'manual')) {
-        const inc = await pool.query(`SELECT service_id, title FROM status_incidents WHERE id = $1`, [req.params.id]);
+        const inc = await pool.query(`SELECT service_id, title, severity, state FROM status_incidents WHERE id = $1`, [req.params.id]);
         const row = inc.rows[0];
-        if (row) await notifySlack(pool, { serviceId: row.service_id, text: `:speech_balloon: *${slackText(row.title)}* — ${slackText(label)}: ${slackText(body)}` });
+        if (row) {
+          const svc = await serviceLite(pool, row.service_id);
+          await notifyIncidentAlert(pool, {
+            serviceId: row.service_id, service: svc,
+            title: row.title, severity: row.severity, state: row.state,
+            body: `${label}: ${body}`, kind: row.state === 'resolved' ? 'resolved' : 'update',
+          });
+        }
       }
       res.json(r.rows[0]);
     } catch (e) { next(e); }
@@ -908,7 +1447,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
   app.get('/api/admin/status/probes', requireSliceAdmin, async (req, res, next) => {
     try {
       const r = await pool.query(
-        `SELECT s.id, s.name, s.source, s.source_url, s.state, s.last_checked_at, s.last_error,
+        `SELECT s.id, s.name, s.source, s.source_url, s.state, s.last_checked_at, s.last_error, s.webhook_last_at,
                 (SELECT json_agg(row_to_json(t) ORDER BY t.checked_at DESC)
                    FROM (
                      SELECT state, response_ms, http_status, error, checked_at
@@ -918,7 +1457,7 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
                       LIMIT 50
                    ) t) AS recent
            FROM status_services s
-          WHERE s.source IN ('probe','statuspage')
+          WHERE s.source IN ('probe','statuspage','rss','page','webhook')
           ORDER BY s.name`,
       );
       res.json({ probes: r.rows });
@@ -947,6 +1486,12 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
           manual: await slackEventEnabled(pool, 'manual'),
         },
         service_channels: serviceChannels,
+        // Optional public URLs. public_status_url → the "Slice IT Hub" footer
+        // link in alerts. public_base_url → overrides the origin used when
+        // composing inbound webhook URLs (for when the portal sits behind a
+        // different public hostname than the admin page).
+        public_status_url: await getConfig(pool, 'public_status_url'),
+        public_base_url: await getConfig(pool, 'public_base_url'),
       });
     } catch (e) { next(e); }
   });
@@ -966,6 +1511,28 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
       const b = req.body || {};
       for (const k of ['down', 'recovery', 'manual']) {
         if (b[k] != null) await setConfig(pool, `slack_evt_${k}`, b[k] ? 'on' : 'off');
+      }
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
+  // Optional public URLs for the status surface. Both accept '' to clear, and
+  // only http(s) values are stored (so a bad paste can't smuggle a javascript:
+  // URL into a Slack footer link).
+  app.put('/api/admin/status/settings', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const b = req.body || {};
+      const clean = (v) => {
+        const s = String(v == null ? '' : v).trim();
+        if (!s) return null;
+        return /^https?:\/\//i.test(s) ? s.slice(0, 300).replace(/\/$/, '') : undefined; // undefined → reject
+      };
+      for (const k of ['public_status_url', 'public_base_url']) {
+        if (b[k] !== undefined) {
+          const v = clean(b[k]);
+          if (v === undefined) return res.status(400).json({ error: `${k} must be an http(s) URL` });
+          await setConfig(pool, k, v);
+        }
       }
       res.json({ ok: true });
     } catch (e) { next(e); }
@@ -1042,11 +1609,95 @@ export function mountStatusRoutes(app, pool, { requireSliceUser, requireSliceAdm
         ? await pool.query(`SELECT channel_id, label FROM status_slack_channels WHERE id = $1`, [id])
         : await pool.query(`SELECT channel_id, label FROM status_slack_channels WHERE enabled = true`);
       if (q.rows.length === 0) return res.status(400).json({ error: 'No channel to test.' });
-      const results = await Promise.allSettled(q.rows.map((c) =>
-        postToSlack(token, c.channel_id, ':wave: Test from the Slice IT Hub status page — Slack notifications are wired up.')));
+      // Send the test in the real alert layout so the admin sees exactly what a
+      // live status change will look like (icon + context footer included).
+      const statusUrl = await getConfig(pool, 'public_status_url');
+      const ts = Math.floor(Date.now() / 1000);
+      const footer = statusUrl ? `<${statusUrl}|Slice IT Hub> · status monitoring` : 'Slice IT Hub · status monitoring';
+      const testMsg = {
+        text: ':wave: Test from the Slice IT Hub status page — Slack notifications are wired up.',
+        blocks: [
+          { type: 'section', text: { type: 'mrkdwn', text: ':wave:  *Slack notifications are wired up*' } },
+          { type: 'divider' },
+          {
+            type: 'section',
+            text: { type: 'mrkdwn', text: '*Slice IT Hub* _(Status monitoring)_\nThis is a test. Real status changes land here with the app’s icon, severity, and a timestamp.' },
+            accessory: { type: 'image', image_url: serviceIconForSlack({ domain: 'slicelife.com' }), alt_text: 'Slice IT Hub' },
+          },
+          { type: 'context', elements: [{ type: 'mrkdwn', text: `Sent <!date^${ts}^{time}|just now>  ·  ${footer}` }] },
+        ],
+      };
+      const results = await Promise.allSettled(q.rows.map((c) => postToSlack(token, c.channel_id, testMsg)));
       const failed = results.filter((r) => r.status === 'rejected').map((r) => String(r.reason && r.reason.message || r.reason));
       if (failed.length) return res.status(502).json({ error: `Slack rejected ${failed.length}/${results.length}: ${failed.join('; ')}` });
       res.json({ ok: true, sent: results.length });
     } catch (e) { next(e); }
+  });
+
+  // ── Inbound webhooks (per service) ────────────────────────────────────────
+
+  // Admin snapshot of webhook tokens + last-received times, keyed by service id.
+  // Deliberately NOT folded into /api/status (every signed-in user can read
+  // that) — the token is a secret, so only admins ever see it.
+  app.get('/api/admin/status/webhooks', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const r = await pool.query(`SELECT id, webhook_token, webhook_last_at FROM status_services WHERE webhook_token IS NOT NULL`);
+      const webhooks = {};
+      for (const row of r.rows) webhooks[row.id] = { token: row.webhook_token, last_at: row.webhook_last_at };
+      res.json({ webhooks });
+    } catch (e) { next(e); }
+  });
+
+  // Mint (or rotate) a service's inbound webhook token. Returns the new token so
+  // the admin can copy the full URL. Rotating invalidates the previous URL.
+  app.post('/api/admin/status/services/:id/webhook', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const tok = genWebhookToken();
+      const r = await pool.query(`UPDATE status_services SET webhook_token = $2, updated_at = NOW() WHERE id = $1 RETURNING id`, [req.params.id, tok]);
+      if (r.rows.length === 0) return res.status(404).json({ error: 'not found' });
+      res.json({ ok: true, webhook_token: tok });
+    } catch (e) { next(e); }
+  });
+  // Disable inbound webhooks for a service (clears the token → the old URL 404s).
+  app.delete('/api/admin/status/services/:id/webhook', requireSliceAdmin, async (req, res, next) => {
+    try {
+      await pool.query(`UPDATE status_services SET webhook_token = NULL, updated_at = NOW() WHERE id = $1`, [req.params.id]);
+      res.json({ ok: true });
+    } catch (e) { next(e); }
+  });
+
+  // Auto-detect the best machine-readable source for a pasted status URL.
+  app.post('/api/admin/status/resolve-source', requireSliceAdmin, async (req, res, next) => {
+    try {
+      const url = String((req.body || {}).url || '').trim();
+      if (!url) return res.status(400).json({ error: 'url required' });
+      const out = await resolveSource(url);
+      if (out && out.error) return res.status(400).json({ error: out.error });
+      res.json(out);
+    } catch (e) { next(e); }
+  });
+
+  // ── Public inbound webhook receiver ───────────────────────────────────────
+  // The vendor's Statuspage POSTs incident/component events here. Auth IS the
+  // unguessable token in the path — Statuspage webhooks aren't signed — so there
+  // is intentionally no requireSliceUser: a third party must be able to reach
+  // it. We always answer 2xx on our own errors so a transient failure doesn't
+  // make the vendor auto-disable the subscription; only an unknown token 404s.
+  app.post('/api/status/webhook/:token', async (req, res) => {
+    try {
+      const token = String(req.params.token || '');
+      if (token.length < 12) return res.status(404).json({ error: 'unknown webhook' });
+      const q = await pool.query(`SELECT * FROM status_services WHERE webhook_token = $1 LIMIT 1`, [token]);
+      const service = q.rows[0];
+      if (!service) return res.status(404).json({ error: 'unknown webhook' });
+      await pool.query(`UPDATE status_services SET webhook_last_at = NOW() WHERE id = $1`, [service.id]);
+      const ev = parseStatuspageWebhook(req.body || {});
+      if (!ev) return res.json({ ok: true, ignored: true }); // validation ping / shape we don't handle
+      await ingestWebhookEvent(pool, service, ev);
+      res.json({ ok: true });
+    } catch (e) {
+      console.warn('[status] webhook ingest failed:', e.message);
+      res.status(200).json({ ok: false });
+    }
   });
 }

@@ -21301,10 +21301,11 @@ const inputStyle = {
 //  STATUS
 // ====================================================================
 //
-// Backed by /api/status — the server polls each service every 60s and
-// records samples to status_checks; that table powers the 90-day history
-// bars and uptime numbers. The page polls this endpoint every 30s so an
-// open tab reflects state changes without a manual refresh.
+// Backed by /api/status — the server monitors each service (polling a status
+// API / RSS feed / probe / page, or receiving vendor webhooks) and records
+// samples to status_checks; that table powers the 10-day history bars and
+// uptime numbers. The page polls this endpoint every 30s so an open tab
+// reflects state changes without a manual refresh.
 
 // Map a service to its icon URL. Default to Google's S2 favicon service
 // (no API key, broad coverage). Admin can override via icon_url.
@@ -21318,7 +21319,13 @@ const SOURCE_LABELS = {
   manual:     { label: "Manual",        tone: "#4A3F2E", bg: "#F7F4EF" },
   probe:      { label: "Health probe",  tone: "#0A8A3E", bg: "#E8F5EC" },
   statuspage: { label: "Vendor status", tone: "#1E5FB2", bg: "#E5EFFA" },
+  rss:        { label: "Incident feed", tone: "#8A5A14", bg: "#FBF1DD" },
+  page:       { label: "Page scan",     tone: "#4A3F2E", bg: "#F7F4EF" },
+  webhook:    { label: "Live webhook",  tone: "#6D3FB0", bg: "#F0E8FA" },
 };
+
+// Icon (emoji) per reference-link kind, shown on the link chips.
+const LINK_KIND_ICON = { status: "🟢", rss: "📡", help: "❓", docs: "📄", twitter: "𝕏", other: "🔗" };
 
 // Severity / state palettes for incident pills.
 const SEVERITY_TONE = {
@@ -21917,14 +21924,38 @@ function ServiceRow({ service, isLast, expanded, onToggle }) {
               value={service.last_checked_at ? relativeTime(service.last_checked_at) : "—"} />
             <MiniStat label="Source" value={sourceMeta.label} />
           </div>
+          {Array.isArray(service.links) && service.links.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+              {service.links.map((l, i) => (
+                <a key={i} href={l.url} target="_blank" rel="noreferrer noopener"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "5px 11px",
+                    background: "#FFFFFF", border: "1px solid #211E1E", borderRadius: 999,
+                    boxShadow: "1px 1px 0 #211E1E",
+                    fontSize: 12, fontWeight: 700, color: "#211E1E", textDecoration: "none",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-1px,-1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "1px 1px 0 #211E1E"; }}
+                >
+                  <span>{LINK_KIND_ICON[l.kind] || "🔗"}</span>
+                  {l.label || l.url}
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ opacity: 0.55 }}><path d="M7 17 17 7M9 7h8v8"/></svg>
+                </a>
+              ))}
+            </div>
+          )}
           <div style={{ fontSize: 12.5, color: "#4A3F2E", lineHeight: 1.5 }}>
-            {service.source === 'manual' ? (
-              <><b style={{ color: "#211E1E" }}>{service.name}</b> is set manually by the IT Team. Status changes when an admin updates it.</>
-            ) : service.source === 'statuspage' ? (
-              <><b style={{ color: "#211E1E" }}>{service.name}</b> is polled every 60 seconds from the vendor's public statuspage feed. We mark a service as <b>degraded</b> when the vendor reports a minor incident, and <b>down</b> for major or critical incidents.</>
-            ) : (
-              <><b style={{ color: "#211E1E" }}>{service.name}</b> is health-probed every 60 seconds. We mark it <b>degraded</b> when responses exceed {Math.round(2500)}ms or return 4xx, and <b>down</b> on 5xx or connection failure.</>
-            )}
+            {(() => {
+              const b = <b style={{ color: "#211E1E" }}>{service.name}</b>;
+              if (service.source === 'manual')     return <>{b} is set manually by the IT Team. Status changes when an admin updates it.</>;
+              if (service.source === 'webhook')    return <>{b} updates in real time — the vendor's status page pushes incident and component changes straight to us via webhook, so this reflects their status the moment it changes.</>;
+              if (service.source === 'statuspage') return <>{b} is polled every 60 seconds from the vendor's public status API. We mark it <b>degraded</b> on a minor incident, and <b>down</b> for major or critical incidents.</>;
+              if (service.source === 'rss')        return <>{b} is tracked from the vendor's incident feed (RSS/Atom), checked every 60 seconds — the newest entry's latest update drives the state.</>;
+              if (service.source === 'page')       return <>{b}'s status page is scanned every 60 seconds for outage wording. A best-effort signal — check the vendor's page for detail.</>;
+              return <>{b} is health-probed every 60 seconds. We mark it <b>degraded</b> when responses exceed 2500ms or return 4xx, and <b>down</b> on 5xx or connection failure.</>;
+            })()}
             {service.last_error && (
               <div style={{ marginTop: 8, padding: "8px 10px", background: "#FFE8E5", border: "1px solid #DA3327", borderRadius: 6, color: "#7A1A14", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 11.5 }}>
                 Last error: {service.last_error}

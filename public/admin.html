@@ -8419,7 +8419,7 @@ function pageMeta(section) {
     chats:    { ttl: 'Chats',    sub: 'Every question users have asked. Click for full retrieval detail.' },
     test:     { ttl: 'Test the bot', sub: 'Pretend you\'re a user — see exactly what they\'d get' },
     insights: { ttl: 'Insights', sub: 'What users are asking about. Use this to decide which guides to write next.' },
-    status:   { ttl: 'Status apps', sub: 'Manage the services shown on /status. Add new vendors, set the data source (manual, StatusGator, vendor RSS, health probe), and ship to users instantly.' },
+    status:   { ttl: 'Status apps', sub: 'Manage the services shown on /status. Pick a data source per app — vendor status API, RSS/Atom feed, inbound webhook, HTTP probe, page scan, or manual — wire up Slack alerts, and ship to users instantly.' },
     system:   { ttl: 'System',   sub: 'Service health, models, and configuration' },
     trash:    { ttl: 'Trash',    sub: 'Deleted guides. Restore to bring them back, or delete forever to purge.' },
     editor:   { ttl: state.editing.mode === 'edit' ? `Edit guide #${state.editing.id}` : 'New guide', sub: '' },
@@ -9753,9 +9753,12 @@ function renderInsightsBody(data) {
 // authoritative response. No localStorage — multiple admins won't fight.
 
 const STATUS_SOURCE_OPTIONS = [
-  { id: 'manual',     label: 'Manual',         hint: 'IT toggles state by hand.' },
-  { id: 'probe',      label: 'HTTP probe',     hint: 'We GET the URL every minute. 5xx = down, 4xx or >2.5s = degraded.' },
-  { id: 'statuspage', label: 'Vendor status',  hint: 'Statuspage.io summary.json (Cloudflare, GitHub, Slack, Zoom, Figma, etc.).' },
+  { id: 'manual',     label: 'Manual',          hint: 'IT toggles state by hand.' },
+  { id: 'statuspage', label: 'Vendor status',   hint: 'Status JSON API — Statuspage.io summary.json, Slack, Heroku, Google, Apple.' },
+  { id: 'rss',        label: 'RSS / Atom feed', hint: 'Vendor incident feed (history.atom / history.rss). Newest entry drives state.' },
+  { id: 'webhook',    label: 'Webhook (push)',  hint: 'Vendor pushes incidents to a URL we mint — real time, no polling.' },
+  { id: 'probe',      label: 'HTTP probe',      hint: 'We GET the URL every minute. 5xx = down, 4xx or >2.5s = degraded.' },
+  { id: 'page',       label: 'Page keyword',    hint: 'Scan a plain status page for outage wording. Last resort.' },
 ];
 
 // Curated vendor catalog for the "Add app" modal. Picking a preset auto-fills
@@ -9767,7 +9770,7 @@ const STATUS_VENDOR_PRESETS = [
   { name: 'GitHub',         vendor: 'Source control',  domain: 'github.com',         source: 'statuspage', source_url: 'https://www.githubstatus.com/api/v2/summary.json' },
   { name: 'GitLab',         vendor: 'Source control',  domain: 'gitlab.com',         source: 'statuspage', source_url: 'https://status.gitlab.com/api/v2/summary.json' },
   { name: 'Slack',          vendor: 'Chat',            domain: 'slack.com',          source: 'statuspage', source_url: 'https://slack-status.com/api/v2.0.0/current' },
-  { name: 'Zoom',           vendor: 'Meetings',        domain: 'zoom.us',            source: 'statuspage', source_url: 'https://status.zoom.us/api/v2/summary.json' },
+  { name: 'Zoom',           vendor: 'Meetings',        domain: 'zoom.us',            source: 'statuspage', source_url: 'https://www.zoomstatus.com/api/v2/summary.json' },
   { name: 'Figma',          vendor: 'Design',          domain: 'figma.com',          source: 'statuspage', source_url: 'https://www.figmastatus.com/api/v2/summary.json' },
   { name: 'Notion',         vendor: 'Docs',            domain: 'notion.so',          source: 'statuspage', source_url: 'https://status.notion.so/api/v2/summary.json' },
   { name: 'Linear',         vendor: 'Project mgmt',    domain: 'linear.app',         source: 'statuspage', source_url: 'https://linearstatus.com/api/v2/summary.json' },
@@ -9798,7 +9801,16 @@ const STATUS_VENDOR_PRESETS = [
   { name: 'Box',            vendor: 'Storage',         domain: 'box.com',            source: 'statuspage', source_url: 'https://status.box.com/api/v2/summary.json' },
   { name: 'Google Workspace', vendor: 'Mail & calendar', domain: 'workspace.google.com', source: 'manual', source_url: '' },
   { name: 'OpenAI',         vendor: 'AI',              domain: 'openai.com',         source: 'statuspage', source_url: 'https://status.openai.com/api/v2/summary.json' },
-  { name: 'Anthropic',      vendor: 'AI',              domain: 'anthropic.com',      source: 'statuspage', source_url: 'https://status.anthropic.com/api/v2/summary.json' },
+  { name: 'Anthropic',      vendor: 'AI',              domain: 'anthropic.com',      source: 'statuspage', source_url: 'https://status.claude.com/api/v2/summary.json' },
+  // Finance / back-office — all verified Statuspage feeds except Adyen/PayPal,
+  // which have no machine-readable feed (manual, with a link to their page).
+  { name: 'NetSuite',       vendor: 'ERP',             domain: 'netsuite.com',       source: 'statuspage', source_url: 'https://status.netsuite.com/api/v2/summary.json' },
+  { name: 'Navan',          vendor: 'Travel & expense',domain: 'navan.com',          source: 'statuspage', source_url: 'https://status.navan.com/api/v2/summary.json' },
+  { name: 'Zip',            vendor: 'Procurement',     domain: 'ziphq.com',          source: 'statuspage', source_url: 'https://status.ziphq.com/api/v2/summary.json' },
+  { name: 'Lob',            vendor: 'Mail / print API',domain: 'lob.com',            source: 'statuspage', source_url: 'https://lob.statuspage.io/api/v2/summary.json' },
+  { name: 'FloQast',        vendor: 'Accounting',      domain: 'floqast.com',        source: 'statuspage', source_url: 'https://status.floqast.com/api/v2/summary.json' },
+  { name: 'Adyen',          vendor: 'Payments',        domain: 'adyen.com',          source: 'manual',     source_url: '', links: [{ kind: 'status', label: 'Status page', url: 'https://status.adyen.com' }] },
+  { name: 'PayPal',         vendor: 'Payments',        domain: 'paypal.com',         source: 'manual',     source_url: '', links: [{ kind: 'status', label: 'Status page', url: 'https://www.paypal-status.com' }] },
 ];
 const STATUS_STATE_OPTIONS = [
   { id: 'operational', label: 'Operational' },
@@ -9822,12 +9834,45 @@ function statusFaviconUrl(domain, size = 64) {
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`;
 }
 
+// Public base for the inbound webhook URLs we hand to vendors. An admin-set
+// public_base_url wins (use it when the portal sits behind a different public
+// host than this admin page); otherwise derive origin + the /api path prefix
+// (mirrors the fetch shim's IT_HUB_BASE, default '/portal').
+function statusPublicBase() {
+  const cfg = statusState.slack && statusState.slack.public_base_url;
+  if (cfg) return String(cfg).replace(/\/+$/, '');
+  const hubBase = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined) ? String(window.IT_HUB_BASE) : '/portal';
+  return (window.location.origin + (hubBase || '')).replace(/\/+$/, '');
+}
+function statusWebhookUrl(token) { return token ? `${statusPublicBase()}/api/status/webhook/${token}` : ''; }
+
+const STATUS_LINK_KINDS = [
+  { id: 'status',  label: 'Status page' },
+  { id: 'rss',     label: 'RSS / Atom' },
+  { id: 'help',    label: 'Help center' },
+  { id: 'docs',    label: 'Docs' },
+  { id: 'twitter', label: 'Updates on X' },
+  { id: 'other',   label: 'Other link' },
+];
+function statusLinkIcon(kind) {
+  return ({ status: '🟢', rss: '📡', help: '❓', docs: '📄', twitter: '𝕏', other: '🔗' })[kind] || '🔗';
+}
+
+// Label / placeholder / helper copy for the URL row, per polling source.
+function statusUrlMeta(source) {
+  if (source === 'statuspage') return { label: 'Status API', placeholder: 'https://www.cloudflarestatus.com/api/v2/summary.json', hint: "Status JSON endpoint — Statuspage.io <code>summary.json</code>, Slack, Heroku, Google, or Apple. Not sure of the exact URL? Paste the vendor's status page and hit <b>Detect</b>." };
+  if (source === 'rss')        return { label: 'Feed URL',   placeholder: 'https://www.githubstatus.com/history.atom', hint: "RSS or Atom incident feed — usually <code>/history.atom</code> or <code>/history.rss</code> on the vendor's status page." };
+  if (source === 'page')       return { label: 'Page URL',   placeholder: 'https://status.vendor.com', hint: 'Any status page — we scan its text for outage wording every 60s. Coarse; prefer a status API, feed, or webhook when one exists.' };
+  return { label: 'Probe URL', placeholder: 'https://your-service.example.com/health', hint: 'Anything reachable over HTTPS. We poll every 60s with a 6s timeout.' };
+}
+
 // Live snapshot from /api/status + last-loaded probes payload. We re-fetch on
 // every successful mutation and on a 30s tick so the page stays in sync.
 const statusState = {
   payload: null,
   probes: [],
   slack: null,
+  webhooks: {}, // serviceId → { token, last_at } (admin-only; never in /api/status)
   loadError: null,
   pollHandle: null,
 };
@@ -9844,6 +9889,11 @@ async function fetchStatusProbes() {
 }
 async function fetchStatusSlack() {
   const r = await fetch('/api/admin/status/slack', { credentials: 'include', cache: 'no-store' });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+async function fetchStatusWebhooks() {
+  const r = await fetch('/api/admin/status/webhooks', { credentials: 'include', cache: 'no-store' });
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
@@ -9925,7 +9975,7 @@ function renderStatus(root) {
         <div class="card">
           <div class="card-head"><h2 class="card-title">Probes</h2></div>
           <div class="text-3" style="font-size:12.5px;margin-bottom:12px;">
-            Live monitoring we run ourselves. Probes hit the URL every 60 seconds; vendor-status feeds (Statuspage.io <code>summary.json</code>) cover Cloudflare, GitHub, Slack, Zoom, Figma, and others.
+            Live monitoring. Status APIs, RSS/Atom feeds, probes, and page scans are polled every 60 seconds; webhook services appear here too and update the instant the vendor pushes an event.
           </div>
           <div id="statusProbesHost" style="display:flex;flex-direction:column;gap:10px;"></div>
         </div>
@@ -9933,10 +9983,16 @@ function renderStatus(root) {
         <div class="card">
           <div class="card-head"><h2 class="card-title">Sources</h2></div>
           <ul style="margin:0;padding-left:18px;font-size:12.5px;line-height:1.7;color:var(--ink);">
-            <li><b>Manual</b> — IT toggles state by hand. Use for things we can't probe (rooms, badge readers, etc.).</li>
+            <li><b>Vendor status</b> — a status JSON API: Statuspage.io <code>summary.json</code> (Cloudflare, GitHub, Stripe…), Slack, Heroku, Google, or Apple. Paste the URL, or paste the status page and hit <b>Detect</b>.</li>
+            <li><b>RSS / Atom</b> — a vendor's incident feed (<code>/history.atom</code> or <code>/history.rss</code>). The newest entry's latest update sets the state.</li>
+            <li><b>Webhook (push)</b> — we mint a unique inbound URL. Paste it into the vendor's status page (<i>Subscribe → Webhook</i>) and they push incident + component changes to us in real time.</li>
             <li><b>HTTP probe</b> — we GET your URL every 60s. 5xx → down, 4xx or &gt;2.5s → degraded.</li>
-            <li><b>Vendor status</b> — paste a Statuspage.io <code>summary.json</code> URL (e.g. <code>https://www.cloudflarestatus.com/api/v2/summary.json</code>).</li>
+            <li><b>Page keyword</b> — scan a plain status page's text for outage wording. Last resort when there's no API, feed, or webhook.</li>
+            <li><b>Manual</b> — IT toggles state by hand. For things we can't probe (rooms, badge readers, etc.).</li>
           </ul>
+          <div class="text-3" style="font-size:11.5px;margin-top:10px;line-height:1.5;">
+            Tip: many vendors also offer “Subscribe via Slack” on their status page — that pushes their updates straight into a channel via the vendor's own app. The <b>Webhook</b> source brings those same events <i>into the Hub</i> so they show on /status and route through your Slack setup below.
+          </div>
         </div>
       </div>
     </div>
@@ -9954,6 +10010,18 @@ function renderStatus(root) {
       .status-svc-url-input { padding:8px 11px !important; font-size:12.5px; font-family:ui-monospace, SF Mono, Menlo, monospace; width:100%; }
       .status-svc-url-hint { grid-column: 2 / span 2; font-size:11px; color:var(--ink-3); margin-top:2px; line-height:1.5; }
       .status-svc-url-hint code { font-size:11px; padding:1px 4px; background:var(--sidebar); border:1px solid var(--border); border-radius:3px; }
+      .status-svc-url-btns { display:flex; gap:6px; align-items:center; }
+      /* Webhook URL row — monospace, read-only, reads as a "copy me" field. */
+      .status-webhook-row .status-svc-url-input[readonly] { background:var(--sidebar); cursor:text; color:var(--ink-2); }
+      /* Reference-links editor */
+      .status-svc-links { grid-column:2; display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-width:0; }
+      .status-link-chip { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; color:var(--ink); background:var(--canvas); border:1.5px solid var(--border); border-radius:999px; padding:3px 6px 3px 10px; max-width:240px; }
+      .status-link-chip > span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+      .status-link-chip button { background:none; border:none; cursor:pointer; color:var(--ink-3); font-size:14px; line-height:1; padding:0 2px; border-radius:4px; }
+      .status-link-chip button:hover { background:rgba(218,51,39,0.10); color:var(--neg); }
+      .status-link-add { display:inline-flex; gap:6px; align-items:center; }
+      .status-link-add select.tx { padding:5px 7px; font-size:11.5px; }
+      .status-link-add input.tx { padding:6px 9px; font-size:11.5px; width:200px; max-width:46vw; }
       .status-icon-cell { width:36px; height:36px; border:1.5px solid var(--border); border-radius:7px; background:#fff; display:grid; place-items:center; overflow:hidden; }
       .status-icon-cell img { width:22px; height:22px; object-fit:contain; display:block; }
       .status-icon-cell .fallback { font-size:11px; font-weight:800; letter-spacing:-0.01em; color:var(--ink); }
@@ -10141,14 +10209,16 @@ function renderStatus(root) {
   // background poll calls reload({ force: false }) so it never disrupts typing.
   async function reload({ force = true } = {}) {
     try {
-      const [payload, probesPayload, slackPayload] = await Promise.all([
+      const [payload, probesPayload, slackPayload, webhooksPayload] = await Promise.all([
         fetchStatusPayload(),
         fetchStatusProbes().catch(() => ({ probes: [] })),
         fetchStatusSlack().catch(() => null),
+        fetchStatusWebhooks().catch(() => ({ webhooks: {} })),
       ]);
       statusState.payload = payload;
       statusState.probes = probesPayload.probes || [];
       statusState.slack = slackPayload || statusState.slack;
+      statusState.webhooks = webhooksPayload.webhooks || {};
       statusState.loadError = null;
       paint({ force });
     } catch (e) {
@@ -10221,6 +10291,17 @@ function renderStatus(root) {
       <div class="slack-section-label">Channels</div>
       ${channels.length ? chRows : '<div class="slack-empty">No channels yet. Add one, then connect apps to it below each service.</div>'}
       <button class="slack-add-btn" id="slackAddCh">+ Add channel</button>
+
+      <div class="slack-section-label" style="margin-top:16px;">Public URLs <span style="font-weight:600;text-transform:none;letter-spacing:0;color:var(--ink-3);">· optional</span></div>
+      <div style="margin-bottom:8px;">
+        <input class="tx" id="slackStatusUrl" placeholder="Status page URL — e.g. https://it.slicelife.com/portal/#status" value="${esc(s.public_status_url || '')}" style="width:100%;box-sizing:border-box;padding:7px 9px;font-size:12px;border:1.5px solid var(--border);border-radius:7px;background:var(--canvas);color:var(--ink);" />
+        <div class="text-3" style="font-size:11px;margin-top:3px;">Linked from the footer of every Slack alert.</div>
+      </div>
+      <div style="margin-bottom:8px;">
+        <input class="tx" id="slackBaseUrl" placeholder="Webhook base — defaults to ${esc(statusPublicBase())}" value="${esc(s.public_base_url || '')}" style="width:100%;box-sizing:border-box;padding:7px 9px;font-size:12px;border:1.5px solid var(--border);border-radius:7px;background:var(--canvas);color:var(--ink);" />
+        <div class="text-3" style="font-size:11px;margin-top:3px;">Overrides the host used to build inbound webhook URLs (set this if the portal is reachable on a different public host than this admin page).</div>
+      </div>
+      <button class="btn ghost sm" id="slackUrlsSave">Save URLs</button>
     `;
 
     const tokenSave = $('slackTokenSave');
@@ -10263,28 +10344,58 @@ function renderStatus(root) {
       try { await statusApi('POST', '/api/admin/status/slack/channels', { label: label.trim(), channel_id: channel_id.trim() }); toast('Channel added.', 'ok'); await reload(); }
       catch (e) { toast(`Add failed: ${e.message}`, 'err'); }
     };
+    const urlsSave = $('slackUrlsSave');
+    if (urlsSave) urlsSave.onclick = async () => {
+      const public_status_url = $('slackStatusUrl').value.trim();
+      const public_base_url = $('slackBaseUrl').value.trim();
+      try { await statusApi('PUT', '/api/admin/status/settings', { public_status_url, public_base_url }); toast('URLs saved.', 'ok'); await reload({ force: false }); }
+      catch (e) { toast(`Save failed: ${e.message}`, 'err'); }
+    };
   }
 
   function svcRowHtml(s) {
     const iconUrl = s.icon_url || statusFaviconUrl(s.domain);
     const initials = (s.name || '?').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
     const sourceMeta = STATUS_SOURCE_OPTIONS.find((o) => o.id === s.source) || STATUS_SOURCE_OPTIONS[0];
-    const showSourceUrl = s.source !== 'manual';
+    const isManual = s.source === 'manual';
+    const isWebhook = s.source === 'webhook';
+    const needsUrl = !isManual && !isWebhook; // statuspage / rss / page / probe
     const lastChecked = s.last_checked_at ? new Date(s.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
-    // URL row only renders for non-manual sources. Full-width input + helper
-    // text + a "Test" button so admins can validate the endpoint without
-    // waiting for the next 60s poll.
-    const urlRowHtml = showSourceUrl ? `
+
+    // URL row — poll sources only. Label/placeholder/hint vary by source; a
+    // "Detect" button auto-resolves a pasted status URL, and "Test" polls now.
+    const um = statusUrlMeta(s.source);
+    const urlRowHtml = needsUrl ? `
       <div class="status-svc-url-row">
-        <span class="status-svc-url-label">${s.source === 'statuspage' ? 'Status page API' : 'Probe URL'}</span>
-        <input class="tx status-svc-url-input" data-f="source_url"
-          placeholder="${s.source === 'statuspage' ? 'https://www.cloudflarestatus.com/api/v2/summary.json' : 'https://your-service.example.com/health'}"
-          value="${esc(s.source_url || '')}" />
-        <button class="btn ghost xs" data-test-url title="Send a one-off probe to this URL right now">Test</button>
-        <span class="status-svc-url-hint">${s.source === 'statuspage'
-          ? "Statuspage.io <code>summary.json</code> endpoint — check the vendor's status site for the API URL."
-          : "Anything reachable over HTTPS. We poll every 60s with a 6s timeout."}</span>
+        <span class="status-svc-url-label">${um.label}</span>
+        <input class="tx status-svc-url-input" data-f="source_url" placeholder="${esc(um.placeholder)}" value="${esc(s.source_url || '')}" />
+        <span class="status-svc-url-btns">
+          <button class="btn ghost xs" data-detect-url title="Figure out the best machine-readable source for this URL">Detect</button>
+          <button class="btn ghost xs" data-test-url title="Poll this URL right now">Test</button>
+        </span>
+        <span class="status-svc-url-hint">${um.hint}</span>
       </div>` : '';
+
+    // Webhook row — the inbound URL the vendor POSTs to. Copy + rotate.
+    const wh = statusState.webhooks && statusState.webhooks[s.id];
+    const whUrl = wh && wh.token ? statusWebhookUrl(wh.token) : '';
+    const whLast = wh && wh.last_at ? new Date(wh.last_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : null;
+    const webhookRowHtml = isWebhook ? `
+      <div class="status-svc-url-row status-webhook-row">
+        <span class="status-svc-url-label">Webhook URL</span>
+        ${whUrl ? `
+          <input class="tx status-svc-url-input" data-webhook-url readonly value="${esc(whUrl)}" onclick="this.select()" />
+          <span class="status-svc-url-btns">
+            <button class="btn ghost xs" data-webhook-copy title="Copy URL">Copy</button>
+            <button class="btn ghost xs" data-webhook-roll title="Generate a new URL (invalidates the old one)">Rotate</button>
+          </span>
+          <span class="status-svc-url-hint">Paste this into the vendor's status page → <b>Subscribe&nbsp;→&nbsp;Webhook</b>. They'll POST incident &amp; component updates here in real time.${whLast ? ` Last received <b>${esc(whLast)}</b>.` : ' <i>No events received yet.</i>'}</span>
+        ` : `
+          <button class="btn ghost xs" data-webhook-gen>Generate webhook URL</button>
+          <span class="status-svc-url-hint">Creates a unique inbound URL to paste into the vendor's status page.</span>
+        `}
+      </div>` : '';
+
     // Icon-URL row — always visible, lets admins point at a custom logo
     // (PNG/SVG) when the auto-favicon is too low-res or off-brand. Empty
     // string falls back to favicon-from-domain.
@@ -10294,8 +10405,29 @@ function renderStatus(root) {
         <input class="tx status-svc-url-input" data-f="icon_url"
           placeholder="https://cdn.example.com/logos/service.png"
           value="${esc(s.icon_url || '')}" />
-        <span class="status-svc-url-hint">Optional — overrides the auto-favicon. Square PNG/SVG works best.</span>
+        <span class="status-svc-url-hint">Optional — overrides the auto-favicon. Square PNG/SVG works best. Also used as the Slack alert icon.</span>
       </div>`;
+
+    // Links row — reference links shown to users on /status (status page, RSS, …).
+    const links = Array.isArray(s.links) ? s.links : [];
+    const linksRowHtml = `
+      <div class="status-svc-url-row status-links-row">
+        <span class="status-svc-url-label">Links</span>
+        <div class="status-svc-links" data-links-host>
+          ${links.map((l, i) => `
+            <span class="status-link-chip" data-link-i="${i}" title="${esc(l.url)}">
+              <span>${statusLinkIcon(l.kind)} ${esc(l.label || l.url)}</span>
+              <button data-link-del title="Remove link">×</button>
+            </span>`).join('')}
+          <span class="status-link-add">
+            <select class="tx" data-link-kind>${STATUS_LINK_KINDS.map((k) => `<option value="${k.id}">${k.label}</option>`).join('')}</select>
+            <input class="tx" data-link-url placeholder="https://status.vendor.com" />
+            <button class="btn ghost xs" data-link-add>Add</button>
+          </span>
+        </div>
+        <span class="status-svc-url-hint">Clickable links shown to users on /status — status page, RSS feed, help center, etc.</span>
+      </div>`;
+
     // Per-service Slack routing — connect this app to one or more channels. Its
     // alerts go to these plus any channel flagged "Everything".
     const slk = statusState.slack;
@@ -10321,7 +10453,7 @@ function renderStatus(root) {
           </div>
           <input class="tx" data-f="name"   placeholder="Service name"      value="${esc(s.name || '')}" />
           <input class="tx" data-f="vendor" placeholder="Vendor / category" value="${esc(s.vendor || '')}" />
-          <select class="tx" data-f="state" ${s.source !== 'manual' ? 'disabled title="State is set by the poller for this source"' : ''}>
+          <select class="tx" data-f="state" ${!isManual ? 'disabled title="State is set automatically for this source"' : ''}>
             ${STATUS_STATE_OPTIONS.map((o) => `<option value="${o.id}" ${s.state === o.id ? 'selected' : ''}>${o.label}</option>`).join('')}
           </select>
           <select class="tx" data-f="source" title="${esc(sourceMeta.hint)}">
@@ -10333,6 +10465,8 @@ function renderStatus(root) {
         </div>
         ${iconRowHtml}
         ${urlRowHtml}
+        ${webhookRowHtml}
+        ${linksRowHtml}
         ${slackRowHtml}
       </div>
     `;
@@ -10422,6 +10556,69 @@ function renderStatus(root) {
         } catch (e) { toast(`Test failed: ${e.message}`, 'err'); }
         finally { testBtn.disabled = false; testBtn.textContent = 'Test'; }
       };
+      // "Detect" — hand the pasted URL to the server, which finds the best
+      // machine-readable source (status JSON → feed → page) and switches to it.
+      const detectBtn = row.querySelector('[data-detect-url]');
+      if (detectBtn) detectBtn.onclick = async () => {
+        const urlEl = row.querySelector('[data-f="source_url"]');
+        const url = (urlEl?.value || '').trim();
+        if (!url) { toast('Paste a status URL first.', 'err'); return; }
+        detectBtn.disabled = true; detectBtn.textContent = 'Detecting…';
+        try {
+          const out = await statusApi('POST', '/api/admin/status/resolve-source', { url });
+          await flushPatch(id);
+          await statusApi('PATCH', `/api/admin/status/services/${id}`, { source: out.source, source_url: out.source_url });
+          const label = (STATUS_SOURCE_OPTIONS.find((o) => o.id === out.source) || {}).label || out.source;
+          toast(`Detected ${label}.`, 'ok');
+          await reload();
+          statusApi('POST', '/api/admin/status/poll').then(() => reload({ force: false })).catch(() => {});
+        } catch (e) { toast(`Detect failed: ${e.message}`, 'err'); }
+        finally { detectBtn.disabled = false; detectBtn.textContent = 'Detect'; }
+      };
+      // Webhook URL controls (generate / copy / rotate).
+      const genBtn = row.querySelector('[data-webhook-gen]');
+      if (genBtn) genBtn.onclick = async () => {
+        try { await statusApi('POST', `/api/admin/status/services/${id}/webhook`); toast('Webhook URL created.', 'ok'); await reload(); }
+        catch (e) { toast(`Failed: ${e.message}`, 'err'); }
+      };
+      const copyBtn = row.querySelector('[data-webhook-copy]');
+      if (copyBtn) copyBtn.onclick = async () => {
+        const url = row.querySelector('[data-webhook-url]')?.value || '';
+        try { await navigator.clipboard.writeText(url); toast('Webhook URL copied.', 'ok'); }
+        catch { const el = row.querySelector('[data-webhook-url]'); if (el) { el.select(); document.execCommand('copy'); toast('Webhook URL copied.', 'ok'); } }
+      };
+      const rollBtn = row.querySelector('[data-webhook-roll]');
+      if (rollBtn) rollBtn.onclick = async () => {
+        const ok = await confirmDialog('Rotate webhook URL', 'The current URL stops working immediately. You will need to paste the new one into the vendor’s status page.', true, 'Rotate');
+        if (!ok) return;
+        try { await statusApi('POST', `/api/admin/status/services/${id}/webhook`); toast('New webhook URL generated.', 'ok'); await reload(); }
+        catch (e) { toast(`Failed: ${e.message}`, 'err'); }
+      };
+      // Reference links — add (kind + url) / remove. Each change PATCHes the
+      // whole links array, then repaints to show the chips.
+      const linksHost = row.querySelector('[data-links-host]');
+      const curLinks = () => {
+        for (const g of (statusState.payload?.groups || [])) {
+          const s = (g.services || []).find((x) => x.id === id);
+          if (s) return Array.isArray(s.links) ? s.links.slice() : [];
+        }
+        return [];
+      };
+      const addLinkBtn = row.querySelector('[data-link-add]');
+      if (addLinkBtn) addLinkBtn.onclick = async () => {
+        const kind = row.querySelector('[data-link-kind]')?.value || 'other';
+        const url = (row.querySelector('[data-link-url]')?.value || '').trim();
+        if (!/^https?:\/\//i.test(url)) { toast('Enter an http(s) URL.', 'err'); return; }
+        const links = curLinks().concat([{ kind, url }]);
+        try { await statusApi('PATCH', `/api/admin/status/services/${id}`, { links }); toast('Link added.', 'ok'); await reload(); }
+        catch (e) { toast(`Failed: ${e.message}`, 'err'); }
+      };
+      if (linksHost) linksHost.querySelectorAll('[data-link-del]').forEach((b) => b.onclick = async () => {
+        const idx = +b.closest('[data-link-i]').dataset.linkI;
+        const links = curLinks().filter((_, i) => i !== idx);
+        try { await statusApi('PATCH', `/api/admin/status/services/${id}`, { links }); await reload(); }
+        catch (e) { toast(`Failed: ${e.message}`, 'err'); }
+      });
       // Per-service Slack channel routing — on any toggle, save the full set.
       const picker = row.querySelector('[data-slack-picker]');
       if (picker) picker.querySelectorAll('input[data-ch]').forEach((cb) => cb.onchange = async () => {
@@ -10441,9 +10638,10 @@ function renderStatus(root) {
     });
   }
 
+  const PROBE_SOURCE_LABEL = { statuspage: 'Vendor status feed', rss: 'RSS / Atom feed', page: 'Page keyword scan', probe: 'HTTP probe', webhook: 'Webhook (push)' };
   function paintProbes(probes) {
     if (!probes.length) {
-      probesHost.innerHTML = `<div class="text-3" style="font-size:12px;">No probes yet — set a service's source to "HTTP probe" or "Vendor status" to see live results here.</div>`;
+      probesHost.innerHTML = `<div class="text-3" style="font-size:12px;">Nothing live-monitored yet — set a service's source to a status feed, RSS, webhook, probe, or page scan to see results here.</div>`;
       return;
     }
     probesHost.innerHTML = probes.map((p) => {
@@ -10451,22 +10649,27 @@ function renderStatus(root) {
       const okCount = recent.filter((r) => r.state === 'operational').length;
       const errRate = recent.length ? Math.round(((recent.length - okCount) / recent.length) * 100) : 0;
       const stateColor = p.state === 'operational' ? '#0A8A3E' : p.state === 'degraded' ? '#B8860B' : '#DA3327';
+      const isWebhook = p.source === 'webhook';
+      const whLast = p.webhook_last_at ? new Date(p.webhook_last_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : null;
       const lastChecked = p.last_checked_at ? new Date(p.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : 'never';
+      const meta = isWebhook
+        ? `Push · ${whLast ? 'last event ' + esc(whLast) : 'awaiting first event'}`
+        : `${PROBE_SOURCE_LABEL[p.source] || 'Monitor'} · ${recent.length}/50 samples · ${errRate}% errors`;
       return `
         <div class="status-probe-row">
           <div class="status-probe-head">
             <div>
               <div class="status-probe-name">${esc(p.name)}</div>
-              <div class="text-3" style="font-size:11px;">${p.source === 'statuspage' ? 'Vendor status feed' : 'HTTP probe'} · ${recent.length}/50 samples · ${errRate}% errors</div>
+              <div class="text-3" style="font-size:11px;">${meta}</div>
             </div>
             <span style="font-size:10px; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; color:${stateColor};">${esc(p.state)}</span>
           </div>
-          <div class="status-probe-bars" title="Last 50 checks · oldest left">
-            ${recent.slice().reverse().map((r) => `<div class="status-probe-bar ${r.state === 'operational' ? '' : r.state}" title="${esc(r.state)} · ${r.response_ms != null ? r.response_ms + 'ms' : '—'} · ${new Date(r.checked_at).toLocaleString()}"></div>`).join('') || '<div class="text-3" style="font-size:11px;">No samples yet — first poll runs within ~60s.</div>'}
+          <div class="status-probe-bars" title="Last 50 samples · oldest left">
+            ${recent.slice().reverse().map((r) => `<div class="status-probe-bar ${r.state === 'operational' ? '' : r.state}" title="${esc(r.state)} · ${r.response_ms != null ? r.response_ms + 'ms' : '—'} · ${new Date(r.checked_at).toLocaleString()}"></div>`).join('') || '<div class="text-3" style="font-size:11px;">No samples yet.</div>'}
           </div>
-          <div class="status-probe-url">${esc(p.source_url || '(no URL configured)')}</div>
+          <div class="status-probe-url">${isWebhook ? 'Inbound webhook — vendor pushes events' : esc(p.source_url || '(no URL configured)')}</div>
           ${p.last_error ? `<div style="font-size:11px;color:#8A1E17;font-family:ui-monospace, SF Mono, Menlo, monospace;">Last error: ${esc(p.last_error)}</div>` : ''}
-          <div class="text-3" style="font-size:11px;">Last checked: ${esc(lastChecked)}</div>
+          <div class="text-3" style="font-size:11px;">${isWebhook ? 'Heartbeat' : 'Last checked'}: ${esc(lastChecked)}</div>
         </div>
       `;
     }).join('');
@@ -10779,15 +10982,14 @@ function renderStatus(root) {
       const urlField = $$('#statusAddUrlField');
       const urlInput = $$('#statusAddUrl');
       const urlHint = $$('#statusAddUrlHint');
-      urlField.style.display = source === 'manual' ? 'none' : '';
-      if (source === 'statuspage') {
-        urlInput.placeholder = 'https://www.cloudflarestatus.com/api/v2/summary.json';
-        urlHint.innerHTML = 'Statuspage.io <code>summary.json</code> endpoint — most vendors expose one (Cloudflare, GitHub, Slack, OpenAI…).';
-      } else if (source === 'probe') {
-        urlInput.placeholder = 'https://your-service.example.com/health';
-        urlHint.innerHTML = 'Anything HTTPS — we GET every 60s with a 6s timeout. 5xx = down, 4xx or &gt;2.5s = degraded.';
+      const needsUrl = source !== 'manual' && source !== 'webhook';
+      urlField.style.display = needsUrl ? '' : 'none';
+      if (needsUrl) {
+        const um = statusUrlMeta(source);
+        urlInput.placeholder = um.placeholder;
+        urlHint.innerHTML = um.hint;
       }
-      const urlOk = source === 'manual' || urlInput.value.trim().length > 0;
+      const urlOk = !needsUrl || urlInput.value.trim().length > 0;
       customValid = !!name && urlOk;
       if (activeTab === 'custom') $$('#statusAddSubmit').disabled = !customValid;
     };
@@ -10808,6 +11010,15 @@ function renderStatus(root) {
         $$('#statusAddSubmit').disabled = false; $$('#statusAddSubmit').textContent = 'Add to /status';
         return;
       }
+      // Auto-attach a clickable "Status page" link so the app ships with one.
+      const deriveLinks = (src, url) => {
+        if (!url) return [];
+        try {
+          if (src === 'statuspage' || src === 'rss') return [{ kind: 'status', label: 'Status page', url: new URL(url).origin }];
+          if (src === 'page') return [{ kind: 'status', label: 'Status page', url }];
+        } catch {}
+        return [];
+      };
       let payload;
       if (activeTab === 'catalog' && pickedPreset) {
         payload = {
@@ -10818,17 +11029,21 @@ function renderStatus(root) {
           source: pickedPreset.source,
           source_url: pickedPreset.source_url || null,
           state: 'operational',
+          links: pickedPreset.links || deriveLinks(pickedPreset.source, pickedPreset.source_url),
         };
       } else {
+        const src = overlay.querySelector('input[name="statusAddSource"]:checked').value;
+        const srcUrl = $$('#statusAddUrl').value.trim() || null;
         payload = {
           group_id: groupId,
           name: $$('#statusAddName').value.trim(),
           vendor: $$('#statusAddVendor').value.trim() || null,
           domain: $$('#statusAddDomain').value.trim() || null,
           icon_url: $$('#statusAddIconUrl').value.trim() || null,
-          source: overlay.querySelector('input[name="statusAddSource"]:checked').value,
-          source_url: $$('#statusAddUrl').value.trim() || null,
+          source: src,
+          source_url: srcUrl,
           state: 'operational',
+          links: deriveLinks(src, srcUrl),
         };
       }
       try {
@@ -10836,9 +11051,10 @@ function renderStatus(root) {
         toast(`${payload.name} added.`, 'ok');
         close();
         await reload();
-        // For non-manual additions, kick a poll so the new row shows live state
-        // within seconds rather than waiting for the next 60s tick.
-        if (payload.source !== 'manual') {
+        // For polled additions, kick a poll so the new row shows live state
+        // within seconds rather than waiting for the next 60s tick. Manual +
+        // webhook services aren't polled, so skip.
+        if (payload.source !== 'manual' && payload.source !== 'webhook') {
           statusApi('POST', '/api/admin/status/poll').then(reload).catch(() => {});
         }
       } catch (e) {

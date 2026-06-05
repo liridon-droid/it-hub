@@ -82,8 +82,9 @@ CREATE INDEX IF NOT EXISTS chat_feedback_chat_log_id_idx ON chat_feedback (chat_
 -- ── Status platform ────────────────────────────────────────────────────────
 -- Replaces the old localStorage-based mock + StatusGator integration.
 -- Service catalog lives in `status_services`, grouped via `status_groups`.
--- Each `status_checks` row is one poll result; we keep 90 days for the
--- public history bars. Incidents have a header row + a timeline of updates.
+-- Each `status_checks` row is one poll result; the public page renders a
+-- 10-day history window and we retain 30 days of samples (see pruneOldChecks).
+-- Incidents have a header row + a timeline of updates.
 
 CREATE TABLE IF NOT EXISTS status_groups (
   id SERIAL PRIMARY KEY,
@@ -114,6 +115,23 @@ CREATE TABLE IF NOT EXISTS status_services (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ── Per-service extras (added after the table shipped — keep idempotent) ──────
+-- `source` is intentionally a free-text column (no CHECK) so new poll sources
+-- like 'rss', 'page', and 'webhook' don't need a migration to be accepted.
+-- links     — admin-curated reference links shown on /status (status page, RSS,
+--             help center, etc.): JSON array of { label, url, kind }.
+-- webhook_token — unguessable secret embedded in this service's inbound webhook
+--             URL. The vendor's Statuspage POSTs incident/component events to
+--             /api/status/webhook/<token>; the token IS the auth (Statuspage
+--             webhooks aren't signed), so it must stay secret. NULLs are
+--             distinct in a UNIQUE index, so most rows leaving it NULL is fine.
+-- webhook_last_at — last time we received a valid inbound webhook for this row.
+ALTER TABLE status_services ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE status_services ADD COLUMN IF NOT EXISTS webhook_token TEXT;
+ALTER TABLE status_services ADD COLUMN IF NOT EXISTS webhook_last_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS status_services_webhook_token_idx
+  ON status_services (webhook_token) WHERE webhook_token IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS status_services_group_idx ON status_services (group_id, position);
 
