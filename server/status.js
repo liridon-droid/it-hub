@@ -353,12 +353,11 @@ function parseStatusJson(json) {
   if (indicator === 'none' || indicator == null) {
     const comps = Array.isArray(json.components) ? json.components : [];
     const bad = comps.filter((c) => c && c.status && c.status !== 'operational' && !/_maintenance$/.test(c.status));
-    if (bad.some((c) => /major_outage|partial_outage/.test(c.status))) {
-      return { state: 'down', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}` };
-    }
-    if (bad.length) {
-      return { state: 'degraded', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}` };
-    }
+    // Only a *major* outage is "down". partial_outage / degraded_performance are
+    // "degraded" — never escalate a partial impact to a full outage in alerts.
+    const major = bad.find((c) => /major_outage/.test(c.status));
+    if (major) return { state: 'down', state_note: `${major.name}: major outage` };
+    if (bad.length) return { state: 'degraded', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}` };
     return { state: 'operational', state_note: description };
   }
   return { state: 'operational', state_note: description };
@@ -425,8 +424,11 @@ function parseFeed(xml) {
   return out;
 }
 
-const FEED_DOWN_RE = /\b(major outage|outage|unavailable|service disruption|is down|are down)\b/;
-const FEED_DEGRADED_RE = /\b(investigating|identified|monitoring|degraded|degradation|elevated|partial|disruption|errors?|latency|slow|impact(ed|ing)?)\b/;
+// Be conservative about "down": only a clearly-major/complete outage or an
+// explicit "is down/unavailable" counts. A bare or partial "outage", a
+// "disruption", etc. are degraded — don't over-escalate to a full outage.
+const FEED_DOWN_RE = /\b(major outage|complete outage|total outage|service unavailable|is down|are down|are unavailable)\b/;
+const FEED_DEGRADED_RE = /\b(investigating|identified|monitoring|degraded|degradation|elevated|partial|disruption|outage|errors?|latency|slow|impact(ed|ing)?)\b/;
 const FEED_RESOLVED_RE = /\b(resolved|completed|operational|recovered|back to normal)\b/;
 
 function classifyFeed(items) {
@@ -521,7 +523,9 @@ async function resolveSource(rawUrl) {
   const json = (url) => cands.push({ kind: 'json', url });
   const feed = (url) => cands.push({ kind: 'feed', url });
   if (/\.json(\?|$)/.test(path)) json(u.href);
-  else if (/\.(atom|rss|xml)(\?|$)/.test(path)) feed(u.href);
+  // .rss/.atom/.xml extension, OR a path ending in /rss, /atom, /feed (no dot —
+  // e.g. OneLogin's /pages/<id>/rss) → it's a feed.
+  else if (/\.(atom|rss|xml)(\?|$)|\/(rss|atom|feed)\/?(\?|$)/.test(path)) feed(u.href);
   else { json(u.href); feed(u.href); }
   ['incidents.json', 'summary.json', 'status.json'].forEach((f) => json(dir + f));
   ['feed.atom', 'en/feed.atom', 'history.atom', 'history.rss'].forEach((f) => feed(dir + f));
@@ -536,7 +540,7 @@ async function resolveSource(rawUrl) {
       const r = await fetchWithTimeout(c.url, {
         method: 'GET',
         headers: { 'Accept': c.kind === 'json' ? 'application/json' : 'application/atom+xml, application/xml, */*', 'User-Agent': 'Slice-IT-Hub/1.0 status-detect' },
-        timeoutMs: 5000,
+        timeoutMs: 8000,
       });
       if (!r.ok) { drain(r); continue; }
       const body = await r.text();
