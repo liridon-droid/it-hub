@@ -8580,12 +8580,12 @@ function useCatalogIcons() {
 }
 
 // Catalog/app icon with a letter fallback — mirrors the catalog grid's tile.
-function AppIcon({ name, iconUrl, size = 30 }) {
+function AppIcon({ name, iconUrl, size = 30, className }) {
   if (iconUrl) {
-    return <img src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: 7, objectFit: 'contain', flexShrink: 0, border: '1px solid #EFEAE0', background: '#fff' }} />;
+    return <img className={className} src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: 7, objectFit: 'contain', flexShrink: 0, border: '1px solid #EFEAE0', background: '#fff' }} />;
   }
   return (
-    <span style={{
+    <span className={className} style={{
       width: size, height: size, borderRadius: 7, background: '#FBF0CB', border: '1px solid #211E1E',
       display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif",
       fontSize: Math.round(size * 0.46), color: '#211E1E', flexShrink: 0,
@@ -8821,11 +8821,11 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       ) : (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {shown.map((t) => (
-          <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} style={{
+          <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} className="tkt-row" style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
             display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
           }}>
-            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <AppIcon name={c ? c.name : t.subject} iconUrl={c ? c.icon_url : null} size={34} />; })()}
+            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <AppIcon className="tkt-app-icon" name={c ? c.name : t.subject} iconUrl={c ? c.icon_url : null} size={34} />; })()}
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
@@ -8833,7 +8833,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, whiteSpace: 'nowrap' }}>
               {(() => {
                 const a = String(t.approval_status || '').toLowerCase();
                 const showA = a === 'pending' || a === 'approved' || a === 'rejected';
@@ -8842,7 +8842,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                   {showA && <ApprovalPill state={a} />}
                 </>);
               })()}
-              <span style={{ color: '#9A8E78', fontSize: 12 }}>{relativeTime(t.updated_at || t.created_at)}</span>
+              {/* Fixed-width, right-aligned so the time lines up column-straight across rows. */}
+              <span style={{ color: '#9A8E78', fontSize: 12, width: 64, textAlign: 'right', flexShrink: 0 }}>{relativeTime(t.updated_at || t.created_at)}</span>
             </div>
           </button>
         ))}

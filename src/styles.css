@@ -846,6 +846,10 @@
   .chip-flat:focus-visible svg { transform: scale(1.45) rotate(-6deg); }
   .chip-flat:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; color: #000000; }
 
+  /* My Tickets rows: the app icon springs up a touch on row hover (modern feel). */
+  .tkt-row .tkt-app-icon { transition: transform .2s var(--ease); }
+  .tkt-row:hover .tkt-app-icon { transform: scale(1.14); }
+
   .pill-flat {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 3px 10px;
