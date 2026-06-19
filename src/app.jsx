@@ -9191,8 +9191,30 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
         padding: '10px 14px', marginBottom: 14,
       }}>
-        <button onClick={onBack} className="btn btn-outline" style={{ padding: '5px 11px', fontSize: 11 }}>← Back</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
+          <button onClick={onBack} className="btn btn-outline" style={{ padding: '5px 11px', fontSize: 11 }}>← Back</button>
+          {/* Ticket identity lives in the sticky bar (cleaner than a badge row in
+              the card): requester avatar, type, approval/work state, number. */}
+          {t && (
+            <>
+              {t.requester_name && (
+                <span title={'Requested by ' + t.requester_name} aria-label={'Requested by ' + t.requester_name} style={{
+                  width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
+                  background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center',
+                  fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: '0.01em',
+                }}>{initialsFor(t.requester_name)}</span>
+              )}
+              <TicketTypeBadge type={t.type} />
+              {!(approvalState === 'pending' || approvalState === 'rejected') && <TicketStatusBadge status={t.status} type={t.type} />}
+              {approvalState && <ApprovalPill state={approvalState} />}
+              <TicketNumber value={t.ticket_number} size={13} />
+            </>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {t && (approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+            <ApprovalsButton approval={approval} ticket={t} />
+          )}
           {t && closeReopenButtons()}
           {navList.length > 1 && (
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -9210,48 +9232,20 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
             <div style={{ fontSize: 12.5, color: '#78684C', margin: '0 0 12px', fontWeight: 600 }}>Couldn’t load the latest — showing what we have.</div>
           )}
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-              {/* Requester avatar — its own column at the top-left (the person the
-                  ticket is for), with the badges/title/meta stacked to its right. */}
-              {t.requester_name && (
-                <span title={'Requested by ' + t.requester_name} aria-label={'Requested by ' + t.requester_name} style={{
-                  width: 46, height: 46, borderRadius: '50%', flexShrink: 0,
-                  background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center',
-                  fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 16, letterSpacing: '0.01em',
-                }}>{initialsFor(t.requester_name)}</span>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <TicketTypeBadge type={t.type} />
-                    {/* Work status — suppressed while awaiting approval / rejected (the pill carries it). */}
-                    {!(approvalState === 'pending' || approvalState === 'rejected') && <TicketStatusBadge status={t.status} type={t.type} />}
-                    {approvalState && <ApprovalPill state={approvalState} />}
-                    <TicketNumber value={t.ticket_number} size={14} />
-                  </div>
-                  {/* Approvals dropdown (Close / Reopen live in the top action bar). */}
-                  {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <ApprovalsButton approval={approval} ticket={t} />
-                    </div>
-                  )}
-                </div>
-                {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px' }}>
-                  {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
-                  <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
-                </div>
-                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
-                  {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
-                  {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
-                  {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
-                  {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
-                </div>
-                {t.description && (
-                  <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
-                )}
-              </div>
+            {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 10px' }}>
+              {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
+              <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
             </div>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+              {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
+              {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
+              {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
+              {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
+            </div>
+            {t.description && (
+              <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
+            )}
           </div>
 
           <div style={{ ...TK.card, padding: '20px 24px' }}>
