@@ -1,0 +1,39 @@
+name: Deploy to EC2
+
+# Push-to-deploy for the IT Hub portal (liridon-droid/it-hub).
+# Runs on the self-hosted runner on the EC2 (labels: self-hosted, ec2-it-hub)
+# and deploys in place via the repo's own bin/deploy.sh — graceful: never
+# force-recreates postgres, restarts it-hub-client to clear the stale upstream.
+# The runner polls GitHub outbound, so no inbound SSH/security-group is needed.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', '**.txt']
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-it-hub-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, ec2-it-hub]
+    steps:
+      - name: Deploy (git pull + graceful rebuild via bin/deploy.sh)
+        run: |
+          set -euo pipefail
+          cd "$HOME/it-hub"
+          PULL=1 bin/deploy.sh all
+      - name: Health check
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 12); do
+            code=$(curl -s -m5 -o /dev/null -w "%{http_code}" http://localhost:8080/api/health || true)
+            echo "attempt $i: /api/health -> $code"
+            [ "$code" = "200" ] && { echo "it-hub healthy"; exit 0; }
+            sleep 5
+          done
+          echo "::error::it-hub health check failed after deploy"
+          cd "$HOME/it-hub" && docker compose logs --tail 60 it-hub-server || true
+          exit 1
