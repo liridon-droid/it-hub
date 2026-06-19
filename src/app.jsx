@@ -16,7 +16,6 @@ const QUICK_PROMPTS = [
   { icon: "IconLock",    label: "Reset my password",      guideTitle: "Reset my OneLogin password" },
   { icon: "IconWifi",    label: "Wi‑Fi isn't working",    guideTitle: "Wi-Fi isn't working" },
   { icon: "IconLaptop",  label: "Laptop running slow",    guideTitle: "Laptop running slow" },
-  { icon: "IconKey",     label: "Request app access",     guideTitle: "Request app access" },
   { icon: "IconMail",    label: "Email delivery issue",   guideTitle: "Email delivery issue" },
   { icon: "IconPlug",    label: "Set up a new device",    guideTitle: "Set up a new device" },
 ];
@@ -532,7 +531,7 @@ function useLiveStatus(intervalMs = 30000) {
   return { services, lastCheck, error };
 }
 
-function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets }) {
+function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onRequest }) {
   const [q, setQ] = useState("");
   // Staged screenshot for the in-input upload flow. When set, hitting Enter
   // (or Send) jumps straight to the screenshot analyzer with `q` as the note,
@@ -903,6 +902,40 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             </div>
           </div>
         </div>
+
+        {/* Request app access — promoted out of the quick-prompt chips into a
+            full-width bar directly under the search (same width as the input,
+            roughly a third of its height). Routes to the "Request something"
+            catalog page so finding an app is a first-class action. */}
+        <button
+          onClick={() => onRequest && onRequest()}
+          style={{
+            display: "flex", alignItems: "center", gap: 14,
+            maxWidth: 1120, width: "100%", margin: "18px auto 0", boxSizing: "border-box",
+            padding: "14px 24px", cursor: "pointer", textAlign: "left",
+            background: "#FDC831", color: "#211E1E",
+            border: "2px solid #211E1E", borderRadius: 14,
+            boxShadow: "3px 3px 0 #211E1E", fontFamily: "'Archivo', sans-serif",
+            animation: "fadeUp .7s .2s var(--ease) both",
+            transition: "transform .14s var(--ease), box-shadow .14s var(--ease)",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}
+          onMouseDown={(e) => { e.currentTarget.style.transform = "translate(1px,1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
+          onMouseUp={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E"; }}
+        >
+          <span style={{
+            width: 38, height: 38, borderRadius: 9, flexShrink: 0,
+            background: "#211E1E", display: "grid", placeItems: "center",
+          }}>
+            <IconKey size={20} stroke={2.2} style={{ color: "#FDC831" }} />
+          </span>
+          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}>Request app access</span>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#5C4A12" }}>Browse the catalog of apps &amp; services you can ask for</span>
+          </span>
+          <IconArrow size={20} stroke={2.4} style={{ marginLeft: "auto", flexShrink: 0 }} />
+        </button>
 
         {/* Quick prompts */}
         <div style={{
@@ -2892,7 +2925,8 @@ function App() {
         onOpenKnowledge={() => setStage("knowledge")}
         onOpenGuide={(g) => setGuide(g)}
         onOpenTickets={() => openTickets("mine")}
-        onOpenScreenshot={(init) => openScreenshot(init)} />
+        onOpenScreenshot={(init) => openScreenshot(init)}
+        onRequest={() => openCatalog()} />
       }
 
       {stage === "questions" &&
@@ -8603,6 +8637,70 @@ function TicketsBackBar({ onBack, label }) {
   );
 }
 
+// Tickets only carry `catalog_item_id` (the module API doesn't inline the
+// catalog item), so to show the requested app's icon we map that id onto the
+// catalog the portal already serves. Fetched once per session, shared by the
+// list + detail. Returns {} until loaded, then { [id]: { name, icon_url } }.
+let _catIconCache = null;
+let _catIconPromise = null;
+function useCatalogIcons() {
+  const [map, setMap] = React.useState(_catIconCache);
+  React.useEffect(() => {
+    if (_catIconCache) { setMap(_catIconCache); return; }
+    let off = false;
+    if (!_catIconPromise) {
+      _catIconPromise = ticketsApiJson('GET', '/api/catalog')
+        .then((j) => {
+          const m = {};
+          for (const it of catalogItemsFrom(j)) m[String(it.id)] = { name: it.name, icon_url: it.icon_url };
+          _catIconCache = m;
+          return m;
+        })
+        .catch(() => { _catIconCache = {}; return _catIconCache; });
+    }
+    _catIconPromise.then((m) => { if (!off) setMap(m); });
+    return () => { off = true; };
+  }, []);
+  return map || _catIconCache || {};
+}
+
+// Catalog/app icon with a letter fallback — mirrors the catalog grid's tile.
+function AppIcon({ name, iconUrl, size = 30 }) {
+  if (iconUrl) {
+    return <img src={iconUrl} alt="" width={size} height={size} style={{ borderRadius: 7, objectFit: 'contain', flexShrink: 0, border: '1px solid #EFEAE0', background: '#fff' }} />;
+  }
+  return (
+    <span style={{
+      width: size, height: size, borderRadius: 7, background: '#FBF0CB', border: '1px solid #211E1E',
+      display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif",
+      fontSize: Math.round(size * 0.46), color: '#211E1E', flexShrink: 0,
+    }}>{String(name || '?').charAt(0).toUpperCase()}</span>
+  );
+}
+
+// Approval-state pill (outline + dot) — deliberately distinct from the solid
+// work-status badge so "where's my approval" and "what's the work state" read as
+// two separate things. state ∈ pending | approved | rejected.
+function ApprovalPill({ state }) {
+  const meta = {
+    pending:  { label: 'Pending approval', color: '#9A4A00', dot: '#E08A1E' },
+    approved: { label: 'Approved',         color: '#0A6E31', dot: '#0A8A3E' },
+    rejected: { label: 'Rejected',         color: '#8E1A1A', dot: '#B92323' },
+  }[String(state || '').toLowerCase()];
+  if (!meta) return null;
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 8px',
+      background: '#FFFFFF', color: meta.color, border: '1px solid ' + meta.color, borderRadius: 999,
+      fontSize: 11, fontWeight: 800, fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
+      textTransform: 'uppercase', whiteSpace: 'nowrap',
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
+      {meta.label}
+    </span>
+  );
+}
+
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
 function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
@@ -8706,6 +8804,7 @@ function TicketsTab({ label, active, onClick, badge }) {
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
   const [selTicket, setSelTicket] = React.useState(null);
+  const icons = useCatalogIcons();
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
   React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
@@ -8777,8 +8876,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
         {shown.map((t) => (
           <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
-            display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
+            display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
           }}>
+            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <AppIcon name={c ? c.name : t.subject} iconUrl={c ? c.icon_url : null} size={34} />; })()}
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
@@ -8798,14 +8898,30 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   );
 }
 
-// The approvals dropdown content: a simple list of who needs to approve and
-// where each stands (Approved / Pending / Awaiting / Rejected). Nothing else —
-// no stage numbers, pills, or "waiting on … to sign off" prose.
+// Describe who acts on a stage: the real people who've already acted (from the
+// approval `actions`), else who the stage still needs — a role label ("Your
+// manager"), a group/queue name, or a specific user. NOTE: for a *pending*
+// role-based stage the module returns the role, not the resolved person, so we
+// show the role there; surfacing the literal name needs a module-side change.
+const APPROVER_ROLE_LABEL = { requester_manager: 'Your manager', department_head: 'Department head', it_director: 'IT director', queue_lead: 'Queue lead' };
+function approverLine(stage, actions) {
+  const acted = (actions || []).filter((a) => a && a.stage_order === stage.order && a.approver_name);
+  if (acted.length) {
+    return acted.map((a) => (a.action === 'rejected' ? 'Rejected by ' : a.action === 'approved' ? 'Approved by ' : ((a.action || 'Acted') + ' by ')) + a.approver_name).join(' · ');
+  }
+  const apprs = Array.isArray(stage.approvers) ? stage.approvers : [];
+  const names = apprs.map((ap) => ap && (ap.type === 'role' ? (APPROVER_ROLE_LABEL[ap.value] || ap.value) : ap.value)).filter(Boolean);
+  return names.length ? ('Needs: ' + names.join(', ')) : '';
+}
+
+// The approvals dropdown content: each approval stage, who it needs / who acted,
+// and where each stands (Approved / Pending / Awaiting / Rejected).
 function ApprovalSummary({ approval, ticket }) {
   const req = approval && approval.request;
   const status = String((req && req.status) || (ticket && ticket.status) || 'pending').toLowerCase();
   const stages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
   const current = approval && approval.current_stage;
+  const actions = (approval && Array.isArray(approval.actions)) ? approval.actions : [];
   const decided = status === 'approved' || status === 'rejected';
   const DOT = { Approved: '#0A8A3E', Pending: '#FDC831', Awaiting: '#8A8275', Rejected: '#B92323' };
   const TXT = { Approved: '#0A8A3E', Pending: '#211E1E', Awaiting: '#8A8275', Rejected: '#B92323' };
@@ -8827,8 +8943,11 @@ function ApprovalSummary({ approval, ticket }) {
         return (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderTop: i ? '1px solid #F0EBE0' : 'none' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: DOT[state], border: '1px solid #211E1E', flexShrink: 0 }} />
-            <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-            <span style={{ fontSize: 10.5, fontWeight: 800, color: TXT[state], fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em' }}>{state}</span>
+            <span style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+              {approverLine(s, actions) && <span style={{ display: 'block', fontSize: 11, color: '#78684C', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{approverLine(s, actions)}</span>}
+            </span>
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: TXT[state], fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{state}</span>
           </div>
         );
       })}
@@ -8881,6 +9000,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   // when the ticket read didn't inline an `attachments` array (see effect below).
   const [extraAtts, setExtraAtts] = React.useState([]);
   const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
+  const icons = useCatalogIcons();
 
   // Reusable load so we can refetch after a reply — the new comment/attachment,
   // plus anything IT added since, comes back from the ticketing system.
@@ -9032,6 +9152,14 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   const isResolved = statusLc === 'resolved';
   const isClosed = statusLc === 'closed';
   const isPendingApproval = !!t && ticketTypeMeta(t.type).kind === 'request' && statusLc === 'pending';
+  // Approval lifecycle state — separate axis from the work status. Use the
+  // fetched approval object when present, else infer 'pending' for a request
+  // still awaiting sign-off. null = this ticket has no approval (e.g. incidents).
+  const approvalState = (approval && approval.request && approval.request.status)
+    ? String(approval.request.status).toLowerCase()
+    : (isPendingApproval ? 'pending' : null);
+  // The requested app's icon/name, mapped from the ticket's catalog_item_id.
+  const catInfo = t && t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null;
 
   // One chat timeline: text comments + attachment bubbles, each attributed to
   // its author/uploader and ordered by time, so attachments read as part of the
@@ -9115,7 +9243,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
-                <TicketStatusBadge status={t.status} type={t.type} />
+                {/* Work status — suppressed while still awaiting approval and on a
+                    rejected request (the approval pill carries those states). */}
+                {!(approvalState === 'pending' || approvalState === 'rejected') && <TicketStatusBadge status={t.status} type={t.type} />}
+                {approvalState && <ApprovalPill state={approvalState} />}
                 <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
               </div>
               {/* Approvals dropdown (Close / Reopen now live in the top action bar). */}
@@ -9126,7 +9257,10 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
               )}
             </div>
             {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 8px' }}>{t.subject}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px' }}>
+              {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
+              <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
+            </div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
               {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
               {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
@@ -9479,15 +9613,24 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   const submitCatalog = async () => {
     for (const f of fields) {
       const v = responses[f.key];
-      if (f.required && (v == null || String(v).trim() === '')) {
+      // multiselect (and any future array field) is empty when it has no
+      // entries; everything else is empty when blank/whitespace.
+      const empty = Array.isArray(v) ? v.length === 0 : (v == null || String(v).trim() === '');
+      if (f.required && empty) {
         setErr('Please fill in “' + (f.label || f.key) + '”.');
         return;
       }
     }
+    // Justification is mandatory only when the catalog item asks for it.
+    if (item.justify_required && !justification.trim()) {
+      setErr('Please add a justification for this request.');
+      return;
+    }
     setBusy(true); setErr('');
     try {
+      const just = justification.trim();
       const t = await ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
-        justification, urgency, form_responses: responses,
+        urgency, form_responses: responses, ...(just ? { justification: just } : {}),
       });
       if (attachFiles.length && (t.id || t.ticket_number)) {
         try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
@@ -9581,8 +9724,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
             <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} />
           </div>
         ))}
-        <label style={TK.label}>Justification (optional)</label>
-        <textarea style={{ ...TK.field, minHeight: 70, resize: 'vertical' }} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder="Why you need this…" />
+        <label style={TK.label}>Justification{item.justify_required ? ' *' : ' (optional)'}</label>
+        <textarea style={{ ...TK.field, minHeight: 70, resize: 'vertical' }} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder={item.justify_required ? 'Let us know why you need this…' : 'Why you need this… (optional)'} />
         <label style={TK.label}>Urgency</label>
         <select style={TK.field} value={urgency} onChange={(e) => setUrgency(e.target.value)}>
           <option value="low">Low</option>
@@ -9719,6 +9862,40 @@ function CatalogField({ field, value, onChange }) {
       </select>
     );
   }
+  if (type === 'multiselect') {
+    // Pick one or more options. Stored (and submitted) as an array of the
+    // selected values; the server rejects an empty array on a required field.
+    const sel = Array.isArray(value) ? value : [];
+    const toggle = (v) => onChange(sel.includes(v) ? sel.filter((x) => x !== v) : [...sel, v]);
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 2 }}>
+        {(field.options || []).map((o) => {
+          const v = typeof o === 'string' ? o : (o.value != null ? o.value : o.label);
+          const l = typeof o === 'string' ? o : (o.label != null ? o.label : o.value);
+          const on = sel.includes(v);
+          return (
+            <button key={String(v)} type="button" onClick={() => toggle(v)} aria-pressed={on}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 12px',
+                border: '1px solid #211E1E', borderRadius: 7, cursor: 'pointer',
+                fontSize: 13.5, fontFamily: 'inherit', fontWeight: 600, lineHeight: 1.1,
+                background: on ? '#211E1E' : '#FFFFFF', color: on ? '#FDC831' : '#211E1E',
+                boxShadow: on ? '2px 2px 0 #211E1E' : 'none', transition: 'background .15s, box-shadow .15s',
+              }}>
+              <span style={{
+                width: 15, height: 15, borderRadius: 4, flexShrink: 0,
+                border: `1.5px solid ${on ? '#FDC831' : '#9A8E78'}`,
+                display: 'grid', placeItems: 'center',
+              }}>
+                {on && <IconCheck size={9} stroke={3.5} style={{ color: '#FDC831' }} />}
+              </span>
+              {l}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
   if (type === 'textarea') {
     return <textarea style={{ ...TK.field, minHeight: 80, resize: 'vertical' }} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
   }
@@ -9730,7 +9907,7 @@ function CatalogField({ field, value, onChange }) {
       </label>
     );
   }
-  const inputType = type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
+  const inputType = type === 'datetime' ? 'datetime-local' : type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
   return <input type={inputType} style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
 }
 
