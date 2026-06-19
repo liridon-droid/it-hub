@@ -9784,6 +9784,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
               </div>
             </div>
           )}
+          {/* Service catalog — the full list. Labelled on the default view so it
+              reads as a section under "Most popular"; plain results when searching. */}
+          {(!q && catFilter === 'all' && shown.length > 0) && (
+            <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#78684C', marginBottom: 9 }}>Service catalog</div>
+          )}
           {shown.length === 0 ? (
             <div style={{ ...TK.card, padding: '22px 20px', textAlign: 'center' }}>
               <div style={{ fontSize: 14, color: '#211E1E', fontWeight: 700, marginBottom: 6 }}>Nothing matches “{catQuery}”{catFilter !== 'all' ? ` in ${catFilter}` : ''}.</div>
