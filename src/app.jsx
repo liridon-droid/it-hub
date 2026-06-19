@@ -907,21 +907,26 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             quick prompts' flat chip look (.chip-flat: white → cheese on hover,
             icon springs), just sized up. Routes to the "Request something"
             catalog page so finding an app is a first-class action. */}
-        <button
-          onClick={() => onRequest && onRequest()}
-          className="chip-flat"
-          style={{
-            width: "100%", maxWidth: 1120, margin: "18px auto 0", boxSizing: "border-box",
-            justifyContent: "flex-start", gap: 13, padding: "15px 22px", fontSize: 15,
-            animation: "fadeUp .7s .2s var(--ease) both",
-          }}
-        >
-          <IconKey size={19} stroke={2.4} style={{ color: "#000000" }} />
-          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-            <span style={{ fontWeight: 800, letterSpacing: "-0.01em" }}>Request app access</span>
-            <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.65 }}>Browse the catalog of apps &amp; services you can ask for</span>
-          </span>
-        </button>
+        {/* Wrapper carries the entrance animation + width/spacing; the button stays
+            a plain .chip-flat so its :hover lift + icon-spring fire like the other
+            chips (an `animation … both` on the button itself would pin the
+            transform and kill the hover). */}
+        <div style={{ maxWidth: 1120, margin: "32px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
+          <button
+            onClick={() => onRequest && onRequest()}
+            className="chip-flat"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              justifyContent: "flex-start", gap: 13, padding: "15px 22px", fontSize: 15,
+            }}
+          >
+            <IconKey size={19} stroke={2.4} style={{ color: "#000000" }} />
+            <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
+              <span style={{ fontWeight: 800, letterSpacing: "-0.01em" }}>Request app access</span>
+              <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.65 }}>Browse the catalog of apps &amp; services you can ask for</span>
+            </span>
+          </button>
+        </div>
 
         {/* Quick prompts */}
         <div style={{
@@ -938,7 +943,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
       {/* IT Command row: Phishing + On-call roster */}
       <div style={{
-        maxWidth: 1120, margin: "104px auto 0",
+        maxWidth: 1120, margin: "56px auto 0",
         animation: "fadeUp .8s .3s var(--ease) both",
       }}>
         <div style={{
