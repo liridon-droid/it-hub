@@ -903,38 +903,24 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           </div>
         </div>
 
-        {/* Request app access — promoted out of the quick-prompt chips into a
-            full-width bar directly under the search (same width as the input,
-            roughly a third of its height). Routes to the "Request something"
+        {/* Request app access — a full-width bar under the search that reuses the
+            quick prompts' flat chip look (.chip-flat: white → cheese on hover,
+            icon springs), just sized up. Routes to the "Request something"
             catalog page so finding an app is a first-class action. */}
         <button
           onClick={() => onRequest && onRequest()}
+          className="chip-flat"
           style={{
-            display: "flex", alignItems: "center", gap: 14,
-            maxWidth: 1120, width: "100%", margin: "18px auto 0", boxSizing: "border-box",
-            padding: "14px 24px", cursor: "pointer", textAlign: "left",
-            background: "#FDC831", color: "#211E1E",
-            border: "2px solid #211E1E", borderRadius: 14,
-            boxShadow: "3px 3px 0 #211E1E", fontFamily: "'Archivo', sans-serif",
+            width: "100%", maxWidth: 1120, margin: "18px auto 0", boxSizing: "border-box",
+            justifyContent: "flex-start", gap: 13, padding: "15px 22px", fontSize: 15,
             animation: "fadeUp .7s .2s var(--ease) both",
-            transition: "transform .14s var(--ease), box-shadow .14s var(--ease)",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "3px 3px 0 #211E1E"; }}
-          onMouseDown={(e) => { e.currentTarget.style.transform = "translate(1px,1px)"; e.currentTarget.style.boxShadow = "2px 2px 0 #211E1E"; }}
-          onMouseUp={(e) => { e.currentTarget.style.transform = "translate(-2px,-2px)"; e.currentTarget.style.boxShadow = "5px 5px 0 #211E1E"; }}
         >
-          <span style={{
-            width: 38, height: 38, borderRadius: 9, flexShrink: 0,
-            background: "#211E1E", display: "grid", placeItems: "center",
-          }}>
-            <IconKey size={20} stroke={2.2} style={{ color: "#FDC831" }} />
+          <IconKey size={19} stroke={2.4} style={{ color: "#000000" }} />
+          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
+            <span style={{ fontWeight: 800, letterSpacing: "-0.01em" }}>Request app access</span>
+            <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.65 }}>Browse the catalog of apps &amp; services you can ask for</span>
           </span>
-          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-            <span style={{ fontSize: 16, fontWeight: 800, letterSpacing: "-0.01em" }}>Request app access</span>
-            <span style={{ fontSize: 12.5, fontWeight: 600, color: "#5C4A12" }}>Browse the catalog of apps &amp; services you can ask for</span>
-          </span>
-          <IconArrow size={20} stroke={2.4} style={{ marginLeft: "auto", flexShrink: 0 }} />
         </button>
 
         {/* Quick prompts */}
@@ -4724,11 +4710,10 @@ Object.assign(window, { SliceDatePicker, SliceTimePicker, spParseFuzzy, spPretty
 // ------ Shared building blocks ------
 
 // --- Shared notifications store -----------------------------------------------
-// Notifications are derived from real data sources. Right now the only live
-// source we wire up is the status pipeline — incidents from /api/status get
-// projected into the notification feed. Other kinds (ticket / access /
-// security / digest) are kept in the type registry for when those sources
-// land, but no fake rows are emitted in the meantime.
+// Personal notifications come ONLY from the signed-in user's own tickets
+// (/api/tickets) — an IT reply or a status change on a ticket. System/service
+// status incidents are deliberately excluded: users told us the bell should be
+// about their tickets, and service status already has its own Status page.
 
 const NOTIF_KEY = "portal2.notifications.v1";
 const NOTIF_EVT = "portal2:notifications:change";
@@ -4781,54 +4766,6 @@ function notifWhen(d) {
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// Map a status-incident payload into a notification row matching the shape
-// the rest of the UI consumes. We pick the most recent timestamp on the
-// incident as the "when" so resolved incidents float by their resolution.
-function incidentToNotif(inc) {
-  const last = new Date(
-    inc.resolved_at ||
-    (inc.updates && inc.updates.length ? inc.updates[inc.updates.length - 1].created_at : null) ||
-    inc.started_at ||
-    Date.now()
-  );
-  const isResolved = inc.state === "resolved";
-  const lastUpdate = inc.updates && inc.updates.length ? inc.updates[inc.updates.length - 1] : null;
-  const body = (() => {
-    if (isResolved) {
-      const dur = (() => {
-        if (!inc.resolved_at || !inc.started_at) return null;
-        const ms = new Date(inc.resolved_at).getTime() - new Date(inc.started_at).getTime();
-        if (!Number.isFinite(ms) || ms <= 0) return null;
-        const min = Math.round(ms / 60000);
-        return min < 60 ? `${min} min incident closed.` : `${Math.round(min / 60)}h incident closed.`;
-      })();
-      return dur || "Incident resolved.";
-    }
-    if (lastUpdate && lastUpdate.message) return lastUpdate.message;
-    const sevLabel = (SEVERITY_TONE[inc.severity] || SEVERITY_TONE.minor).label.toLowerCase();
-    return `${sevLabel} incident — ${inc.state || "investigating"}.`;
-  })();
-  const title = (() => {
-    if (isResolved) {
-      return inc.service_name
-        ? `${inc.service_name} is back to operational`
-        : `${inc.title} — resolved`;
-    }
-    return inc.service_name ? `${inc.service_name} — ${inc.title}` : inc.title;
-  })();
-  return {
-    id: `inc-${inc.id}`,
-    kind: "status",
-    unread: !isResolved, // open incidents are unread by default; user can mark
-    when: notifWhen(last),
-    group: notifGroup(last),
-    title,
-    body,
-    color: "#D4F4D4",
-    _ts: last.getTime(), // private — used for sort stability
-  };
-}
-
 function loadNotifPersist() {
   try {
     const raw = typeof localStorage !== "undefined" && localStorage.getItem(NOTIF_KEY);
@@ -4847,33 +4784,10 @@ function saveNotifPersist(s) {
 
 function useNotifications() {
   const [persist, setPersist] = React.useState(loadNotifPersist);
-  // Two live sources, both polled every 60s: status incidents (/api/status) and
-  // the signed-in user's tickets (/api/tickets) — so an IT reply or status change
-  // on your ticket drops into the bell without a refresh.
-  const [incidentNotifs, setIncidentNotifs] = React.useState([]);
+  // One live source, polled every 60s: the signed-in user's tickets
+  // (/api/tickets) — so an IT reply or status change on your ticket drops into
+  // the bell without a refresh.
   const [ticketNotifs, setTicketNotifs] = React.useState([]);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const r = await fetch('/api/status', { credentials: 'include', cache: 'no-store' });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j = await r.json();
-        if (cancelled) return;
-        const projected = (j.incidents || [])
-          .map(incidentToNotif)
-          .sort((a, b) => b._ts - a._ts);
-        setIncidentNotifs(projected);
-      } catch {
-        // On error, leave the previous list in place so a transient blip
-        // doesn't blank the bell. Empty initial state is fine.
-      }
-    };
-    load();
-    const t = setInterval(load, 60000);
-    return () => { cancelled = true; clearInterval(t); };
-  }, []);
 
   // Ticket activity → notifications. We compare each ticket's updated_at against
   // the last value we saw (loadTicketSeen); a newer one means IT touched it since
@@ -4928,8 +4842,8 @@ function useNotifications() {
   }, []);
 
   const rawNotifs = React.useMemo(
-    () => [...incidentNotifs, ...ticketNotifs].sort((a, b) => b._ts - a._ts),
-    [incidentNotifs, ticketNotifs],
+    () => [...ticketNotifs].sort((a, b) => b._ts - a._ts),
+    [ticketNotifs],
   );
 
   // Same-tab broadcast (custom event) + cross-tab broadcast (storage event) so
@@ -6141,12 +6055,8 @@ function NotificationsPage({ onBack }) {
   }, [filtered]);
 
   const filterTabs = [
-    { id: "all",      label: "All",      count: items.length },
-    { id: "unread",   label: "Unread",   count: unreadCount },
-    { id: "ticket",   label: "Tickets" },
-    { id: "status",   label: "Status" },
-    { id: "access",   label: "Access" },
-    { id: "security", label: "Security" },
+    { id: "all",    label: "All",    count: items.length },
+    { id: "unread", label: "Unread", count: unreadCount },
   ];
 
   return (
@@ -9002,6 +8912,15 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
   const icons = useCatalogIcons();
 
+  // Opening a ticket — or paging to the next/prev one (the list remounts us via
+  // key={id}) — should start at the top, even if the list behind was scrolled
+  // down. The real scroll container is .page-scroll (body has overflow:hidden).
+  React.useEffect(() => {
+    const scroller = document.querySelector('.page-scroll');
+    if (scroller) scroller.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
+
   // Reusable load so we can refetch after a reply — the new comment/attachment,
   // plus anything IT added since, comes back from the ticketing system.
   const load = React.useCallback(() => {
@@ -9780,6 +9699,14 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           if (!q) return true;
           return [c.name, c.description, c.category_name].filter(Boolean).join(' ').toLowerCase().includes(q);
         });
+        // Most popular — top 5 by request volume (request_count from the module).
+        // Only on the default view (no search, "All" category), like Freshservice.
+        // Empty until the module exposes request_count, so the section self-hides.
+        const popular = (!q && catFilter === 'all')
+          ? [...catalog].filter((c) => Number(c.request_count) > 0)
+              .sort((a, b) => (Number(b.request_count) || 0) - (Number(a.request_count) || 0))
+              .slice(0, 5)
+          : [];
         const chip = (key, label) => {
           const on = catFilter === key;
           return (
@@ -9804,6 +9731,25 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
               {chip('all', 'All')}
               {cats.map((c) => chip(c, c))}
+            </div>
+          )}
+          {/* Most popular — top requested apps, shown on the default view */}
+          {popular.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 900, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#78684C', marginBottom: 9 }}>Most popular</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 }}>
+                {popular.map((it) => (
+                  <button key={'pop-' + it.id} onClick={() => pickItem(it)} disabled={itemBusy}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
+                    style={{ ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '12px 13px', display: 'flex', alignItems: 'center', gap: 9, transition: TK.rowTransition }}>
+                    {it.icon_url
+                      ? <img src={it.icon_url} alt="" width="24" height="24" style={{ borderRadius: 6, objectFit: 'contain', flexShrink: 0 }} />
+                      : <span style={{ width: 24, height: 24, borderRadius: 6, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif", fontSize: 12, flexShrink: 0 }}>{String(it.name || '?').charAt(0)}</span>}
+                    <span style={{ fontWeight: 800, fontSize: 13, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {shown.length === 0 ? (
