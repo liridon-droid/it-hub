@@ -163,22 +163,39 @@ function ticketProxyError(res, err, label) {
   );
 }
 
+// Resolve who a request/ticket is FOR. Any signed-in user may raise one on
+// behalf of another person (requested_for, from the portal's user picker); the
+// catalog route still passes the signed-in user as the submitter (audit +
+// manager auto-approve). No/own beneficiary → an ordinary self-request.
+function resolveRequester(u, requestedFor) {
+  if (requestedFor && requestedFor.id && String(requestedFor.id) !== String(u.id)) {
+    return {
+      id: String(requestedFor.id),
+      name: String(requestedFor.name || '').slice(0, 200),
+      email: String(requestedFor.email || '').slice(0, 200),
+      onBehalf: true,
+    };
+  }
+  return { id: u.id, name: u.name, email: u.email, onBehalf: false };
+}
+
 // Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { subject, description, type, priority } = req.body ?? {};
+  const { subject, description, type, priority, requested_for } = req.body ?? {};
   if (!subject || !String(subject).trim()) {
     return res.status(400).json({ error: 'A subject is required.' });
   }
+  const requester = resolveRequester(u, requested_for);
   try {
     const { ok, status, data } = await ticketModuleFetch('POST', '/tickets', {
       subject: String(subject).slice(0, 300),
       description: String(description || '').slice(0, 8000),
       type: type || 'incident',
       priority: priority || 'medium',
-      requester_id: u.id,
-      requester_name: u.name,
-      requester_email: u.email,
+      requester_id: requester.id,
+      requester_name: requester.name,
+      requester_email: requester.email,
     });
     // The ticket module returns an envelope: { status, message, ticket }.
     if (!ok || data.status === 'rejected' || data.status === 'error') {
@@ -481,16 +498,34 @@ app.get('/api/catalog/:id', requireSliceUser, async (req, res) => {
   }
 });
 
+// User directory for the "request on behalf of someone" picker. Proxies the
+// module's hub-user search (?q= substring); any signed-in user can look up
+// colleagues to raise a request for.
+app.get('/api/users', requireSliceUser, async (req, res) => {
+  const params = new URLSearchParams({ limit: '20' });
+  if (req.query.q) params.set('q', String(req.query.q).slice(0, 100));
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/users?${params}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'users.list');
+  }
+});
+
 // Submit a catalog request → creates a service_request (starts pending if the
-// item needs approval). Requester is always the signed-in user.
+// item needs approval). Raised for the signed-in user, or — when requested_for
+// is set — on behalf of that person, with the signed-in user as the submitter.
 app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { justification, urgency, form_responses } = req.body ?? {};
+  const { justification, urgency, form_responses, requested_for } = req.body ?? {};
+  const requester = resolveRequester(u, requested_for);
   try {
     const { ok, status, data } = await ticketModuleFetch('POST', `/catalog/${encodeURIComponent(req.params.id)}/request`, {
-      requester_id: u.id,
-      requester_name: u.name,
-      requester_email: u.email,
+      requester_id: requester.id,
+      requester_name: requester.name,
+      requester_email: requester.email,
+      submitter_id: u.id,
       justification: String(justification || '').slice(0, 4000),
       urgency: urgency || 'medium',
       form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},
