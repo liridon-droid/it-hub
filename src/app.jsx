@@ -8834,7 +8834,14 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
               <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, whiteSpace: 'nowrap' }}>
-              <TicketStatusBadge status={t.status} type={t.type} />
+              {(() => {
+                const a = String(t.approval_status || '').toLowerCase();
+                const showA = a === 'pending' || a === 'approved' || a === 'rejected';
+                return (<>
+                  {!(showA && (a === 'pending' || a === 'rejected')) && <TicketStatusBadge status={t.status} type={t.type} />}
+                  {showA && <ApprovalPill state={a} />}
+                </>);
+              })()}
               <span style={{ color: '#9A8E78', fontSize: 12 }}>{relativeTime(t.updated_at || t.created_at)}</span>
             </div>
           </button>
@@ -8851,10 +8858,15 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
 // role-based stage the module returns the role, not the resolved person, so we
 // show the role there; surfacing the literal name needs a module-side change.
 const APPROVER_ROLE_LABEL = { requester_manager: 'Your manager', department_head: 'Department head', it_director: 'IT director', queue_lead: 'Queue lead' };
-function approverLine(stage, actions) {
+function approverLine(stage, actions, currentApprovers, isCurrent) {
   const acted = (actions || []).filter((a) => a && a.stage_order === stage.order && a.approver_name);
   if (acted.length) {
     return acted.map((a) => (a.action === 'rejected' ? 'Rejected by ' : a.action === 'approved' ? 'Approved by ' : ((a.action || 'Acted') + ' by ')) + a.approver_name).join(' · ');
+  }
+  // Current pending stage: prefer the real people the module resolved.
+  if (isCurrent && Array.isArray(currentApprovers) && currentApprovers.length) {
+    const real = currentApprovers.map((a) => a && (a.name || a.email)).filter(Boolean);
+    if (real.length) return 'Waiting on ' + real.join(', ');
   }
   const apprs = Array.isArray(stage.approvers) ? stage.approvers : [];
   const names = apprs.map((ap) => ap && (ap.type === 'role' ? (APPROVER_ROLE_LABEL[ap.value] || ap.value) : ap.value)).filter(Boolean);
@@ -8869,6 +8881,7 @@ function ApprovalSummary({ approval, ticket }) {
   const stages = (approval && approval.workflow && Array.isArray(approval.workflow.stages)) ? approval.workflow.stages : [];
   const current = approval && approval.current_stage;
   const actions = (approval && Array.isArray(approval.actions)) ? approval.actions : [];
+  const currentApprovers = (approval && Array.isArray(approval.current_approvers)) ? approval.current_approvers : [];
   const decided = status === 'approved' || status === 'rejected';
   const DOT = { Approved: '#0A8A3E', Pending: '#FDC831', Awaiting: '#8A8275', Rejected: '#B92323' };
   const TXT = { Approved: '#0A8A3E', Pending: '#211E1E', Awaiting: '#8A8275', Rejected: '#B92323' };
@@ -8892,7 +8905,7 @@ function ApprovalSummary({ approval, ticket }) {
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: DOT[state], border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {approverLine(s, actions) && <span style={{ display: 'block', fontSize: 11, color: '#78684C', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{approverLine(s, actions)}</span>}
+              {(() => { const line = approverLine(s, actions, currentApprovers, !!(current && s.order === current.order)); return line ? <span style={{ display: 'block', fontSize: 11, color: '#78684C', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null; })()}
             </span>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: TXT[state], fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{state}</span>
           </div>
@@ -9517,6 +9530,8 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   const [responses, setResponses] = React.useState({});
   const [justification, setJustification] = React.useState('');
   const [urgency, setUrgency] = React.useState('medium');
+  // null = requesting for yourself; otherwise { id, name, email } of the colleague.
+  const [requestedFor, setRequestedFor] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [result, setResult] = React.useState(null);
@@ -9586,7 +9601,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
     try {
       const just = justification.trim();
       const t = await ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
-        urgency, form_responses: responses, ...(just ? { justification: just } : {}),
+        urgency, form_responses: responses, ...(just ? { justification: just } : {}), ...(requestedFor ? { requested_for: requestedFor } : {}),
       });
       if (attachFiles.length && (t.id || t.ticket_number)) {
         try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
@@ -9605,7 +9620,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
     setBusy(true); setErr('');
     try {
       const t = await ticketsApiJson('POST', '/api/tickets', {
-        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
+        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium', ...(requestedFor ? { requested_for: requestedFor } : {}),
       });
       if (attachFiles.length && (t.id || t.ticket_number)) {
         try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
@@ -9652,6 +9667,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <input style={TK.field} value={ffSubject} onChange={(e) => setFfSubject(e.target.value)} placeholder="e.g. Access to Figma" autoFocus />
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
+        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} selfName={(typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || ''} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
@@ -9674,6 +9690,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
             Needs approval
           </div>
         )}
+        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} selfName={(typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || ''} />
         {fields.map((f) => (
           <div key={f.key}>
             <label style={TK.label}>{f.label || f.key}{f.required ? ' *' : ''}</label>
@@ -9898,6 +9915,68 @@ function CatalogField({ field, value, onChange }) {
   }
   const inputType = type === 'datetime' ? 'datetime-local' : type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
   return <input type={inputType} style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
+}
+
+// "Requesting for" — defaults to yourself; lets anyone raise a request on behalf
+// of a colleague via a typeahead over the hub directory (/api/users). value is
+// null (= self) or { id, name, email }. The server records the signed-in user
+// as the submitter regardless, so on-behalf requests stay auditable.
+function RequestedForPicker({ value, onChange, selfName }) {
+  const [editing, setEditing] = React.useState(false);
+  const [q, setQ] = React.useState('');
+  const [results, setResults] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  React.useEffect(() => {
+    if (!editing) return;
+    const term = q.trim();
+    if (term.length < 2) { setResults([]); setLoading(false); return; }
+    let off = false; setLoading(true); setErr('');
+    const h = setTimeout(() => {
+      ticketsApiJson('GET', '/api/users?q=' + encodeURIComponent(term))
+        .then((j) => { if (!off) setResults(Array.isArray(j.users) ? j.users.slice(0, 8) : []); })
+        .catch((e) => { if (!off) { setResults([]); setErr(e.message || 'Couldn’t search people.'); } })
+        .finally(() => { if (!off) setLoading(false); });
+    }, 250);
+    return () => { off = true; clearTimeout(h); };
+  }, [q, editing]);
+
+  const pick = (u) => { onChange({ id: u.id, name: u.name, email: u.email }); setEditing(false); setQ(''); setResults([]); };
+  const reset = () => { onChange(null); setEditing(false); setQ(''); setResults([]); };
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <label style={TK.label}>Requesting for</label>
+      {!editing ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 8px', border: '1px solid #211E1E', borderRadius: 999, background: '#FFFDF4', fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>
+            <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{String((value && value.name) || selfName || '?').charAt(0).toUpperCase()}</span>
+            {value ? value.name : (selfName ? selfName + ' (you)' : 'Yourself')}
+          </span>
+          <button type="button" onClick={() => setEditing(true)} style={textActionBtn}>{value ? 'Change' : 'Someone else?'}</button>
+          {value && <button type="button" onClick={reset} style={textActionBtn}>← back to me</button>}
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a colleague by name or email…" style={TK.field} />
+          {q.trim().length >= 2 && (
+            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 248, overflowY: 'auto' }}>
+              {loading && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
+              {!loading && results.map((u) => (
+                <button key={u.id} type="button" onClick={() => pick(u)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
+                  {(u.email || u.title) && <span style={{ fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+                </button>
+              ))}
+              {!loading && results.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
+            </div>
+          )}
+          {err && <p style={{ color: '#B92323', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+          <div style={{ marginTop: 6 }}><button type="button" onClick={reset} style={textActionBtn}>Cancel — request for myself</button></div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Small shared button styles for the ticket surfaces.
