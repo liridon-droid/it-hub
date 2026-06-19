@@ -9228,6 +9228,15 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
             </div>
             {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 8px' }}>
+              {/* Requester avatar — a round initials circle (person), left of the
+                  app icon (rounded square), so "who raised it" reads at a glance. */}
+              {t.requester_name && (
+                <span title={'Requested by ' + t.requester_name} aria-label={'Requested by ' + t.requester_name} style={{
+                  width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                  background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center',
+                  fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 14, letterSpacing: '0.01em',
+                }}>{initialsFor(t.requester_name)}</span>
+              )}
               {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
               <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
             </div>
