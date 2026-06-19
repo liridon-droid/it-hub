@@ -8611,6 +8611,38 @@ function ApprovalPill({ state }) {
   );
 }
 
+// Ticket number — monospaced, click to copy. Bigger + darker than a plain label
+// so it reads as the ticket's identity, and one click grabs the ref to paste to
+// IT in Slack. Stops propagation so copying inside a clickable row/card doesn't
+// also open it.
+function TicketNumber({ value, size = 13 }) {
+  const [copied, setCopied] = React.useState(false);
+  if (!value) return null;
+  const copy = (e) => {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(String(value));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {}
+  };
+  return (
+    <span role="button" tabIndex={0} onClick={copy}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') copy(e); }}
+      title="Copy ticket number"
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer',
+        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        fontSize: size, fontWeight: 700, color: '#211E1E', letterSpacing: '0.01em', userSelect: 'all',
+      }}>
+      {value}
+      {copied
+        ? <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: Math.max(9.5, size - 3), fontWeight: 800, color: '#0A8A3E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Copied</span>
+        : <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>}
+    </span>
+  );
+}
+
 // ── Full page — tabs over My Tickets + Approvals, plus the two create paths ──
 function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) {
   const [tab, setTab] = React.useState(initialTab === 'approvals' ? 'approvals' : 'mine');
@@ -8792,7 +8824,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
-                <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 }}>{t.ticket_number}</span>
+                <TicketNumber value={t.ticket_number} size={12.5} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
             </div>
@@ -9166,7 +9198,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
                     rejected request (the approval pill carries those states). */}
                 {!(approvalState === 'pending' || approvalState === 'rejected') && <TicketStatusBadge status={t.status} type={t.type} />}
                 {approvalState && <ApprovalPill state={approvalState} />}
-                <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{t.ticket_number}</span>
+                <TicketNumber value={t.ticket_number} size={14} />
               </div>
               {/* Approvals dropdown (Close / Reopen now live in the top action bar). */}
               {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
@@ -9335,7 +9367,7 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
               <TicketTypeBadge type="service_request" />
-              <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11.5 }}>{p.ticket_number}</span>
+              <TicketNumber value={p.ticket_number} size={12.5} />
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.subject}</div>
             <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3 }}>
@@ -9392,7 +9424,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <TicketTypeBadge type="service_request" />
-              {d.ticket && <span style={{ color: '#9A8E78', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12 }}>{d.ticket.ticket_number}</span>}
+              {d.ticket && <TicketNumber value={d.ticket.ticket_number} size={14} />}
             </div>
             <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: '0 0 10px' }}>
               {(d.ticket && d.ticket.subject) || (d.catalog_item && ('Request: ' + d.catalog_item.name)) || 'Request'}
@@ -9783,8 +9815,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
             ))}
           </div>
           )}
-          <div style={{ marginTop: 16, fontSize: 12.5, color: '#78684C' }}>
-            Don’t see what you need? <button onClick={() => { setErr(''); setView('freeform'); }} style={textActionBtn}>Make a custom request →</button>
+          <div style={{ marginTop: 22, padding: '15px 20px', ...TK.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 15, color: '#211E1E', fontWeight: 700, letterSpacing: '-0.01em' }}>Don’t see what you need?</span>
+            <button className="btn btn-primary" onClick={() => { setErr(''); setView('freeform'); }}>Make a custom request →</button>
           </div>
         </>
         );
