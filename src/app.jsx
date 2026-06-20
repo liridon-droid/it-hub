@@ -3097,6 +3097,7 @@ const IconTicket = (p) => <IconBase {...p}><path d="M3 9a2 2 0 0 1 2-2h14a2 2 0 
 const IconChip   = (p) => <IconBase {...p}><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></IconBase>;
 const IconPerson = (p) => <IconBase {...p}><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></IconBase>;
 const IconBolt   = (p) => <IconBase {...p}><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/></IconBase>;
+const IconAlert  = (p) => <IconBase {...p}><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></IconBase>;
 const IconKey    = (p) => <IconBase {...p}><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9"/><path d="m18 5 2 2"/></IconBase>;
 const IconDatabase = (p) => <IconBase {...p}><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></IconBase>;
 const IconPlug   = (p) => <IconBase {...p}><path d="M9 2v6"/><path d="M15 2v6"/><path d="M7 8h10v4a5 5 0 0 1-10 0V8Z"/><path d="M12 17v5"/></IconBase>;
@@ -8601,13 +8602,18 @@ function TicketLeadIcon({ ticket, app, size = 34, className }) {
   if (app && (app.icon_url || app.name)) {
     return <AppIcon className={className} name={app.name} iconUrl={app.icon_url} size={size} />;
   }
-  const Glyph = ticketTypeMeta(ticket && ticket.type).kind === 'request' ? IconSpark : IconBolt;
+  // Freeform requests get a neutral charcoal/cheese spark tile; issues (and other
+  // non-request types) get a soft amber-red alert tile so problems stand out.
+  const isRequest = ticketTypeMeta(ticket && ticket.type).kind === 'request';
+  const Glyph = isRequest ? IconSpark : IconAlert;
+  const bg = isRequest ? '#211E1E' : '#FBE9E2';
+  const fg = isRequest ? '#FDC831' : '#C2410C';
   return (
     <span className={className} style={{
-      width: size, height: size, borderRadius: 7, flexShrink: 0, background: '#211E1E',
+      width: size, height: size, borderRadius: 7, flexShrink: 0, background: bg,
       border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
     }}>
-      <Glyph size={Math.round(size * 0.5)} stroke={2.2} style={{ color: '#FDC831' }} />
+      <Glyph size={Math.round(size * 0.52)} stroke={2.2} style={{ color: fg }} />
     </span>
   );
 }
