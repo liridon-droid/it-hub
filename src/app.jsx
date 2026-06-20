@@ -9211,18 +9211,14 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
             </>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          {t && (approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
-            <ApprovalsButton approval={approval} ticket={t} />
-          )}
-          {t && closeReopenButtons()}
-          {navList.length > 1 && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'} aria-label="Previous ticket">←</button>
-              <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'} aria-label="Next ticket">→</button>
-            </div>
-          )}
-        </div>
+        {/* Right side keeps only ticket prev/next; Approvals + Close/Reopen moved
+            to the top-right of the ticket card below. */}
+        {navList.length > 1 && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <button onClick={() => go(prevTicket)} disabled={!prevTicket} className="btn btn-outline" style={navBtn(!!prevTicket)} title={prevTicket ? 'Previous ticket' : 'No previous ticket'} aria-label="Previous ticket">←</button>
+            <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'} aria-label="Next ticket">→</button>
+          </div>
+        )}
       </div>
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
@@ -9233,9 +9229,19 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
           )}
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
             {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '0 0 10px' }}>
-              {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
-              <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, margin: '0 0 10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
+                <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
+              </div>
+              {/* Approvals + lifecycle actions (Cancel / Close / Reopen) live at the
+                  top-right of the ticket card. */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+                  <ApprovalsButton approval={approval} ticket={t} />
+                )}
+                {closeReopenButtons()}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
               {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
