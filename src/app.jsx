@@ -9254,29 +9254,33 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
           )}
           <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
             {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, margin: '0 0 10px', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                <TicketLeadIcon ticket={t} app={catInfo} size={40} />
-                <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
-              </div>
-              {/* Approvals + lifecycle actions (Cancel / Close / Reopen) live at the
-                  top-right of the ticket card. */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
-                {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
-                  <ApprovalsButton approval={approval} ticket={t} />
+            {/* Icon is its own left column (top-aligned); the title, meta, and
+                description all align in the right column, so the space under the
+                icon stays empty. */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              <TicketLeadIcon ticket={t} app={catInfo} size={40} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
+                  {/* Approvals + lifecycle actions (Cancel / Close / Reopen). */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+                    {(approval || t.approval_request_id || (ticketTypeMeta(t.type).kind === 'request' && String(t.status || '').toLowerCase() === 'pending')) && (
+                      <ApprovalsButton approval={approval} ticket={t} />
+                    )}
+                    {closeReopenButtons()}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+                  {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
+                  {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
+                  {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
+                  {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
+                </div>
+                {t.description && (
+                  <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
                 )}
-                {closeReopenButtons()}
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
-              {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
-              {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
-              {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
-              {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
-            </div>
-            {t.description && (
-              <p style={{ marginTop: 16, fontSize: 14.5, color: '#211E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{linkifyText(t.description)}</p>
-            )}
           </div>
 
           <div style={{ ...TK.card, padding: '20px 24px' }}>
