@@ -391,22 +391,33 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
       if (c && Array.isArray(c.files)) pool.push(...c.files);
       if (c && Array.isArray(c.media)) pool.push(...c.media);
     });
-    const meta = pool.find((a) => a && String(a.id ?? a.attachment_id ?? a.file_id ?? '') === String(req.params.attId));
-    if (meta) {
-      // The ticket read carried this attachment — serve straight from it when it
-      // includes the bytes (base64) or a public/signed URL (no second hop).
-      const inlineB64 = meta.content_base64 || meta.content || meta.data;
-      if (typeof inlineB64 === 'string' && inlineB64.length > 64) {
-        return sendBytes(inlineB64, meta.mime_type || meta.content_type, meta.file_name || meta.name);
-      }
-      const metaLink = meta.url || meta.download_url || meta.file_url || meta.webContentLink || meta.webViewLink || meta.signed_url || meta.href;
-      if (typeof metaLink === 'string' && /^https?:\/\//.test(metaLink)) return res.redirect(302, metaLink);
-    } else {
-      // attId is NOT on this ticket (or the ticket read returns no attachments
-      // list). Refuse rather than proxy the by-id download — that route isn't
-      // ticket-scoped, so hitting it for an unverified id would be an IDOR.
+    const attIdStr = String(req.params.attId);
+    const matchAtt = (a) => a && String(a.id ?? a.attachment_id ?? a.file_id ?? '') === attIdStr;
+    let meta = pool.find(matchAtt);
+    // The module's ticket read often doesn't inline attachments. Fall back to the
+    // ticket's OWN attachments list (ticket-scoped, so verifying the id against it
+    // is still IDOR-safe) — otherwise a user can't even view their own image.
+    if (!meta) {
+      try {
+        const listRes = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}/attachments`);
+        const arr = Array.isArray(listRes.data) ? listRes.data
+          : (listRes.data && Array.isArray(listRes.data.attachments) ? listRes.data.attachments : []);
+        meta = arr.find(matchAtt) || null;
+      } catch { /* leave meta null → 404 below */ }
+    }
+    if (!meta) {
+      // attId isn't on this ticket. Refuse rather than proxy the by-id download —
+      // that route isn't ticket-scoped, so hitting it for an unverified id is IDOR.
       return res.status(404).json({ error: ATT_NOT_IN_TICKET });
     }
+    // Serve straight from the attachment when it carries the bytes (base64) or a
+    // public/signed URL (no second hop).
+    const inlineB64 = meta.content_base64 || meta.content || meta.data;
+    if (typeof inlineB64 === 'string' && inlineB64.length > 64) {
+      return sendBytes(inlineB64, meta.mime_type || meta.content_type, meta.file_name || meta.name);
+    }
+    const metaLink = meta.url || meta.download_url || meta.file_url || meta.webContentLink || meta.webViewLink || meta.signed_url || meta.href;
+    if (typeof metaLink === 'string' && /^https?:\/\//.test(metaLink)) return res.redirect(302, metaLink);
 
     if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
       return res.status(503).json({ error: 'Module is not configured to reach the hub.' });
