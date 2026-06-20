@@ -21090,17 +21090,25 @@ function KnowledgePage({ onBack, onOpenGuide }) {
 
   const results = React.useMemo(() => {
     let list = liveIndex;
-    if (activeCat) list = list.filter((it) => it.category === activeCat);
+    // A search spans ALL guides — the category filter is only for browsing, so a
+    // query ignores it. (Filtering by category first meant searching inside a
+    // category found nothing.)
     if (q) {
       list = list
         .map((it) => ({ it, score: scoreMatch(it, q) }))
         .filter((r) => r.score > 0)
         .sort((a, b) => b.score - a.score)
         .map((r) => r.it);
+    } else if (activeCat) {
+      list = list.filter((it) => it.category === activeCat);
     }
     if (sort === "recent") list = [...list].sort((a, b) => a.updated - b.updated);
     return list;
   }, [liveIndex, q, activeCat, sort]);
+
+  // Typing a search clears any active category, so we never leave a category
+  // chip selected while showing global, cross-category results.
+  React.useEffect(() => { if (q) setActiveCat(null); }, [q]);
 
   const activeCatLabel = activeCat ? (liveCats.find((c) => c.id === activeCat)?.label) : null;
 
