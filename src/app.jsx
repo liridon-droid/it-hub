@@ -8894,10 +8894,11 @@ function approverLine(stage, actions, currentApprovers, isCurrent) {
   if (acted.length) {
     return acted.map((a) => (a.action === 'rejected' ? 'Rejected by ' : a.action === 'approved' ? 'Approved by ' : ((a.action || 'Acted') + ' by ')) + a.approver_name).join(' · ');
   }
-  // Current pending stage: prefer the real people the module resolved.
+  // Current pending stage: show the actual approver(s) the module resolved —
+  // just the email (or name), no "Waiting on" prefix; styled bold at the call site.
   if (isCurrent && Array.isArray(currentApprovers) && currentApprovers.length) {
-    const real = currentApprovers.map((a) => a && (a.name || a.email)).filter(Boolean);
-    if (real.length) return 'Waiting on ' + real.join(', ');
+    const real = currentApprovers.map((a) => a && (a.email || a.name)).filter(Boolean);
+    if (real.length) return real.join(', ');
   }
   const apprs = Array.isArray(stage.approvers) ? stage.approvers : [];
   const names = apprs.map((ap) => ap && (ap.type === 'role' ? (APPROVER_ROLE_LABEL[ap.value] || ap.value) : ap.value)).filter(Boolean);
@@ -8936,7 +8937,7 @@ function ApprovalSummary({ approval, ticket }) {
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: DOT[state], border: '1px solid #211E1E', flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-              {(() => { const line = approverLine(s, actions, currentApprovers, !!(current && s.order === current.order)); return line ? <span style={{ display: 'block', fontSize: 11, color: '#78684C', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null; })()}
+              {(() => { const line = approverLine(s, actions, currentApprovers, !!(current && s.order === current.order)); return line ? <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#211E1E', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{line}</span> : null; })()}
             </span>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: TXT[state], fontFamily: "'Archivo', sans-serif", textTransform: 'uppercase', letterSpacing: '0.03em', flexShrink: 0 }}>{state}</span>
           </div>
