@@ -8350,17 +8350,22 @@ function useAttachmentObjectUrl(source) {
 // public link or { kind:'proxy', path } for our authed content endpoint (loaded
 // via blob — see useAttachmentObjectUrl). Falls back to a name-only chip if the
 // bytes can't be loaded.
-function AttachmentItem({ name, source, size, isImage }) {
+function AttachmentItem({ name, source, size, isImage, onOpenImage }) {
   const { url, loading, err } = useAttachmentObjectUrl(source);
   const paperclip = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>;
   const chip = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 11px', background: '#FFFDF4', border: '1px solid #211E1E', borderRadius: 6, fontSize: 12.5, color: '#211E1E', textDecoration: 'none', boxShadow: '2px 2px 0 #211E1E' };
   if (isImage && url && !err) {
-    return (
-      <a href={url} target="_blank" rel="noopener noreferrer" title={name} style={{ display: 'inline-block', border: '1px solid #211E1E', borderRadius: 8, overflow: 'hidden', background: '#FFFDF4', boxShadow: '2px 2px 0 #211E1E', maxWidth: 260 }}>
+    const thumb = (
+      <>
         <img src={url} alt={name} style={{ display: 'block', maxWidth: 260, maxHeight: 220, objectFit: 'cover' }} />
         <span style={{ display: 'block', padding: '5px 9px', fontSize: 11.5, color: '#211E1E', borderTop: '1px solid #211E1E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-      </a>
+      </>
     );
+    const frame = { display: 'inline-block', border: '1px solid #211E1E', borderRadius: 8, overflow: 'hidden', background: '#FFFDF4', boxShadow: '2px 2px 0 #211E1E', maxWidth: 260, padding: 0, cursor: 'zoom-in' };
+    // Click opens the in-page lightbox; fall back to a new tab if no handler.
+    return onOpenImage
+      ? <button type="button" onClick={() => onOpenImage(url, name)} title={'Open ' + name} style={{ ...frame, textAlign: 'left' }}>{thumb}</button>
+      : <a href={url} target="_blank" rel="noopener noreferrer" title={name} style={frame}>{thumb}</a>;
   }
   if (loading) {
     return <span style={{ ...chip, color: '#9A8E78' }}>{paperclip}<span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>{name}</span><span style={{ fontSize: 11 }}>loading…</span></span>;
@@ -8997,6 +9002,19 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, []);
 
+  // Image attachments open in an in-page lightbox (Freshservice-style) rather
+  // than a new tab. { url, name } of the image being viewed, or null. The image
+  // bytes still come from the ownership-gated proxy, so this only ever shows
+  // attachments on the user's own ticket.
+  const [lightbox, setLightbox] = React.useState(null);
+  const openImage = React.useCallback((url, name) => setLightbox({ url, name }), []);
+  React.useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e) => { if (e.key === 'Escape') setLightbox(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [lightbox]);
+
   // Reusable load so we can refetch after a reply — the new comment/attachment,
   // plus anything IT added since, comes back from the ticketing system.
   const load = React.useCallback(() => {
@@ -9205,6 +9223,25 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
 
   return (
     <div>
+      {/* Image lightbox — opens an attachment inline (portaled to body so an
+          ancestor transform can't trap the fixed overlay). Backdrop or Esc closes. */}
+      {lightbox && ReactDOM.createPortal(
+        <div onClick={() => setLightbox(null)} style={{
+          position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(33,30,30,0.86)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          padding: 24, gap: 12, cursor: 'zoom-out',
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: 'min(92vw, 1100px)', cursor: 'default' }}>
+            <span style={{ color: '#FFFDF4', fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'Archivo', sans-serif" }}>{lightbox.name}</span>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <a href={lightbox.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Open in new tab</a>
+              <button type="button" onClick={() => setLightbox(null)} className="btn btn-outline" style={{ padding: '6px 12px', fontSize: 12, background: '#FFFFFF' }}>Close ✕</button>
+            </div>
+          </div>
+          <img src={lightbox.url} alt={lightbox.name} onClick={(e) => e.stopPropagation()} style={{ maxWidth: 'min(92vw, 1100px)', maxHeight: '80vh', objectFit: 'contain', borderRadius: 10, border: '1px solid #211E1E', background: '#fff', cursor: 'default' }} />
+        </div>,
+        document.body,
+      )}
       {/* Top action bar — sticky + compact, styled as a card to match the other
           panels (solid white, dark outline, offset shadow) so it reads as part
           of the UI and content scrolls cleanly UNDER it. Back on the LEFT;
@@ -9292,7 +9329,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
               <ConversationMessage key={it.tkey} mine={it.mine} name={it.name} time={it.time ? relativeTime(it.time) : ''} body={it.body} />
             ) : (
               <ConversationMessage key={it.tkey} mine={it.mine} name={it.name || 'IT Team'} time={it.time ? relativeTime(it.time) : ''}>
-                <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} />
+                <AttachmentItem name={attName(it.att)} source={attSource(it.att)} size={attSize(it.att)} isImage={isImageAttachment(it.att, attName(it.att))} onOpenImage={openImage} />
               </ConversationMessage>
             ))}
 
