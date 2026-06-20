@@ -2904,7 +2904,7 @@ function App() {
     <TweakCtx.Provider value={tweaks}>
       <GlobalKeyframes />
       <Nav onHome={goHome} onNavigate={onNavigate} active={navActive} onOpenNotifications={() => setStage("notifications")} onOpenTickets={() => openTickets("mine")} onOpenApprovals={() => openTickets("approvals")} />
-      {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} />}
+      {ticketDraft && <NewTicketModal draft={ticketDraft} onClose={() => setTicketDraft(null)} onCreated={() => { setTicketDraft(null); openTickets("mine"); }} />}
 
       {/* __PORTAL2_SCROLL_WRAP_OPEN__ */}
       <div className="page-scroll">
@@ -2979,7 +2979,7 @@ function App() {
         asPage
         initialItemId={catalogReq && catalogReq.itemId}
         onClose={() => setStage(requestReturnRef.current || "landing")}
-        onCreated={() => {}} />
+        onCreated={() => openTickets("mine")} />
       }
 
       {stage === "notifications" &&
@@ -8038,7 +8038,7 @@ const btnSecondary = {
 // the clarifying answers, the assistant's suggestion + guides) so the user just
 // reviews and sends — no re-typing. Posts to /api/tickets (→ hub proxy → ticket
 // module 101) with the signed-in user as requester.
-function NewTicketModal({ onClose, draft = {} }) {
+function NewTicketModal({ onClose, onCreated, draft = {} }) {
   const [subject, setSubject] = React.useState(draft.subject || "");
   const [description, setDescription] = React.useState(draft.description || "");
   const [type, setType] = React.useState(draft.type || "incident");
@@ -8062,11 +8062,15 @@ function NewTicketModal({ onClose, draft = {} }) {
       // Create the ticket first, then attach files to it (attachments need the
       // ticket id). A failed upload doesn't lose the ticket — we just warn.
       const data = await ticketsApiJson("POST", "/api/tickets", { subject: subject.trim(), description: description.trim(), type, priority });
+      let warned = false;
       if (attachFiles.length && (data.id || data.ticket_number)) {
         setBusyLabel("Uploading attachments…");
         try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
-        catch (e) { setAttachWarn("Your ticket was created, but an attachment didn’t upload: " + (e.message || "error") + ". You can re-add it from the ticket."); }
+        catch (e) { setAttachWarn("Your ticket was created, but an attachment didn’t upload: " + (e.message || "error") + ". You can re-add it from the ticket."); warned = true; }
       }
+      // Land the user on My Tickets so they see the new ticket — unless an
+      // attachment upload warning needs showing first.
+      if (!warned && onCreated) { onCreated(data); return; }
       setResult(data);
     } catch (e) {
       setError(e.message || "Couldn't create the ticket.");
@@ -9684,11 +9688,15 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       const t = await ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
         urgency, form_responses: responses, ...(just ? { justification: just } : {}), ...(requestedFor ? { requested_for: requestedFor } : {}),
       });
+      let warned = false;
       if (attachFiles.length && (t.id || t.ticket_number)) {
         try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
-        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); }
+        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); warned = true; }
       }
-      setResult(t); setView('done'); onCreated && onCreated();
+      // Land on My Tickets so they see the new request, unless an attachment
+      // warning needs showing first.
+      if (!warned && onCreated) { onCreated(); return; }
+      setResult(t); setView('done');
     } catch (e) {
       const ve = e.data && e.data.validation_errors;
       setErr(ve && ve.length ? ve.map((x) => x.message || (x.field + ': ' + x.error)).join(' ') : (e.message || 'Couldn’t submit your request.'));
@@ -9703,11 +9711,15 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       const t = await ticketsApiJson('POST', '/api/tickets', {
         subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium', ...(requestedFor ? { requested_for: requestedFor } : {}),
       });
+      let warned = false;
       if (attachFiles.length && (t.id || t.ticket_number)) {
         try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
-        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); }
+        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); warned = true; }
       }
-      setResult(t); setView('done'); onCreated && onCreated();
+      // Land on My Tickets so they see the new request, unless an attachment
+      // warning needs showing first.
+      if (!warned && onCreated) { onCreated(); return; }
+      setResult(t); setView('done');
     } catch (e) {
       setErr(e.message || 'Couldn’t submit your request.');
       setBusy(false);
