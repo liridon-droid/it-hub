@@ -8593,6 +8593,25 @@ function AppIcon({ name, iconUrl, size = 30, className }) {
   );
 }
 
+// Lead icon for a ticket: the catalog app's icon when it came from the catalog,
+// otherwise a type glyph (issues/incidents have no app) — so every ticket gets a
+// clean icon like the service-catalog ones. A cheese bolt on charcoal reads as
+// "issue"; a spark stands in for a freeform request.
+function TicketLeadIcon({ ticket, app, size = 34, className }) {
+  if (app && (app.icon_url || app.name)) {
+    return <AppIcon className={className} name={app.name} iconUrl={app.icon_url} size={size} />;
+  }
+  const Glyph = ticketTypeMeta(ticket && ticket.type).kind === 'request' ? IconSpark : IconBolt;
+  return (
+    <span className={className} style={{
+      width: size, height: size, borderRadius: 7, flexShrink: 0, background: '#211E1E',
+      border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
+    }}>
+      <Glyph size={Math.round(size * 0.5)} stroke={2.2} style={{ color: '#FDC831' }} />
+    </span>
+  );
+}
+
 // Approval-state pill (outline + dot) — deliberately distinct from the solid
 // work-status badge so "where's my approval" and "what's the work state" read as
 // two separate things. state ∈ pending | approved | rejected.
@@ -8825,7 +8844,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
             display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
           }}>
-            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <AppIcon className="tkt-app-icon" name={c ? c.name : t.subject} iconUrl={c ? c.icon_url : null} size={34} />; })()}
+            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={34} />; })()}
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
@@ -9231,7 +9250,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
             {statusErr && <p style={{ color: '#B92323', fontSize: 12.5, margin: '0 0 10px' }}>{statusErr}</p>}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, margin: '0 0 10px', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                {catInfo && <AppIcon name={catInfo.name} iconUrl={catInfo.icon_url} size={40} />}
+                <TicketLeadIcon ticket={t} app={catInfo} size={40} />
                 <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, letterSpacing: '-0.02em', color: '#211E1E', margin: 0 }}>{t.subject}</h2>
               </div>
               {/* Approvals + lifecycle actions (Cancel / Close / Reopen) live at the
