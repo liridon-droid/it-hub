@@ -667,7 +667,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
   // hero rewritten — no copy-dict title needed
 
   return (
-    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ position: "relative", maxWidth: 1120, boxSizing: "content-box", margin: "0 auto", padding: "56px 32px 0" }}>
+    <div className="page" data-hero-collapsed={collapsed ? "true" : "false"} style={{ position: "relative", maxWidth: 1200, boxSizing: "content-box", margin: "0 auto", padding: "56px 32px 0" }}>
       {/* Mini floating search — portaled to body so fixed positioning isn't
           hijacked by an ancestor transform (fadeUp animations create one) */}
       {ReactDOM.createPortal(
@@ -723,7 +723,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
       {/* The big input */}
       <div className="hero-input-wrap" style={{
-        maxWidth: 1120, margin: "0 auto",
+        maxWidth: 1200, margin: "0 auto",
         position: "relative", zIndex: 1,
         animation: "fadeUp .7s .15s var(--ease) both"
       }}>
@@ -911,7 +911,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             a plain .chip-flat so its :hover lift + icon-spring fire like the other
             chips (an `animation … both` on the button itself would pin the
             transform and kill the hover). */}
-        <div style={{ maxWidth: 1120, margin: "32px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
+        <div style={{ maxWidth: 1200, margin: "32px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
           <button
             onClick={() => onRequest && onRequest()}
             className="chip-flat"
@@ -943,7 +943,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
       {/* IT Command row: Phishing + On-call roster */}
       <div style={{
-        maxWidth: 1120, margin: "56px auto 0",
+        maxWidth: 1200, margin: "56px auto 0",
         animation: "fadeUp .8s .3s var(--ease) both",
       }}>
         <div style={{
@@ -958,7 +958,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
       {/* Below fold: quick-access grid */}
       <div style={{
-        maxWidth: 1120, margin: "96px auto 0",
+        maxWidth: 1200, margin: "96px auto 0",
         animation: "fadeUp .8s .35s var(--ease) both"
       }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 20 }}>
@@ -1008,7 +1008,7 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
 
       {/* System status strip */}
       <div style={{
-        maxWidth: 1120, margin: "72px auto 0",
+        maxWidth: 1200, margin: "72px auto 0",
         animation: "fadeUp .8s .4s var(--ease) both"
       }}>
         <div style={{
