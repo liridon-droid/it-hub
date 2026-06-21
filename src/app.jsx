@@ -5294,6 +5294,9 @@ function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
   // __PORTAL2_USERMENU_HELPERS__
   const _userName = (typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || '';
   const _userEmail = (typeof window !== 'undefined' && window.PORTAL_CURRENT_EMAIL) || '';
+  // The admin console is restricted to slicedesk super_admins (the server
+  // enforces it on every admin route); only surface its entry point to them.
+  const _isSuperAdmin = (typeof window !== 'undefined' && window.PORTAL_CURRENT_ROLE) === 'super_admin';
   const _initials = _userName.trim().split(/\s+/).slice(0, 2).map(function(w){return (w[0]||'').toUpperCase();}).join('') || '?';
   const _displayName = _userName || 'Loading…';
   const ref = React.useRef(null);
@@ -5322,9 +5325,9 @@ function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
     { label: "Approvals",      hint: "Requests awaiting your sign-off", action: "approvals", icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
     )},
-    { label: "Admin",          hint: "Manage guides & content", action: "admin",   icon: (
+    ...(_isSuperAdmin ? [{ label: "Admin",          hint: "Manage guides & content", action: "admin",   icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
-    )},
+    )}] : []),
   ];
 
   return (

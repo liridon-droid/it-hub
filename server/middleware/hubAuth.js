@@ -104,10 +104,13 @@ export function requireUser(req, res, next) {
   });
 }
 
+// The IT Hub admin side is super_admin-only — a plain 'admin' is NOT enough.
+// Mirrors sliceAuth.requireSliceAdmin so the boundary is identical in cookie
+// and module mode.
 export function requireAdmin(req, res, next) {
   if (!req.user) return requireUser(req, res, next);
   const role = req.user.role || 'employee';
-  if (role === 'admin' || role === 'super_admin') return next();
+  if (role === 'super_admin') return next();
   res.set('Cache-Control', 'no-store');
-  return res.status(403).json({ error: 'Admin role required' });
+  return res.status(403).json({ error: 'Super admin role required' });
 }

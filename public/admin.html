@@ -39,6 +39,38 @@
         return origOpen.apply(this, arguments);
       };
     })();
+
+    // ── Access gate: the admin console is super_admin-only ────────────────
+    // The server enforces this on every admin / guide-mutation route
+    // (requireSliceAdmin → super_admin). This client check just bounces a
+    // non-super_admin straight back to the employee portal instead of letting
+    // the shell paint and then 403 on every call. We hide the page until
+    // /api/me confirms the role, so there's no flash of the admin UI before a
+    // redirect. Uses the fetch patched above, so '/api/me' resolves under the
+    // /portal prefix.
+    (function adminAccessGate() {
+      var GATE = '__admin_gate_style__';
+      var style = document.createElement('style');
+      style.id = GATE;
+      style.textContent = 'body{visibility:hidden!important}';
+      document.documentElement.appendChild(style);
+      function reveal() { var s = document.getElementById(GATE); if (s) s.remove(); }
+      function portalHome() {
+        var b = (typeof window !== 'undefined' && window.IT_HUB_BASE !== undefined) ? String(window.IT_HUB_BASE) : '/portal';
+        return (b || '') + '/';
+      }
+      // Failsafe: never leave the page stuck blank if /api/me hangs — the server
+      // still enforces super_admin on every admin API, so revealing is safe.
+      var failsafe = setTimeout(reveal, 6000);
+      fetch('/api/me', { credentials: 'include', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (me) {
+          clearTimeout(failsafe);
+          if (me && me.role === 'super_admin') reveal();
+          else location.replace(portalHome());
+        })
+        .catch(function () { clearTimeout(failsafe); location.replace(portalHome()); });
+    })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

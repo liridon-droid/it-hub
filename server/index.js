@@ -226,14 +226,15 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
 
 // One ticket in full (comments, activity). Guarded so a user can only read their
 // own ticket — the proxy itself has module-wide access, so without this check a
-// user could enumerate ticket ids and read anyone's. Admins can read any ticket.
+// user could enumerate ticket ids and read anyone's. No role bypass: even
+// super_admins only see their own tickets in the portal (agent triage lives in
+// the ticket module's own UI, not here).
 app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
   try {
     const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    if (!isAdmin && data.requester_id != null && String(data.requester_id) !== String(u.id)) {
+    if (data.requester_id != null && String(data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json(data);
@@ -244,12 +245,11 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
 
 // Add a reply to a ticket. The reply is attributed to the signed-in user and
 // posted to the ticketing system as a public comment (is_internal:false), so the
-// IT agents see it on the ticket. Gated to the ticket's requester (or admin) —
-// same rule as GET — so you can't reply on a ticket that isn't yours by guessing
-// its id. We re-read the ticket first to enforce that ownership server-side.
+// IT agents see it on the ticket. Gated to the ticket's requester — same rule as
+// GET, with no role bypass — so you can't reply on a ticket that isn't yours by
+// guessing its id. We re-read the ticket first to enforce that ownership server-side.
 app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
   const body = req.body && req.body.body;
   if (!body || !String(body).trim()) {
     return res.status(400).json({ error: 'A reply can’t be empty.' });
@@ -257,7 +257,7 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
@@ -285,17 +285,16 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
 
 // Change a ticket's lifecycle from the portal. The only transitions a requester
 // gets are Close and Reopen — agent states (in_progress, priority, assignment)
-// aren't user-settable. Both are reversible. Gated to the requester (or admin).
+// aren't user-settable. Both are reversible. Gated to the requester (no bypass).
 app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
   const action = req.body && req.body.action;
   const target = action === 'close' ? 'closed' : action === 'reopen' ? 'open' : null;
   if (!target) return res.status(400).json({ error: 'action must be "close" or "reopen".' });
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: target });
@@ -311,12 +310,11 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
 // Attach a file to a ticket (a screenshot, a doc — used by the issue, service
 // request, and reply flows). The browser sends the file base64-encoded; we
 // forward it to the ticketing system, attributed to the signed-in user. Gated to
-// the ticket's requester (or admin), same as replies. The JSON body limit
+// the ticket's requester (no role bypass), same as replies. The JSON body limit
 // (20mb) caps a single file at ~14MB after base64; the client keeps files under
 // that.
 app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
   const { file_name, mime_type, content_base64 } = req.body ?? {};
   if (!file_name || !content_base64) {
     return res.status(400).json({ error: 'file_name and content_base64 are required.' });
@@ -324,7 +322,7 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/attachments`, {
@@ -342,7 +340,7 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
 });
 
 // Serve an attachment's BYTES so the portal can show it inline. We re-read the
-// ticket to (a) gate the caller to the requester/admin of THIS ticket and
+// ticket to (a) gate the caller to the requester of THIS ticket and
 // (b) confirm the attachment is actually on this ticket. Then, in order:
 //   1. if the ticket read already carries the bytes (base64) or a URL, serve
 //      straight from that — no second hop;
@@ -362,7 +360,6 @@ const ATT_NOT_IN_TICKET =
   '(ATTACHMENTS_API_SPEC.md §1) before by-id download can be used safely.';
 app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
   const sendBytes = (src, mime, fileName) => {
     const buf = Buffer.isBuffer(src) ? src : Buffer.from(src, 'base64');
     res.setHeader('Content-Type', mime || 'application/octet-stream');
@@ -375,7 +372,7 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
     // user could read anyone's file by guessing ids (same rule as GET /tickets/:id).
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
 
@@ -471,11 +468,10 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
 // module's own list route. Safe to 404 — the portal treats that as "none".
 app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const isAdmin = u.role === 'admin' || u.role === 'super_admin';
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (!isAdmin && look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     if (Array.isArray(look.data.attachments)) return res.json({ attachments: look.data.attachments });

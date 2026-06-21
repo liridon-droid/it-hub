@@ -117,13 +117,14 @@ export function requireSliceUser(req, res, next) {
   return res.status(401).json({ error: 'Not authenticated', login: SLICEDESK_LOGIN_URL });
 }
 
-// Reject if user is missing or not admin/super_admin. Uses slicedesk's
-// role hierarchy ['employee', 'admin', 'super_admin'] — same as their
-// requireRole middleware so the access boundary stays consistent.
+// Reject unless the user is a slicedesk super_admin. The IT Hub admin side
+// (guide management, uploads, AI edit, insights/stats, status) is restricted
+// to super_admins only — a plain 'admin' is NOT enough. Mirrors hubAuth's
+// requireAdmin so the boundary is identical in cookie and module mode.
 export function requireSliceAdmin(req, res, next) {
   if (!req.user) return requireSliceUser(req, res, next);
   const role = req.user.role || 'employee';
-  if (role === 'admin' || role === 'super_admin') return next();
+  if (role === 'super_admin') return next();
   res.set('Cache-Control', 'no-store');
-  return res.status(403).json({ error: 'Admin role required' });
+  return res.status(403).json({ error: 'Super admin role required' });
 }
