@@ -403,8 +403,7 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
         const arr = Array.isArray(listRes.data) ? listRes.data
           : (listRes.data && Array.isArray(listRes.data.attachments) ? listRes.data.attachments : []);
         meta = arr.find(matchAtt) || null;
-        console.log('[att.content] ticket=%s att=%s list ok=%s status=%s len=%s matched=%s', req.params.id, attIdStr, listRes.ok, listRes.status, arr.length, !!meta);
-      } catch (e) { console.warn('[att.content] list fallback threw:', e.message); }
+      } catch { /* leave meta null → 404 below */ }
     }
     if (!meta) {
       // attId isn't on this ticket. Refuse rather than proxy the by-id download —
@@ -431,7 +430,6 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
       `/attachments/${encodeURIComponent(req.params.attId)}/download`;
     const upstream = await fetch(url, { headers: { Authorization: `Bearer ${moduleConfig.apiKey}` } });
     const ctype = upstream.headers.get('content-type') || '';
-    console.log('[att.content] by-id download att=%s status=%s ctype=%s storage=%s', req.params.attId, upstream.status, ctype, meta.storage_type);
 
     if (ctype.includes('application/json')) {
       const j = await upstream.json().catch(() => ({}));
