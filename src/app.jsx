@@ -5521,7 +5521,7 @@ function UserMenu({ onOpenNotifications, onOpenTickets, onOpenApprovals }) {
             <button
               role="menuitem"
               type="button"
-              onClick={async () => { setOpen(false); try { await fetch("/auth/logout", {method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}}); } catch(e) {} window.location.href = "/portal/login"; }}
+              onClick={async () => { setOpen(false); try { await fetch("/auth/logout", {method:"POST",credentials:"include",headers:{"Content-Type":"application/json"}}); } catch(e) {} window.location.href = "/login"; }}
               style={{
                 width: "100%",
                 display: "flex", alignItems: "center", gap: 10,

@@ -94,7 +94,10 @@ import App from './app.jsx';
 //  • legacy same-origin mode — no hub_token; /api/me resolves the slicedesk
 //    session and a 401 bounces to the Slice SSO page.
 // Wrapped in an IIFE (not top-level await) so esbuild can target older browsers.
-const LOGIN_URL = '/portal/login';
+// slicedesk owns auth and is served at the domain root (/), so its login is
+// /login — NOT /portal/login (that path is the it-hub SPA, which would just
+// re-bounce here → an infinite refresh loop on logout / when signed out).
+const LOGIN_URL = '/login';
 
 function decodeHubToken() {
   try {
