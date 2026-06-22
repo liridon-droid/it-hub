@@ -829,18 +829,32 @@ async function ingestWebhookEvent(pool, service, ev) {
   );
 
   if (toState === fromState) {
-    // No state change, but keep an open incident's timeline live with the
-    // vendor's latest note (e.g. "Monitoring" while still degraded).
+    // No state change. Keep an open incident's timeline live with the vendor's
+    // latest note (e.g. "Monitoring" while still degraded) — but DEDUPE first.
+    // Vendors' Statuspage re-POSTs component_update webhooks for a STATIC
+    // incident every few minutes with an identical body ("X is now degraded
+    // performance"). Only record + alert when this update actually differs from
+    // the incident's most recent one, so a steady-state incident can't spam an
+    // identical Slack "incident update" on a loop (the Adyen-every-5-min problem).
     if (isBadState(toState) && ev.body) {
       const open = await pool.query(
         `SELECT id FROM status_incidents WHERE service_id = $1 AND auto_created = true AND resolved_at IS NULL ORDER BY started_at DESC LIMIT 1`,
         [service.id],
       );
       if (open.rows[0]) {
-        await pool.query(`INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, $2, $3)`, [open.rows[0].id, ev.label || 'Update', ev.body]);
-        await pool.query(`UPDATE status_incidents SET updated_at = NOW() WHERE id = $1`, [open.rows[0].id]);
-        if (await slackEventEnabled(pool, 'manual')) {
-          await notifyServiceAlert(pool, service, { state: toState, severity: ev.severity, note: ev.body, kind: 'update' });
+        const incId = open.rows[0].id;
+        const lbl = ev.label || 'Update';
+        const last = await pool.query(
+          `SELECT label, body FROM status_incident_updates WHERE incident_id = $1 ORDER BY created_at DESC LIMIT 1`,
+          [incId],
+        );
+        const dup = last.rows[0] && last.rows[0].label === lbl && last.rows[0].body === ev.body;
+        if (!dup) {
+          await pool.query(`INSERT INTO status_incident_updates (incident_id, label, body) VALUES ($1, $2, $3)`, [incId, lbl, ev.body]);
+          await pool.query(`UPDATE status_incidents SET updated_at = NOW() WHERE id = $1`, [incId]);
+          if (await slackEventEnabled(pool, 'manual')) {
+            await notifyServiceAlert(pool, service, { state: toState, severity: ev.severity, note: ev.body, kind: 'update' });
+          }
         }
       }
     }
