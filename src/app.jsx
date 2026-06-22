@@ -9288,16 +9288,9 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
           <button onClick={onBack} className="btn btn-outline" style={{ padding: '5px 11px', fontSize: 11 }}>← Back</button>
           {/* Ticket identity lives in the sticky bar (cleaner than a badge row in
-              the card): requester avatar, type, approval/work state, number. */}
+              the card): type, approval/work state, number. */}
           {t && (
             <>
-              {t.requester_name && (
-                <span title={'Requested by ' + t.requester_name} aria-label={'Requested by ' + t.requester_name} style={{
-                  width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                  background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center',
-                  fontFamily: "'Archivo', sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: '0.01em',
-                }}>{initialsFor(t.requester_name)}</span>
-              )}
               <TicketTypeBadge type={t.type} />
               {!(approvalState === 'pending' || approvalState === 'rejected') && <TicketStatusBadge status={t.status} type={t.type} />}
               {approvalState && <ApprovalPill state={approvalState} />}
