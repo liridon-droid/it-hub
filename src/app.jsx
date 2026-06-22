@@ -8842,6 +8842,19 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       .catch(() => {});
   }, []);
 
+  // Reflect the open ticket in the address bar (?ticket=IT-86938) so the URL is
+  // copyable / shareable and matches the email deep-link format. replaceState
+  // (not push) to avoid fighting the app's stage history; clears on close.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const url = new URL(window.location.href);
+      if (selTicket && selTicket.ticket_number) url.searchParams.set('ticket', selTicket.ticket_number);
+      else url.searchParams.delete('ticket');
+      window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    } catch {}
+  }, [selTicket]);
+
   // Live list: load on mount/refresh, then silently re-poll every 15s so new
   // tickets + status changes show up on their own — no manual Refresh needed.
   React.useEffect(() => {
