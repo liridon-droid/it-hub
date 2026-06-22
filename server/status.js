@@ -317,17 +317,20 @@ function parseAppleServices(services) {
 // incidents[0] is the current one and incident_updates[0] its newest update.
 // Purely descriptive — never affects the computed state; used to enrich Slack
 // alerts only (state_note / status page / incidents stay exactly as they are).
-function statuspageDetail(json) {
+function statuspageDetail(json, filter) {
   const clamp = (s, n) => { const t = stripTags(s); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  // When a region filter is set, scope the "Affected" component list to it too.
+  const terms = String(filter || '').toLowerCase().split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  const inScope = (name) => !terms.length || terms.some((t) => String(name).toLowerCase().includes(t));
   const inc = Array.isArray(json?.incidents) ? json.incidents[0] : null;
   const message = inc && inc.name ? clamp(inc.name, 160) : null;
   const ups = inc && Array.isArray(inc.incident_updates) ? inc.incident_updates : [];
   const details = ups[0] && ups[0].body ? clamp(ups[0].body, 300) : null;
   const impacted = (s) => s && s !== 'operational' && !/maintenance/i.test(s);
   let components = (Array.isArray(json?.components) ? json.components : [])
-    .filter((c) => c && impacted(c.status)).map((c) => c.name);
+    .filter((c) => c && impacted(c.status) && inScope(c.name)).map((c) => c.name);
   if (!components.length && inc && Array.isArray(inc.components)) {
-    components = inc.components.map((c) => c && c.name);
+    components = inc.components.map((c) => c && c.name).filter((n) => inScope(n));
   }
   components = [...new Set(components.map((n) => stripTags(n)).filter(Boolean))].slice(0, 10);
   return { message, details, components };
@@ -335,7 +338,8 @@ function statuspageDetail(json) {
 
 // Vendor status JSON → effective state. Sniffs the shape and dispatches. Covers
 // Atlassian Statuspage.io, Slack, Heroku v4, Google Workspace, and Apple.
-function parseStatusJson(json) {
+// `filter` (a service's match_filter) optionally region-scopes statuspage eval.
+function parseStatusJson(json, filter) {
   if (!json || typeof json !== 'object') return { state: 'operational' };
 
   // Google Workspace — top-level array of incidents.
@@ -373,7 +377,27 @@ function parseStatusJson(json) {
   // StatusGator-style extras (incident headline / latest update / impacted
   // components) for the Slack alert only — never affects state or state_note,
   // so the status page and incidents are untouched.
-  const sp = statuspageDetail(json);
+  const sp = statuspageDetail(json, filter);
+
+  // Region scope (match_filter): when set, derive state from ONLY the components
+  // whose name matches a term — ignoring the global indicator, which spans every
+  // region. So e.g. NetSuite filtered to "Chicago" won't alert on a Frankfurt-only
+  // outage. If the filter matches NO components (typo, or a vendor with no
+  // per-region components), fall through to the unfiltered checks so it can't go blind.
+  const fterms = String(filter || '').toLowerCase().split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
+  if (fterms.length) {
+    const matched = (Array.isArray(json.components) ? json.components : [])
+      .filter((c) => c && c.name && fterms.some((t) => c.name.toLowerCase().includes(t)));
+    if (matched.length) {
+      const mbad = matched.filter((c) => c.status && c.status !== 'operational' && !/_maintenance$/.test(c.status));
+      const mmajor = mbad.find((c) => /major_outage/.test(c.status));
+      if (mmajor)      return { state: 'down',     state_note: `${mmajor.name}: major outage`, ...sp };
+      if (mbad.length) return { state: 'degraded', state_note: `${mbad[0].name}: ${mbad[0].status.replace(/_/g, ' ')}`, ...sp };
+      return { state: 'operational', state_note: description };
+    }
+    // no component matched the filter → fall through to the unfiltered checks below
+  }
+
   if (indicator === 'minor')                             return { state: 'degraded', state_note: description, ...sp };
   if (indicator === 'major' || indicator === 'critical') return { state: 'down', state_note: description, ...sp };
   if (indicator === 'none' || indicator == null) {
@@ -407,7 +431,7 @@ async function probeStatuspage(service) {
       return { state: 'degraded', response_ms: dt, http_status: r.status, error: `HTTP ${r.status}` };
     }
     const json = await r.json();
-    const parsed = parseStatusJson(json);
+    const parsed = parseStatusJson(json, service.match_filter);
     return { ...parsed, response_ms: dt, http_status: r.status };
   } catch (err) {
     return { state: 'down', error: err.message || 'fetch failed' };

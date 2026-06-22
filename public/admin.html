@@ -10402,6 +10402,7 @@ function renderStatus(root) {
     const isWebhook = s.source === 'webhook';
     const isRender = s.source === 'render';
     const isRss = s.source === 'rss';
+    const isStatuspage = s.source === 'statuspage';
     const needsUrl = !isManual && !isWebhook; // statuspage / rss / page / probe / render (render needs the page URL)
     const lastChecked = s.last_checked_at ? new Date(s.last_checked_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' }) : '';
 
@@ -10419,13 +10420,15 @@ function renderStatus(root) {
         <span class="status-svc-url-hint">${um.hint}</span>
       </div>` : '';
 
-    // Scope filter — only for broad RSS feeds (e.g. AWS all.rss). Saved via the
-    // generic [data-f] handler (debounced PATCH of match_filter).
-    const filterRowHtml = isRss ? `
+    // Region/scope filter. For RSS feeds it limits which feed entries count (e.g.
+    // AWS all.rss → us-east-1); for statuspage it limits which COMPONENTS drive the
+    // state (e.g. NetSuite → Chicago, ignore EU/APAC). Saved via the generic
+    // [data-f] handler (debounced PATCH of match_filter).
+    const filterRowHtml = (isRss || isStatuspage) ? `
       <div class="status-svc-url-row">
-        <span class="status-svc-url-label">Filter</span>
-        <input class="tx status-svc-url-input" data-f="match_filter" placeholder="e.g. us-east-1, us-east-2 — leave blank for all" value="${esc(s.match_filter || '')}" />
-        <span class="status-svc-url-hint">Optional — for broad feeds (like AWS <code>all.rss</code>) only alert when an entry mentions one of these comma-separated terms. Case-insensitive substring; add region codes <i>and</i> names, e.g. <code>us-east-1, n. virginia</code>.</span>
+        <span class="status-svc-url-label">Region filter</span>
+        <input class="tx status-svc-url-input" data-f="match_filter" placeholder="${isStatuspage ? 'e.g. Chicago — leave blank for all regions' : 'e.g. us-east-1, us-east-2 — leave blank for all'}" value="${esc(s.match_filter || '')}" />
+        <span class="status-svc-url-hint">Optional — only alert on ${isStatuspage ? 'status-page <b>components</b>' : 'feed entries'} whose name matches one of these comma-separated terms (case-insensitive). ${isStatuspage ? 'Scope to the regions/data centers you use, e.g. NetSuite → <code>Chicago</code>; a Frankfurt-only incident is then ignored.' : 'Add region codes <i>and</i> names, e.g. <code>us-east-1, n. virginia</code>.'} Blank = everything; if nothing matches it falls back to the overall status.</span>
       </div>` : '';
 
     // Webhook row — shown on EVERY service. For source=webhook it's the primary
