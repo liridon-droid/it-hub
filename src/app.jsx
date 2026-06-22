@@ -9892,7 +9892,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           <div style={{ position: 'relative', marginBottom: cats.length > 1 ? 12 : 16 }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
             <input value={catQuery} onChange={(e) => setCatQuery(e.target.value)} placeholder="Search apps & services…" autoFocus
-              style={{ width: '100%', padding: '10px 32px 10px 36px', border: '1px solid #211E1E', borderRadius: 8, background: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }} />
+              style={{ width: '100%', padding: '12px 32px 12px 36px', border: '1px solid #211E1E', borderRadius: 8, background: '#FFFFFF', fontSize: 16, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }} />
             {catQuery && <button onClick={() => setCatQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9A8E78', fontWeight: 900, fontSize: 14, lineHeight: 1, padding: 2 }}>✕</button>}
           </div>
           {/* Category filter */}
