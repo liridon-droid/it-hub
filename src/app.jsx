@@ -8780,6 +8780,33 @@ function TicketsTab({ label, active, onClick, badge }) {
   );
 }
 
+// "For ‹person›" / "Opened by ‹person›" chip — the on-behalf relationship, framed
+// from the viewer's side. A ticket is FOR its requester and was OPENED BY its
+// submitter; when they differ we show which side you're on (the industry-standard
+// requester-vs-submitter display). Renders nothing for an ordinary self-request.
+function OnBehalfTag({ ticket, size = 11 }) {
+  const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_ID != null) ? String(window.PORTAL_CURRENT_ID) : '';
+  const reqId = ticket.requester_id != null ? String(ticket.requester_id) : '';
+  const subId = ticket.submitter_id != null ? String(ticket.submitter_id) : '';
+  if (!subId || subId === reqId) return null; // self-request → no tag
+  let label = null;
+  if (me && subId === me && reqId !== me)      label = `For ${ticket.requester_name || 'someone'}`;
+  else if (me && reqId === me && subId !== me) label = `Opened by ${ticket.submitter_name || 'someone'}`;
+  else if (ticket.requester_name)              label = `For ${ticket.requester_name}`; // viewer is neither
+  if (!label) return null;
+  return (
+    <span title={label} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 8px',
+      background: '#EFE8D6', color: '#6B5B36', border: '1px solid #D9CDB0',
+      borderRadius: 999, fontSize: size, fontWeight: 700, whiteSpace: 'nowrap',
+      maxWidth: 200, overflow: 'hidden',
+    }}>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+    </span>
+  );
+}
+
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
@@ -8863,6 +8890,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
                 <TicketNumber value={t.ticket_number} size={12.5} />
+                <OnBehalfTag ticket={t} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
             </div>
@@ -9313,6 +9341,9 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
                 </div>
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
                   {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
+                  {t.submitter_name && String(t.submitter_id ?? '') !== String(t.requester_id ?? '') && (
+                    <span>Opened by <b style={{ color: '#55503F' }}>{t.submitter_name}</b></span>
+                  )}
                   {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
                   {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
                   {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}

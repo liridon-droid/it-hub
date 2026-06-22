@@ -196,6 +196,11 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
       requester_id: requester.id,
       requester_name: requester.name,
       requester_email: requester.email,
+      // Record who actually opened it (the on-behalf "opened by"). For a
+      // self-request submitter == requester, which callers treat as "no badge".
+      submitter_id: u.id,
+      submitter_name: u.name,
+      submitter_email: u.email,
     });
     // The ticket module returns an envelope: { status, message, ticket }.
     if (!ok || data.status === 'rejected' || data.status === 'error') {
@@ -213,12 +218,33 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
 // List the signed-in user's own tickets (newest first; optional status filter).
 app.get('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const params = new URLSearchParams({ requester_id: u.id, per_page: '50' });
-  if (req.query.status) params.set('status', String(req.query.status));
+  const uid = String(u.id);
+  const status = req.query.status ? String(req.query.status) : null;
+  // Two filters: tickets you're the requester of, AND tickets you opened on
+  // someone's behalf. Issued explicitly (rather than the module's involving_id OR)
+  // so this stays correct against an OLDER module that doesn't know the submitter
+  // filter yet: requester_id is always honored, so you never lose your own tickets;
+  // the submitter call yields nothing extra until the module is deployed. No
+  // regression in either deploy order.
+  const fetchBy = async (key) => {
+    const p = new URLSearchParams({ [key]: u.id, per_page: '50' });
+    if (status) p.set('status', status);
+    const r = await ticketModuleFetch('GET', `/tickets?${p}`);
+    return r.ok && r.data && Array.isArray(r.data.tickets) ? r.data.tickets : [];
+  };
   try {
-    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets?${params}`);
-    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    res.json(data);
+    const [mine, onBehalf] = await Promise.all([fetchBy('requester_id'), fetchBy('submitter_id')]);
+    // Merge + dedup, and defensively keep only tickets the caller is actually
+    // party to — so an ignored submitter filter on an old module (which would
+    // return everyone's tickets) can never leak someone else's into your list.
+    const byId = new Map();
+    for (const t of [...mine, ...onBehalf]) {
+      if (String(t.requester_id) === uid || String(t.submitter_id ?? '') === uid) byId.set(t.id, t);
+    }
+    const tickets = [...byId.values()].sort(
+      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+    );
+    res.json({ tickets, total: tickets.length });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.list');
   }
@@ -234,7 +260,7 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
   try {
     const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    if (data.requester_id != null && String(data.requester_id) !== String(u.id)) {
+    if (data.requester_id != null && String(data.requester_id) !== String(u.id) && String(data.submitter_id ?? '') !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json(data);
@@ -257,7 +283,7 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
@@ -294,7 +320,7 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: target });
@@ -322,7 +348,7 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/attachments`, {
@@ -372,7 +398,7 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
     // user could read anyone's file by guessing ids (same rule as GET /tickets/:id).
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
 
@@ -471,7 +497,7 @@ app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     if (Array.isArray(look.data.attachments)) return res.json({ attachments: look.data.attachments });
@@ -533,6 +559,8 @@ app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
       requester_name: requester.name,
       requester_email: requester.email,
       submitter_id: u.id,
+      submitter_name: u.name,
+      submitter_email: u.email,
       justification: String(justification || '').slice(0, 4000),
       urgency: urgency || 'medium',
       form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},

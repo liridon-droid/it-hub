@@ -111,6 +111,7 @@ function decodeHubToken() {
 (async function bootstrap() {
   const hub = decodeHubToken();
   if (hub) {
+    if (hub.sub)   window.PORTAL_CURRENT_ID    = hub.sub;
     if (hub.name)  window.PORTAL_CURRENT_USER  = hub.name;
     if (hub.email) window.PORTAL_CURRENT_EMAIL = hub.email;
     if (hub.role)  window.PORTAL_CURRENT_ROLE  = hub.role;
@@ -122,6 +123,7 @@ function decodeHubToken() {
     if (r.ok) {
       authed = true;
       const j = await r.json();
+      if (j?.id)    window.PORTAL_CURRENT_ID    = j.id;
       if (j?.name)  window.PORTAL_CURRENT_USER  = j.name;
       if (j?.email) window.PORTAL_CURRENT_EMAIL = j.email;
       if (j?.role)  window.PORTAL_CURRENT_ROLE  = j.role;
