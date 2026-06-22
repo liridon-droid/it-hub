@@ -1204,6 +1204,58 @@ app.post('/api/help/screenshot', requireSliceUser, async (req, res) => {
   }
 });
 
+// ── /api/chat AI throttle ───────────────────────────────────────────────
+// Soft, silent per-user rate limit on the expensive LLM path. More than
+// CHAT_RATE_MAX answered requests inside a sliding CHAT_RATE_WINDOW_MS window
+// trips a fixed CHAT_RATE_COOLDOWN_MS cooldown, during which the user is served
+// retrieval-only (guides, no AI synthesis) — identical in shape to the
+// proxy-down fallback, so it's invisible to them. The cooldown is fixed from
+// its trip time and never self-extends, so a user who keeps trying still
+// recovers exactly one cooldown later (the cheap retrieval path they hit
+// meanwhile costs nothing). State is in-memory per user id and resets on
+// restart — fine for a soft abuse guard, and it-hub redeploys often anyway.
+const CHAT_RATE_MAX = Number(process.env.CHAT_RATE_MAX || 3);
+const CHAT_RATE_WINDOW_MS = Number(process.env.CHAT_RATE_WINDOW_MS || 120_000);    // 2 min
+const CHAT_RATE_COOLDOWN_MS = Number(process.env.CHAT_RATE_COOLDOWN_MS || 600_000); // 10 min
+const chatRate = new Map(); // userId → { hits: number[], cooldownUntil: number }
+
+// True when the caller should be served retrieval-only (already in cooldown, or
+// this request trips it). Otherwise records the call against the sliding window.
+// Call only for requests about to use the LLM, so retrieval-only requests (and
+// the cheap calls a throttled user keeps making) don't burn the budget.
+function chatThrottle(uid) {
+  const key = String(uid || 'anon');
+  const now = Date.now();
+
+  // Opportunistic cleanup (mirrors sliceAuth's cache) so the map can't grow
+  // unbounded over a long uptime: drop idle users with no live window/cooldown.
+  if (chatRate.size > 2000) {
+    for (const [k, r] of chatRate) {
+      if (r.cooldownUntil <= now && !r.hits.some((t) => now - t < CHAT_RATE_WINDOW_MS)) chatRate.delete(k);
+    }
+  }
+
+  const rec = chatRate.get(key) || { hits: [], cooldownUntil: 0 };
+
+  // Active cooldown → serve retrieval; don't touch counters or extend it.
+  if (rec.cooldownUntil > now) return true;
+  // Cooldown just expired → clear it and start a fresh window.
+  if (rec.cooldownUntil) { rec.cooldownUntil = 0; rec.hits = []; }
+
+  // Sliding window: keep only hits inside the window, then decide.
+  rec.hits = rec.hits.filter((t) => now - t < CHAT_RATE_WINDOW_MS);
+  if (rec.hits.length >= CHAT_RATE_MAX) {
+    rec.cooldownUntil = now + CHAT_RATE_COOLDOWN_MS;
+    rec.hits = [];
+    chatRate.set(key, rec);
+    console.warn(`[chat] throttled user=${key} — retrieval-only for ${Math.round(CHAT_RATE_COOLDOWN_MS / 60000)}m`);
+    return true;
+  }
+  rec.hits.push(now);
+  chatRate.set(key, rec);
+  return false;
+}
+
 app.post('/api/chat', requireSliceUser, async (req, res, next) => {
   const { query } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
@@ -1242,7 +1294,13 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
     // the messages payload and forward the user's session cookie so
     // slicedesk can authenticate the call.
     const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
-    if (SLICEDESK_API_URL && matches.length > 0) {
+    // Soft, silent per-user throttle on the LLM path. Over the limit → skip the
+    // AI calls and fall through to retrieval-only (guides), same shape as the
+    // proxy-down fallback. Only consulted when the proxy is configured (i.e.
+    // when an LLM call would actually happen), so retrieval-only requests with
+    // no proxy don't count toward the limit.
+    const throttled = SLICEDESK_API_URL ? chatThrottle(req.user.id) : false;
+    if (SLICEDESK_API_URL && matches.length > 0 && !throttled) {
       const context = matches
         .map((r, i) => `[${i + 1}] from "${r.title}" (guide #${r.guide_id}, category: ${r.category ?? 'general'})\n${r.content}`)
         .join('\n\n---\n\n');
@@ -1321,7 +1379,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
     // the user doesn't get a dead-end "no match" response.
     let suggestions = [];
     const looksLikeNoAnswer = !answer || /\b(don'?t (have|know)|doesn'?t (contain|cover|mention)|not (in|covered|available)|no (guide|info|information))\b/i.test(answer);
-    if (matches.length === 0 || looksLikeNoAnswer) {
+    if (!throttled && (matches.length === 0 || looksLikeNoAnswer)) {
       const SLICEDESK_API_URL = (process.env.SLICEDESK_API_URL || '').replace(/\/$/, '');
       if (SLICEDESK_API_URL) {
         try {
