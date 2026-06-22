@@ -2728,6 +2728,18 @@ function App() {
   const [ticketsTab, setTicketsTab] = useState("mine");
   const [ticketsNav, setTicketsNav] = useState(0);
   const openTickets = (tab = "mine") => { setTicketsTab(tab); setTicketsNav((n) => n + 1); setStage("tickets"); };
+  // Deep-link: `/portal/?ticket=TKT-0042` (the "View your ticket" links in IT
+  // Service Desk emails) opens that ticket. Stash the number BEFORE openTickets()
+  // rewrites the address bar, then land on the Tickets page — MyTicketsView picks
+  // it up and opens it. Survives login: main.jsx keeps ?ticket through the SSO
+  // ?next= round-trip, so the user returns straight to the ticket after signing in.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tnum = new URLSearchParams(window.location.search).get("ticket");
+    if (!tnum) return;
+    window.__PORTAL_OPEN_TICKET__ = tnum;
+    openTickets("mine");
+  }, []);
   // Catalog request modal raised from the chat flow (App-level so the answer
   // page can open it). { itemId } preselects the matched app's request form.
   const [catalogReq, setCatalogReq] = useState(null);
@@ -8815,6 +8827,20 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
   React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
+
+  // Open a deep-linked ticket (`/portal/?ticket=TKT-0042`, from IT Service Desk
+  // email links). App stashes the number before the address bar is rewritten; we
+  // fetch it by number and open it. One-shot — clear the handoff so it doesn't
+  // reopen on a later remount. A 403/404 (not yours / not found) just lands on the list.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const tnum = window.__PORTAL_OPEN_TICKET__;
+    if (!tnum) return;
+    delete window.__PORTAL_OPEN_TICKET__;
+    ticketsApiJson('GET', `/api/tickets/${encodeURIComponent(tnum)}`)
+      .then((t) => { if (t && t.id != null) setSelTicket(t); })
+      .catch(() => {});
+  }, []);
 
   // Live list: load on mount/refresh, then silently re-poll every 15s so new
   // tickets + status changes show up on their own — no manual Refresh needed.
