@@ -311,6 +311,28 @@ function parseAppleServices(services) {
   return { state: bad.some((b) => b.outage) ? 'down' : 'degraded', state_note: bad[0].name };
 }
 
+// Pull StatusGator-style detail out of a Statuspage summary.json: the active
+// incident's headline (message), its latest update text (details), and the
+// impacted component names. summary.json lists only UNRESOLVED incidents, so
+// incidents[0] is the current one and incident_updates[0] its newest update.
+// Purely descriptive — never affects the computed state; used to enrich Slack
+// alerts only (state_note / status page / incidents stay exactly as they are).
+function statuspageDetail(json) {
+  const clamp = (s, n) => { const t = stripTags(s); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  const inc = Array.isArray(json?.incidents) ? json.incidents[0] : null;
+  const message = inc && inc.name ? clamp(inc.name, 160) : null;
+  const ups = inc && Array.isArray(inc.incident_updates) ? inc.incident_updates : [];
+  const details = ups[0] && ups[0].body ? clamp(ups[0].body, 300) : null;
+  const impacted = (s) => s && s !== 'operational' && !/maintenance/i.test(s);
+  let components = (Array.isArray(json?.components) ? json.components : [])
+    .filter((c) => c && impacted(c.status)).map((c) => c.name);
+  if (!components.length && inc && Array.isArray(inc.components)) {
+    components = inc.components.map((c) => c && c.name);
+  }
+  components = [...new Set(components.map((n) => stripTags(n)).filter(Boolean))].slice(0, 10);
+  return { message, details, components };
+}
+
 // Vendor status JSON → effective state. Sniffs the shape and dispatches. Covers
 // Atlassian Statuspage.io, Slack, Heroku v4, Google Workspace, and Apple.
 function parseStatusJson(json) {
@@ -348,16 +370,20 @@ function parseStatusJson(json) {
   // partial outage that hasn't tripped the overall indicator still shows.
   const indicator = json?.status?.indicator;
   let description = json?.status?.description || null;
-  if (indicator === 'minor')                             return { state: 'degraded', state_note: description };
-  if (indicator === 'major' || indicator === 'critical') return { state: 'down', state_note: description };
+  // StatusGator-style extras (incident headline / latest update / impacted
+  // components) for the Slack alert only — never affects state or state_note,
+  // so the status page and incidents are untouched.
+  const sp = statuspageDetail(json);
+  if (indicator === 'minor')                             return { state: 'degraded', state_note: description, ...sp };
+  if (indicator === 'major' || indicator === 'critical') return { state: 'down', state_note: description, ...sp };
   if (indicator === 'none' || indicator == null) {
     const comps = Array.isArray(json.components) ? json.components : [];
     const bad = comps.filter((c) => c && c.status && c.status !== 'operational' && !/_maintenance$/.test(c.status));
     // Only a *major* outage is "down". partial_outage / degraded_performance are
     // "degraded" — never escalate a partial impact to a full outage in alerts.
     const major = bad.find((c) => /major_outage/.test(c.status));
-    if (major) return { state: 'down', state_note: `${major.name}: major outage` };
-    if (bad.length) return { state: 'degraded', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}` };
+    if (major) return { state: 'down', state_note: `${major.name}: major outage`, ...sp };
+    if (bad.length) return { state: 'degraded', state_note: `${bad[0].name}: ${bad[0].status.replace(/_/g, ' ')}`, ...sp };
     return { state: 'operational', state_note: description };
   }
   return { state: 'operational', state_note: description };
@@ -581,6 +607,11 @@ async function resolveSource(rawUrl) {
 // timeout won't show the whole company a red banner) but confirms a real change
 // within ~2 minutes. This is the flap-resistance an industry monitor expects.
 const CONFIRM_SAMPLES = 2;
+// Recovery (bad → operational) must hold this many consecutive samples before we
+// declare it resolved + post the "recovered" alert. Longer than CONFIRM_SAMPLES so
+// a flapping vendor (bouncing degraded↔operational every few minutes) stays ONE
+// ongoing incident with ONE alert, instead of re-alerting on every blip back.
+const RECOVER_SAMPLES = 5; // ~5 min at the 60s poll cadence
 
 async function pollOne(pool, service) {
   // manual / webhook / render services aren't polled by the hub — their state is
@@ -615,12 +646,18 @@ async function applyState(pool, service, observed) {
     [service.id, observed.state, observed.response_ms || null, observed.http_status || null, observed.error || null],
   );
 
+  // Asymmetric confirmation: a bad→operational recovery must hold RECOVER_SAMPLES
+  // consecutive readings; everything else confirms at CONFIRM_SAMPLES. This damps
+  // flapping vendors — short blips back to operational don't flip the effective
+  // state, so we don't re-open/re-alert. One alert when it breaks, one when stable.
+  const recovering = observed.state === 'operational' && service.state !== 'operational';
+  const needed = recovering ? RECOVER_SAMPLES : CONFIRM_SAMPLES;
   const recent = await pool.query(
     `SELECT state FROM status_checks WHERE service_id = $1 ORDER BY checked_at DESC LIMIT $2`,
-    [service.id, CONFIRM_SAMPLES],
+    [service.id, needed],
   );
   const confirmed =
-    recent.rows.length >= CONFIRM_SAMPLES && recent.rows.every((r) => r.state === observed.state);
+    recent.rows.length >= needed && recent.rows.every((r) => r.state === observed.state);
   const effective = confirmed ? observed.state : service.state;
   // Operational → no note. If the effective state matches what we just observed,
   // use the fresh note. If we're holding a prior (still-bad) state because the
@@ -638,7 +675,14 @@ async function applyState(pool, service, observed) {
   );
 
   if (effective !== service.state) {
-    await handleAutoIncident(pool, service, service.state, effective);
+    // Carry the fresh note + the StatusGator-style extras (statuspage only) into
+    // the alert. `note` is the just-computed note; observed.* are the parse extras.
+    await handleAutoIncident(pool, service, service.state, effective, {
+      note,
+      message: observed.message,
+      details: observed.details,
+      components: observed.components,
+    });
   }
 }
 
@@ -705,12 +749,18 @@ async function clearAutoIncident(pool, service, { body } = {}) {
 // resolve the auto-incident, and fire the matching Slack alert. Only auto-created
 // incidents are touched here — admin-authored ones are never mutated. (This is
 // only ever called on an actual change, so fromState !== toState.)
-async function handleAutoIncident(pool, service, fromState, toState) {
+async function handleAutoIncident(pool, service, fromState, toState, alert = {}) {
   if (isBadState(toState)) {
     const severity = severityForState(toState);
     const res = await raiseAutoIncident(pool, service, { toState, severity });
     if (await slackEventEnabled(pool, 'down')) {
-      await notifyServiceAlert(pool, service, { state: toState, severity, note: service.state_note, kind: res.opened ? 'opened' : 'changed' });
+      await notifyServiceAlert(pool, service, {
+        state: toState, severity,
+        // Fresh note (fixes the prior stale/empty note) + StatusGator-style extras.
+        note: alert.note != null ? alert.note : service.state_note,
+        message: alert.message, details: alert.details, components: alert.components,
+        kind: res.opened ? 'opened' : 'changed',
+      });
     }
   } else {
     const id = await clearAutoIncident(pool, service);
@@ -868,7 +918,7 @@ function imageAccessory(service) {
 // headline, a divider, a section with the app icon as a thumbnail + the detail,
 // and a subtle context footer. Returns { text, blocks } (text is the fallback
 // used for notifications + accessibility). No colour bar, no button — by design.
-function buildServiceAlert({ service, state, severity, note, kind, statusUrl }) {
+function buildServiceAlert({ service, state, severity, note, kind, statusUrl, message, details, components }) {
   const emoji = stateEmoji(state);
   const stateWord = state === 'down' ? 'down' : state === 'degraded' ? 'degraded' : 'operational';
   const name = slackText(service.name);
@@ -878,10 +928,24 @@ function buildServiceAlert({ service, state, severity, note, kind, statusUrl }) 
     : kind === 'changed' ? `${emoji}  *${name}* is now *${stateWord}*`
     :                      `${emoji}  *${name}* is *${stateWord}*`;
 
-  const detail = note ? slackText(note)
-    : state === 'operational' ? 'All checks are passing again.'
-    : 'Reported by status monitoring.';
   const sub = service.vendor ? ` _(${slackText(service.vendor)})_` : '';
+  // StatusGator-style body. When the vendor feed gave us an incident headline
+  // (message), its latest update (details), and/or impacted components, surface
+  // them; otherwise fall back to the prior single-line note + generic fallback.
+  // Link the service name to the status page (Slack can't hyperlink the icon
+  // image itself, so the name next to it is the click target; the footer links too).
+  const linkedName = statusUrl ? `<${statusUrl}|${name}>` : name;
+  const bodyLines = [`*${linkedName}*${sub}`];
+  if (message) bodyLines.push(`*${slackText(message)}*`);
+  const detailBody = details ? slackText(details)
+    : note ? slackText(note)
+    : state === 'operational' ? 'All checks are passing again.'
+    : message ? null
+    : 'Reported by status monitoring.';
+  if (detailBody) bodyLines.push(detailBody);
+  if (Array.isArray(components) && components.length) {
+    bodyLines.push(`*Affected:* ${components.map((c) => slackText(c)).join(', ')}`);
+  }
 
   const ts = Math.floor(Date.now() / 1000);
   const when = `<!date^${ts}^{time}|just now>`;
@@ -892,7 +956,7 @@ function buildServiceAlert({ service, state, severity, note, kind, statusUrl }) 
     :                      `Detected ${when}${sevLabel ? ` · ${sevLabel}` : ''}`;
   const footer = statusUrl ? `<${statusUrl}|Slice IT Hub> · status monitoring` : 'Slice IT Hub · status monitoring';
 
-  const svcSection = { type: 'section', text: { type: 'mrkdwn', text: `*${name}*${sub}\n${detail}` } };
+  const svcSection = { type: 'section', text: { type: 'mrkdwn', text: bodyLines.join('\n') } };
   const acc = imageAccessory(service);
   if (acc) svcSection.accessory = acc;
   const blocks = [
@@ -902,7 +966,8 @@ function buildServiceAlert({ service, state, severity, note, kind, statusUrl }) 
     { type: 'context', elements: [{ type: 'mrkdwn', text: `${lead}  ·  ${footer}` }] },
   ];
   const stateLabel = state === 'down' ? 'Down' : state === 'degraded' ? 'Degraded' : 'Operational';
-  const text = `${emoji} ${service.name} is ${stateLabel}${note ? ` — ${note}` : ''}`;
+  const compTail = (Array.isArray(components) && components.length) ? ` (affected: ${components.join(', ')})` : '';
+  const text = `${emoji} ${service.name} is ${stateLabel}${message ? ` — ${message}` : note ? ` — ${note}` : ''}${compTail}`;
   return { text, blocks };
 }
 
@@ -980,12 +1045,16 @@ async function notifySlack(pool, { serviceId, message, text }) {
 // Convenience wrappers — fetch the optional public status URL (for the footer
 // link), build the premium message, and route it. Used by the poller, the
 // webhook ingest, and the admin incident routes so every alert looks the same.
+// The "Slice IT Hub" footer link and the linked service name in alerts point
+// here. Admins can override via the public_status_url setting; absent that, we
+// fall back to the production status page so alerts always link somewhere useful.
+const DEFAULT_STATUS_URL = 'https://slicedesk.slice.services/portal/status';
 async function notifyServiceAlert(pool, service, opts) {
-  const statusUrl = await getConfig(pool, 'public_status_url');
+  const statusUrl = (await getConfig(pool, 'public_status_url')) || DEFAULT_STATUS_URL;
   await notifySlack(pool, { serviceId: service.id, message: buildServiceAlert({ service, statusUrl, ...opts }) });
 }
 async function notifyIncidentAlert(pool, { serviceId, service, ...opts }) {
-  const statusUrl = await getConfig(pool, 'public_status_url');
+  const statusUrl = (await getConfig(pool, 'public_status_url')) || DEFAULT_STATUS_URL;
   await notifySlack(pool, { serviceId, message: buildIncidentAlert({ service, statusUrl, ...opts }) });
 }
 
