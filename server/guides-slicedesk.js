@@ -61,10 +61,23 @@ const parseTags = (t) => {
   try { return JSON.parse(t || '[]'); } catch { return []; }
 };
 
+// The Portal frontend addresses guides by NUMERIC id (it only loads content when
+// /^\d+$/ matches). SliceDesk's portal feed is keyed by slug, so we expose the
+// numeric how_to_guides id and keep an id→slug map (populated from the list) to
+// resolve detail/feedback calls back to the slug.
+let _idToSlug = new Map();
+async function slugForId(id) {
+  const key = String(id);
+  if (_idToSlug.has(key)) return _idToSlug.get(key);
+  const rows = await hubFetch('/api/ext/portal/howto'); // refresh the map
+  _idToSlug = new Map((rows || []).map((g) => [String(g.id), g.slug]));
+  return _idToSlug.get(key) || null;
+}
+
 // SliceDesk portal feed row → IT Hub guide shape.
 function toGuide(g, { withBody = false } = {}) {
   return {
-    id: g.slug, // stable opaque id the Portal frontend already passes through
+    id: g.id, // numeric how_to_guides id — the Portal frontend requires /^\d+$/
     title: g.title,
     category: g.category,
     tags: parseTags(g.tags),
@@ -84,14 +97,18 @@ export function registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin }
     try {
       const qs = req.query.search ? `?search=${encodeURIComponent(req.query.search)}` : '';
       const rows = await hubFetch(`/api/ext/portal/howto${qs}`);
+      // Keep the id→slug map warm so guide detail/feedback resolve without a refetch.
+      _idToSlug = new Map((rows || []).map((g) => [String(g.id), g.slug]));
       res.json((rows || []).map((g) => toGuide(g)));
     } catch (e) { next(e); }
   });
 
-  // DETAIL (id === SliceDesk slug)
+  // DETAIL (id === numeric how_to_guides id → resolve to slug)
   app.get('/api/guides/:id', requireSliceUser, async (req, res, next) => {
     try {
-      const g = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(req.params.id)}`);
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: 'not found' });
+      const g = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}`);
       res.json(toGuide(g, { withBody: true }));
     } catch (e) {
       if (e.status === 404) return res.status(404).json({ error: 'not found' });
@@ -104,7 +121,9 @@ export function registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin }
     const { rating } = req.body ?? {};
     if (rating !== 1 && rating !== -1) return res.status(400).json({ error: 'rating must be 1 or -1' });
     try {
-      const r = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(req.params.id)}/feedback`, {
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: 'guide not found' });
+      const r = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}/feedback`, {
         method: 'POST', body: { rating },
       });
       res.json({ id: req.params.id, helpful_count: r.helpful_count, unhelpful_count: r.unhelpful_count });
@@ -117,7 +136,9 @@ export function registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin }
   // FEEDBACK DETAIL — SliceDesk tracks aggregate counters only (no per-vote log).
   app.get('/api/guides/:id/feedback-detail', requireSliceUser, async (req, res, next) => {
     try {
-      const g = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(req.params.id)}`);
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: 'guide not found' });
+      const g = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}`);
       res.json({ helpful_count: g.helpful_count || 0, unhelpful_count: g.unhelpful_count || 0, items: [] });
     } catch (e) {
       if (e.status === 404) return res.status(404).json({ error: 'guide not found' });
