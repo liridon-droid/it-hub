@@ -14,6 +14,7 @@ import {
   mountStatusRoutes,
 } from './status.js';
 import { moduleConfig } from './module-config.js';
+import { registerGuideRoutes } from './guides-slicedesk.js';
 
 const PORT = Number(process.env.PORT) || 3001;
 // Claude calls are proxied to slicedesk's /api/ext/ai/proxy — it-hub never holds
@@ -628,6 +629,12 @@ app.post('/api/approvals/:id/respond', requireSliceUser, async (req, res) => {
     ticketProxyError(res, err, 'approvals.respond');
   }
 });
+
+// ── Guides → SliceDesk Docs (single source of truth) ──────────────────────
+// Registered BEFORE the legacy inline /api/guides* handlers below so it wins
+// route matching; the inline portal2-backed handlers become dead fallback.
+// Reads guides + writes feedback to SliceDesk; local guide CRUD is 409'd.
+registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin });
 
 app.get('/api/guides', requireSliceUser, async (req, res, next) => {
   try {
