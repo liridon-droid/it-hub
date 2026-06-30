@@ -9,6 +9,7 @@
 //                        so /portal keeps working both ways.
 //   AUTH_MODE=hub        hub_token only (pure module).
 //   AUTH_MODE=slicedesk  slicedesk cookie only (legacy).
+import crypto from 'node:crypto';
 import { moduleConfig } from '../module-config.js';
 import * as hub from './hubAuth.js';
 import * as slice from './sliceAuth.js';
@@ -34,3 +35,41 @@ console.log(`[auth] mode = ${moduleConfig.authMode}`);
 export const attachSliceUser = impl.attachUser;
 export const requireSliceUser = impl.requireUser;
 export const requireSliceAdmin = impl.requireAdmin;
+
+// ── Bot service token ───────────────────────────────────────────────────────
+// Lets a trusted server-to-server caller (the IT Hub Slack bot) hit selected
+// endpoints with `Authorization: Bearer $BOT_SERVICE_TOKEN` instead of a user
+// session. When the bot token isn't used it falls through to normal user auth,
+// so the same route keeps working for signed-in humans. Disabled entirely
+// unless BOT_SERVICE_TOKEN is set in the environment.
+function bearerToken(req) {
+  const a = (req.get && req.get('authorization')) || '';
+  const m = String(a).match(/^Bearer\s+(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+function tokensMatch(a, b) {
+  if (!a || !b) return false;
+  const ab = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+}
+function botUser() {
+  const email = process.env.BOT_DEFAULT_EMAIL || 'it-hub-slackbot@slice.com';
+  return { id: 'bot:' + email, name: 'IT Hub Slackbot', email, role: 'employee', roleLabel: 'Service account', _bot: true };
+}
+
+export function requireBotOrUser(req, res, next) {
+  const botToken = process.env.BOT_SERVICE_TOKEN;
+  const tok = bearerToken(req);
+  if (tok && botToken) {
+    if (tokensMatch(tok, botToken)) { req.user = botUser(); return next(); }
+    // A Bearer was supplied and a bot token is configured but it didn't match —
+    // and it isn't a valid hub_token either → it's a bad bot credential. (A real
+    // hub_token in the Bearer slot still falls through to normal user auth.)
+    if (!hub.verifyHubToken(tok)) {
+      res.set('Cache-Control', 'no-store');
+      return res.status(401).json({ error: 'Invalid bot token' });
+    }
+  }
+  return requireSliceUser(req, res, next);
+}

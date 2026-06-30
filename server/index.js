@@ -6,7 +6,9 @@ import {
   attachSliceUser,
   requireSliceUser,
   requireSliceAdmin,
+  requireBotOrUser,
 } from './middleware/auth.js'; // selector: AUTH_MODE=hub (hub_token) | slicedesk (cookie)
+import { devTicketsEnabled, handleDevTicket } from './dev-tickets.js';
 import {
   bootstrapStatusServices,
   ensureStatusServices,
@@ -137,6 +139,9 @@ app.get('/api/me', requireSliceUser, (req, res) => {
 // Content-Type). Throws with .statusCode = 503 when we aren't paired yet.
 async function ticketModuleFetch(method, subPath, body) {
   if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
+    // Local dev: no hub to proxy to. Serve in-memory fixtures so the Tickets UI
+    // works offline. Never reached in prod (hub creds are set there).
+    if (devTicketsEnabled) return handleDevTicket(method, subPath, body);
     const err = new Error('Module is not configured to reach the hub.');
     err.statusCode = 503;
     throw err;
@@ -316,8 +321,8 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
 app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
   const u = req.user;
   const action = req.body && req.body.action;
-  const target = action === 'close' ? 'closed' : action === 'reopen' ? 'open' : null;
-  if (!target) return res.status(400).json({ error: 'action must be "close" or "reopen".' });
+  const target = action === 'close' ? 'closed' : action === 'reopen' ? 'open' : action === 'resolve' ? 'resolved' : null;
+  if (!target) return res.status(400).json({ error: 'action must be "close", "reopen", or "resolve".' });
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
@@ -331,6 +336,31 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
     res.json(data.ticket || data);
   } catch (err) {
     ticketProxyError(res, err, 'tickets.status');
+  }
+});
+
+// Bump a ticket's priority from the portal (e.g. "this got worse — escalate it").
+// Gated to the ticket's requester/submitter, same as status. The module owns the
+// final say; we just forward the requested level.
+app.post('/api/tickets/:id/priority', requireSliceUser, async (req, res) => {
+  const u = req.user;
+  const priority = String((req.body && req.body.priority) || '').toLowerCase();
+  if (!['low', 'medium', 'high', 'urgent'].includes(priority)) {
+    return res.status(400).json({ error: 'priority must be low, medium, high, or urgent.' });
+  }
+  try {
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
+    const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { priority });
+    if (!ok || data.status === 'rejected' || data.status === 'error') {
+      return res.status(ok ? 400 : status).json({ error: data.error || `Ticket service returned ${status}` });
+    }
+    res.json(data.ticket || data);
+  } catch (err) {
+    ticketProxyError(res, err, 'tickets.priority');
   }
 });
 
@@ -1291,9 +1321,28 @@ function chatThrottle(uid) {
   return false;
 }
 
-app.post('/api/chat', requireSliceUser, async (req, res, next) => {
-  const { query } = req.body ?? {};
+// Normalize an optional prior-conversation `history` into a valid Anthropic
+// messages prefix: only user/assistant turns, consecutive same-role merged, must
+// start with user and end with assistant (the new question is appended as the
+// final user turn), capped to the last few turns. Bad/absent input → [].
+function normalizeHistory(h) {
+  if (!Array.isArray(h)) return [];
+  const out = [];
+  for (const m of h) {
+    if (!m || (m.role !== 'user' && m.role !== 'assistant') || typeof m.content !== 'string' || !m.content.trim()) continue;
+    const content = m.content.slice(0, 4000);
+    if (out.length && out[out.length - 1].role === m.role) out[out.length - 1].content += '\n\n' + content;
+    else out.push({ role: m.role, content });
+  }
+  while (out.length && out[0].role !== 'user') out.shift();
+  while (out.length && out[out.length - 1].role !== 'assistant') out.pop();
+  return out.slice(-10);
+}
+
+app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
+  const { query, history } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
+  const priorTurns = normalizeHistory(history);
   try {
     const matches = await ftsSearch(query);
 
@@ -1334,7 +1383,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
     // proxy-down fallback. Only consulted when the proxy is configured (i.e.
     // when an LLM call would actually happen), so retrieval-only requests with
     // no proxy don't count toward the limit.
-    const throttled = SLICEDESK_API_URL ? chatThrottle(req.user.id) : false;
+    const throttled = SLICEDESK_API_URL && !req.user._bot ? chatThrottle(req.user.id) : false;
     if (SLICEDESK_API_URL && matches.length > 0 && !throttled) {
       const context = matches
         .map((r, i) => `[${i + 1}] from "${r.title}" (guide #${r.guide_id}, category: ${r.category ?? 'general'})\n${r.content}`)
@@ -1374,6 +1423,7 @@ app.post('/api/chat', requireSliceUser, async (req, res, next) => {
               "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
               "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team.",
             messages: [
+              ...priorTurns,
               {
                 role: 'user',
                 content:

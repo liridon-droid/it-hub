@@ -4755,6 +4755,53 @@ function markTicketSeen(id, updatedAt) {
   } catch {}
 }
 
+// ── Tab badges: "unseen" tickets / approvals ────────────────────────────────
+// Which items the user has actually OPENED (the detail view), so the My-tickets
+// and Approvals tabs can flag things with an update you haven't looked at yet.
+// Deliberately separate from the bell's TICKET_SEEN_KEY (which seeds first
+// sightings to stay quiet) — this store is never seeded, so an unopened item
+// that has real activity still shows on the tab. Shape: { tickets:{}, approvals:{} }.
+const TAB_SEEN_KEY = "portal2.tabSeen.v1";
+function loadTabSeen() {
+  try {
+    const r = typeof localStorage !== 'undefined' && localStorage.getItem(TAB_SEEN_KEY);
+    const j = r ? JSON.parse(r) : null;
+    return { tickets: (j && j.tickets) || {}, approvals: (j && j.approvals) || {} };
+  } catch { return { tickets: {}, approvals: {} }; }
+}
+function markTabSeen(kind, id, updatedAt) {
+  if (id == null) return;
+  try {
+    const m = loadTabSeen();
+    const v = updatedAt || '1';
+    if (m[kind][String(id)] === v) return;
+    m[kind][String(id)] = v;
+    localStorage.setItem(TAB_SEEN_KEY, JSON.stringify(m));
+    window.dispatchEvent(new Event(NOTIF_EVT));
+  } catch {}
+}
+// Count items whose latest update the user hasn't seen. An item is "unseen" if
+// it was never opened, or it changed (updated_at) since you last opened it.
+// `getCreated` (tickets only) suppresses items with no activity since creation —
+// a request you filed that nobody's touched yet isn't "an update you haven't seen".
+function countTabUnseen(kind, items, getId, getUpdated, getCreated) {
+  const seen = loadTabSeen()[kind] || {};
+  let n = 0;
+  for (const it of items) {
+    const id = getId(it);
+    if (id == null) continue;
+    const upd = getUpdated ? getUpdated(it) : null;
+    if (getCreated) {
+      const created = getCreated(it);
+      if (created && upd && new Date(upd).getTime() <= new Date(created).getTime()) continue;
+    }
+    const prev = seen[String(id)];
+    if (prev === undefined) { n++; continue; }
+    if (upd && new Date(upd).getTime() > new Date(prev).getTime()) n++;
+  }
+  return n;
+}
+
 // Bucket a Date into the same coarse "Today / Yesterday / Earlier" groups the
 // notification page already shows.
 function notifGroup(d) {
@@ -5220,7 +5267,7 @@ function NotificationsMenu({ onViewAll, onOpenTickets }) {
                   key={it.id}
                   role="menuitem"
                   type="button"
-                  onClick={() => { markRead(it.id); if (it.kind === 'ticket' && onOpenTickets) { setOpen(false); onOpenTickets(); } }}
+                  onClick={() => { markRead(it.id); if (it.kind === 'ticket' && onOpenTickets) { setOpen(false); if (it.ticketId != null) { try { window.__PORTAL_OPEN_TICKET__ = it.ticketId; } catch {} } onOpenTickets(); } }}
                   style={{
                     width: "100%",
                     display: "flex", alignItems: "flex-start", gap: 10,
@@ -8287,6 +8334,215 @@ function ticketInitials(name) {
 // One chat message — YOU on the RIGHT in a clean white bubble (cheese avatar),
 // the IT Team on the LEFT in a cheese bubble (charcoal avatar) so their replies
 // stand out. Round avatars, brand hard-shadow bubbles, charcoal text on both.
+// ── Rich-text reply editor ───────────────────────────────────────────────────
+// Lightweight contenteditable composer that mirrors the ticket module's Lexical
+// toolbar (bold/italic/underline, lists, align, text color, link, image, clear).
+// Emits HTML so replies keep their formatting through the hub; rendered back via
+// sanitizeHtml(). No external editor dependency — execCommand drives formatting.
+
+// True when an HTML string has no visible content (empty <p>, stray <br>, &nbsp;).
+function htmlIsEmpty(html) {
+  if (!html) return true;
+  const txt = String(html)
+    .replace(/<br\s*\/?>/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/​/g, '')
+    .trim();
+  return txt.length === 0;
+}
+
+// Does a stored comment body carry HTML markup (rich editor / module) vs plain text?
+function looksLikeHtml(s) {
+  return typeof s === 'string' && /<\/?(p|br|b|strong|i|em|u|ul|ol|li|a|span|div|img|h[1-3]|font)\b/i.test(s);
+}
+
+// Allowlist sanitizer for rendering (and sending) comment HTML — XSS-safe. Keeps
+// basic formatting tags + safe attrs; drops scripts, event handlers, unsafe URLs.
+function sanitizeHtml(html) {
+  if (typeof window === 'undefined' || typeof window.DOMParser === 'undefined') {
+    return String(html || '').replace(/<[^>]*>/g, '');
+  }
+  const ALLOWED = { A: ['href'], B: [], STRONG: [], I: [], EM: [], U: [], P: [], BR: [], UL: [], OL: [], LI: [], SPAN: ['style'], DIV: ['style'], IMG: ['src', 'alt'], H1: [], H2: [], H3: [] };
+  const SAFE_URL = (u) => /^(https?:|mailto:|tel:|data:image\/)/i.test(String(u || '').trim());
+  const doc = new DOMParser().parseFromString(String(html || ''), 'text/html');
+  const clean = (node) => {
+    [...node.childNodes].forEach((child) => {
+      if (child.nodeType === 1) {
+        const tag = child.tagName;
+        if (!ALLOWED[tag]) { while (child.firstChild) node.insertBefore(child.firstChild, child); node.removeChild(child); return; }
+        const keep = ALLOWED[tag];
+        [...child.attributes].forEach((a) => {
+          const name = a.name.toLowerCase();
+          if (!keep.includes(name)) { child.removeAttribute(a.name); return; }
+          if ((name === 'href' || name === 'src') && !SAFE_URL(a.value)) { child.removeAttribute(a.name); return; }
+          if (name === 'style') {
+            const safe = a.value.split(';').map((d) => d.trim()).filter((d) => /^(color|text-align)\s*:/i.test(d)).join('; ');
+            if (safe) child.setAttribute('style', safe); else child.removeAttribute('style');
+          }
+        });
+        if (tag === 'A') { child.setAttribute('target', '_blank'); child.setAttribute('rel', 'noopener noreferrer'); }
+        clean(child);
+      } else if (child.nodeType !== 3) {
+        node.removeChild(child);
+      }
+    });
+  };
+  clean(doc.body);
+  return doc.body.innerHTML;
+}
+
+// Toolbar icon — small lucide-style inline SVG.
+function RTIcon({ d, extra, size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {d && d.map((p, i) => <path key={i} d={p} />)}
+      {extra}
+    </svg>
+  );
+}
+
+function RichReply({ value, onChange, onSubmit, placeholder, disabled }) {
+  const ref = React.useRef(null);
+  const [empty, setEmpty] = React.useState(htmlIsEmpty(value));
+
+  // Reset the editor DOM only when the value is cleared externally (after send) —
+  // never rewrite innerHTML mid-edit or the caret jumps.
+  React.useEffect(() => {
+    const el = ref.current;
+    if (el && htmlIsEmpty(value) && el.innerHTML !== '') { el.innerHTML = ''; setEmpty(true); }
+  }, [value]);
+
+  const emit = () => {
+    const el = ref.current; if (!el) return;
+    const isEmpty = htmlIsEmpty(el.innerHTML);
+    setEmpty(isEmpty);
+    onChange && onChange(isEmpty ? '' : el.innerHTML);
+  };
+  const exec = (cmd, arg) => {
+    const el = ref.current; if (!el || disabled) return;
+    el.focus();
+    try { document.execCommand(cmd, false, arg); } catch {}
+    emit();
+  };
+  const color = (c) => {
+    const el = ref.current; if (!el || disabled) return;
+    el.focus();
+    try { document.execCommand('styleWithCSS', false, true); document.execCommand('foreColor', false, c); } catch {}
+    emit();
+  };
+  const link = () => { const u = window.prompt('Link URL:'); if (u) exec('createLink', u); };
+  const image = () => { const u = window.prompt('Image URL:'); if (u) exec('insertImage', u); };
+
+  const tbBtn = { width: 28, height: 28, display: 'grid', placeItems: 'center', borderRadius: 6, border: 'none', background: 'transparent', color: '#6B5F4B', cursor: disabled ? 'default' : 'pointer', transition: 'background .12s, color .12s' };
+  const Sep = () => <span style={{ width: 1, height: 16, background: '#E4DDCD', margin: '0 3px' }} />;
+  const TB = ({ title, onClick, children }) => (
+    <button type="button" title={title} disabled={disabled} onMouseDown={(e) => e.preventDefault()} onClick={onClick}
+      onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = 'rgba(33,30,30,.08)'; e.currentTarget.style.color = '#211E1E'; } }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B5F4B'; }}
+      style={tbBtn}>{children}</button>
+  );
+
+  return (
+    <div style={{ border: '1px solid #211E1E', borderRadius: 10, background: '#FFFFFF', boxShadow: '2px 2px 0 #211E1E', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, padding: '5px 7px', borderBottom: '1px solid #EFEAE0', background: '#FBF8F2' }}>
+        <TB title="Bold (⌘B)" onClick={() => exec('bold')}><RTIcon d={["M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"]} /></TB>
+        <TB title="Italic (⌘I)" onClick={() => exec('italic')}><RTIcon extra={<><line x1="19" x2="10" y1="4" y2="4" /><line x1="14" x2="5" y1="20" y2="20" /><line x1="15" x2="9" y1="4" y2="20" /></>} /></TB>
+        <TB title="Underline (⌘U)" onClick={() => exec('underline')}><RTIcon d={["M6 4v6a6 6 0 0 0 12 0V4"]} extra={<line x1="4" x2="20" y1="20" y2="20" />} /></TB>
+        <Sep />
+        <TB title="Bulleted list" onClick={() => exec('insertUnorderedList')}><RTIcon d={["M3 5h.01", "M3 12h.01", "M3 19h.01", "M8 5h13", "M8 12h13", "M8 19h13"]} /></TB>
+        <TB title="Numbered list" onClick={() => exec('insertOrderedList')}><RTIcon d={["M11 5h10", "M11 12h10", "M11 19h10", "M4 4h1v5", "M4 9h2", "M6.5 20H3.4c0-1 2.6-1.925 2.6-3.5a1.5 1.5 0 0 0-2.6-1.02"]} /></TB>
+        <Sep />
+        <TB title="Align left" onClick={() => exec('justifyLeft')}><RTIcon d={["M21 5H3", "M15 12H3", "M17 19H3"]} /></TB>
+        <TB title="Align center" onClick={() => exec('justifyCenter')}><RTIcon d={["M21 5H3", "M17 12H7", "M19 19H5"]} /></TB>
+        <TB title="Align right" onClick={() => exec('justifyRight')}><RTIcon d={["M21 5H3", "M21 12H9", "M21 19H7"]} /></TB>
+        <Sep />
+        <label title="Text color" style={{ ...tbBtn, position: 'relative' }}
+          onMouseEnter={(e) => { if (!disabled) { e.currentTarget.style.background = 'rgba(33,30,30,.08)'; e.currentTarget.style.color = '#211E1E'; } }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#6B5F4B'; }}>
+          <RTIcon d={["M4 20h16", "m6 16 6-12 6 12", "M8 12h8"]} />
+          <input type="color" disabled={disabled} onChange={(e) => color(e.target.value)} style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+        </label>
+        <TB title="Insert link" onClick={link}><RTIcon d={["M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71", "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"]} /></TB>
+        <TB title="Insert image" onClick={image}><RTIcon extra={<><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></>} /></TB>
+        <Sep />
+        <TB title="Clear formatting" onClick={() => exec('removeFormat')}><RTIcon d={["M21 21H8a2 2 0 0 1-1.42-.587l-3.994-3.999a2 2 0 0 1 0-2.828l10-10a2 2 0 0 1 2.829 0l5.999 6a2 2 0 0 1 0 2.828L12.834 21", "m5.082 11.09 8.828 8.828"]} /></TB>
+      </div>
+      <div style={{ position: 'relative' }}>
+        {empty && <div style={{ position: 'absolute', top: 10, left: 13, color: '#9A8E78', fontSize: 14.5, pointerEvents: 'none' }}>{placeholder}</div>}
+        <div ref={ref} contentEditable={!disabled} suppressContentEditableWarning role="textbox" aria-multiline="true" aria-label={placeholder}
+          spellCheck onInput={emit}
+          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); onSubmit && onSubmit(); } }}
+          style={{ minHeight: 110, maxHeight: 300, overflowY: 'auto', padding: '10px 13px', fontSize: 14.5, lineHeight: 1.5, color: '#211E1E', outline: 'none', wordBreak: 'break-word' }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Split "Send reply" button — the main action sends a plain reply; the caret
+// opens combined "send &…" actions (resolve, escalate priority). Priority options
+// only appear when they'd actually raise the level. Hidden on resolved/closed
+// tickets (there the plain button drives the reopen-confirm flow instead).
+function ReplySend({ ticket, sending, disabled, reopenOnReply, onSend }) {
+  const [open, setOpen] = React.useState(false);
+  const wrapRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const pr = String((ticket && ticket.priority) || '').toLowerCase();
+  const ArrowUp = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></svg>;
+  const Check = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>;
+  const items = [{ key: 'resolve', label: 'Send & mark resolved', tint: '#0A8A3E', icon: Check, opts: { resolve: true } }];
+  if (pr === 'low' || pr === 'medium') items.push({ key: 'high', label: 'Send & raise priority to High', tint: '#B5830F', icon: ArrowUp, opts: { priority: 'high' } });
+  if (pr === 'low' || pr === 'medium' || pr === 'high') items.push({ key: 'urgent', label: 'Send & raise priority to Urgent', tint: '#B92323', icon: ArrowUp, opts: { priority: 'urgent' } });
+  const showMenu = !reopenOnReply && items.length > 0;
+
+  const choose = (opts) => { setOpen(false); onSend(opts); };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button onClick={() => onSend()} disabled={disabled} className="btn btn-primary"
+        style={showMenu ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 } : undefined}>
+        {sending ? 'Sending…' : 'Send reply'}
+      </button>
+      {showMenu && (
+        <button type="button" aria-label="More send options" aria-expanded={open} onClick={() => setOpen((o) => !o)} disabled={disabled}
+          className="btn btn-primary"
+          style={{ marginLeft: 1, padding: '0 9px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0, display: 'grid', placeItems: 'center' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><path d="m6 9 6 6 6-6" /></svg>
+        </button>
+      )}
+      {showMenu && open && (
+        <div role="menu" style={{
+          position: 'absolute', bottom: 'calc(100% + 6px)', right: 0, minWidth: 250, zIndex: 60,
+          background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 10, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden',
+        }}>
+          {items.map((it, i) => (
+            <button key={it.key} role="menuitem" disabled={disabled} onClick={() => choose(it.opts)}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#F7F4EF'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#FFFFFF'; }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                padding: '11px 14px', background: '#FFFFFF', border: 'none',
+                borderBottom: i < items.length - 1 ? '1px solid #EFEAE0' : 'none',
+                cursor: 'pointer', fontFamily: "'Archivo', sans-serif", fontWeight: 700, fontSize: 13, color: '#211E1E',
+              }}>
+              <span style={{ color: it.tint, display: 'grid', placeItems: 'center', flexShrink: 0 }}>{it.icon}</span>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConversationMessage({ mine, name, time, body, children }) {
   const initials = mine ? ticketInitials(name) : (name && !/^it team$/i.test(name) ? ticketInitials(name) : 'IT');
   const avatar = (
@@ -8310,7 +8566,9 @@ function ConversationMessage({ mine, name, time, body, children }) {
             background: mine ? '#FFFFFF' : '#EFEAE0', color: '#211E1E',
             boxShadow: '2px 2px 0 #211E1E',
             borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
-          }}>{linkifyText(body, '#B92323')}</div>
+          }}>{looksLikeHtml(body)
+            ? <div className="rich-body" dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }} />
+            : linkifyText(body, '#B92323')}</div>
         )}
       </div>
     </div>
@@ -8521,9 +8779,9 @@ function TicketStatusBadge({ status, small, label, type }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center',
-      padding: small ? '2px 8px' : '3px 10px',
+      padding: small ? '2px 8px' : '3px 11px',
       background: m.bg, color: m.fg, border: '1px solid ' + (m.bd || m.fg),
-      borderRadius: 999, fontSize: small ? 10 : 11, fontWeight: 800,
+      borderRadius: 999, fontSize: small ? 10 : 12, fontWeight: 800,
       fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
       textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>{text}</span>
@@ -8650,12 +8908,12 @@ function ApprovalPill({ state }) {
   if (!meta) return null;
   return (
     <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px 3px 8px',
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px 3px 9px',
       background: '#FFFFFF', color: meta.color, border: '1px solid ' + meta.color, borderRadius: 999,
-      fontSize: 11, fontWeight: 800, fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
+      fontSize: 12, fontWeight: 800, fontFamily: "'Archivo', sans-serif", letterSpacing: '0.03em',
       textTransform: 'uppercase', whiteSpace: 'nowrap',
     }}>
-      <span style={{ width: 7, height: 7, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.dot, flexShrink: 0 }} />
       {meta.label}
     </span>
   );
@@ -8705,14 +8963,28 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
   const [refreshKey, setRefreshKey] = React.useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
 
-  // Light count fetch just for the Approvals tab badge.
-  const [pendingCount, setPendingCount] = React.useState(null);
+  // Per-tab "unseen" badges: My tickets flags tickets with an IT update you
+  // haven't opened; Approvals flags requests awaiting you that you haven't looked
+  // at yet. Recomputes on refresh, on a 30s poll, and on NOTIF_EVT — so opening
+  // an item (which marks it seen) clears its count live.
+  const [unseen, setUnseen] = React.useState({ tickets: 0, approvals: 0 });
   React.useEffect(() => {
     let off = false;
-    ticketsApiJson('GET', '/api/approvals/pending')
-      .then((j) => { if (!off) setPendingCount((j.pending || []).length); })
-      .catch(() => { if (!off) setPendingCount(null); });
-    return () => { off = true; };
+    const recompute = async () => {
+      const [t, a] = await Promise.all([
+        ticketsApiJson('GET', '/api/tickets').catch(() => ({ tickets: [] })),
+        ticketsApiJson('GET', '/api/approvals/pending').catch(() => ({ pending: [] })),
+      ]);
+      if (off) return;
+      setUnseen({
+        tickets: countTabUnseen('tickets', t.tickets || [], (x) => x.id, (x) => x.updated_at || x.created_at, (x) => x.created_at),
+        approvals: countTabUnseen('approvals', a.pending || [], (x) => x.request_id, null, null),
+      });
+    };
+    recompute();
+    const iv = setInterval(recompute, 30000);
+    window.addEventListener(NOTIF_EVT, recompute);
+    return () => { off = true; clearInterval(iv); window.removeEventListener(NOTIF_EVT, recompute); };
   }, [refreshKey]);
 
   return (
@@ -8720,45 +8992,60 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
       {!detailOpen && (
       <div style={{ background: '#F7F4EF', borderBottom: '1px solid #211E1E', padding: '34px 32px' }}>
         <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-            <div style={{ minWidth: 0 }}>
-              <div className="eyebrow" style={{ color: '#78684C', fontSize: 10, marginBottom: 8 }}>IT Support</div>
-              <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Your tickets</h1>
-              <div style={{ fontSize: 14, color: '#4A3F2E', marginTop: 10, fontWeight: 600, maxWidth: 580, lineHeight: 1.45 }}>
-                Track what you’ve raised, act on requests waiting for your approval, and start something new.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button onClick={onBack} className="btn btn-outline">← Back</button>
-              <button onClick={() => onReportIssue && onReportIssue()} className="btn btn-outline">Report an issue</button>
-              <button onClick={() => onRequest && onRequest()} className="btn btn-primary">Request something</button>
+          {/* Top bar: Back on the left, the two important actions on the right — one line. */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 22 }}>
+            <button onClick={onBack} className="kb-back-btn">
+              <span className="kb-back-arrow">←</span>Back
+            </button>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <button onClick={() => onReportIssue && onReportIssue()} className="tkt-action">Report an issue</button>
+              <button onClick={() => onRequest && onRequest()} className="tkt-action is-primary">Request something</button>
             </div>
           </div>
+          <h1 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 40, fontWeight: 900, margin: 0, letterSpacing: '-0.03em', color: '#211E1E', lineHeight: 1 }}>Your tickets</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
             <style>{`
-              .tkt-tab { padding:9px 18px; border-radius:8px; cursor:pointer; border:1px solid #211E1E;
+              /* Segmented switch — one track holds both options, so it reads as a
+                 single "which view?" control. The active option is a filled charcoal
+                 pill with a cheese label; the idle one stays quiet until hover. */
+              .tkt-switch { display:inline-flex; gap:4px; padding:4px; background:#ECE3D3;
+                border:1px solid #211E1E; border-radius:12px; box-shadow:2px 2px 0 #211E1E; }
+              .tkt-tab { min-width:120px; justify-content:center; padding:8px 18px; border-radius:9px;
+                cursor:pointer; border:1px solid transparent; background:transparent; color:#7A6E58;
                 font-family:'Archivo',sans-serif; font-weight:800; font-size:12.5px; letter-spacing:0.03em; text-transform:uppercase;
                 display:inline-flex; align-items:center; gap:7px;
-                transition: transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1), background .12s ease, color .12s ease; }
-              /* Idle: white button, charcoal hard-shadow. */
-              .tkt-tab.is-idle { background:#FFFFFF; color:#211E1E; box-shadow:2px 2px 0 #211E1E; }
-              .tkt-tab.is-idle:hover { transform:translate(-2px,-2px); box-shadow:4px 4px 0 #211E1E; }
-              .tkt-tab.is-idle:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
-              /* Active: charcoal button, CHEESE shadow so the offset actually shows. */
-              .tkt-tab.is-active { background:#211E1E; color:#FDC831; box-shadow:3px 3px 0 #FDC831; }
-              .tkt-tab.is-active:hover { transform:translate(-2px,-2px); box-shadow:5px 5px 0 #FDC831; }
-              .tkt-tab.is-active:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #FDC831; }
+                transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
+              /* Idle: transparent on the track; a soft fill appears on hover. */
+              .tkt-tab.is-idle:hover { background:rgba(33,30,30,.07); color:#211E1E; }
+              /* Active: charcoal pill + cheese label — unmistakably the selected one. */
+              .tkt-tab.is-active { background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(0,0,0,.22); }
+              /* Header actions — share the Back button's cheese-on-hover identity, but
+                 bolder and bigger so they read as the page's most important actions. */
+              .tkt-action { display:inline-flex; align-items:center; gap:8px; padding:11px 20px; cursor:pointer;
+                background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:8px;
+                box-shadow:2px 2px 0 #211E1E, 0 3px 8px rgba(33,30,30,.06);
+                font-family:'Archivo',sans-serif; font-weight:800; font-size:13px; letter-spacing:0.04em; text-transform:uppercase;
+                transition: transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, background .18s ease; }
+              .tkt-action:hover { transform:translate(-2px,-2px); background:#FDC831;
+                box-shadow:4px 4px 0 #211E1E, 0 10px 20px rgba(33,30,30,.16); }
+              .tkt-action:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+              /* Primary CTA — filled cheese so it's unmistakably the most important action. */
+              .tkt-action.is-primary { background:#FDC831; box-shadow:3px 3px 0 #211E1E, 0 4px 10px rgba(33,30,30,.12); }
+              .tkt-action.is-primary:hover { background:#FFD84D;
+                box-shadow:5px 5px 0 #211E1E, 0 12px 22px rgba(33,30,30,.18); }
             `}</style>
-            <TicketsTab label="My tickets" active={tab === 'mine'} onClick={() => setTab('mine')} />
-            <TicketsTab label="Approvals" active={tab === 'approvals'} onClick={() => setTab('approvals')} badge={pendingCount} />
+            <div className="tkt-switch" role="tablist" aria-label="Tickets view">
+              <TicketsTab label="My tickets" active={tab === 'mine'} onClick={() => setTab('mine')} badge={unseen.tickets} />
+              <TicketsTab label="Approvals" active={tab === 'approvals'} onClick={() => setTab('approvals')} badge={unseen.approvals} />
+            </div>
             {/* Search — filters the active tab's list. */}
-            <div style={{ marginLeft: 'auto', position: 'relative', minWidth: 200 }}>
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+            <div style={{ marginLeft: 'auto', position: 'relative', width: 'min(440px, 100%)', minWidth: 280 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9A8E78" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder={tab === 'approvals' ? 'Search approvals…' : 'Search your tickets…'}
-                style={{ width: '100%', padding: '8px 30px 8px 33px', border: '1px solid #211E1E', borderRadius: 8, background: '#FFFFFF', fontSize: 13, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', padding: '12px 36px 12px 42px', border: '1px solid #211E1E', borderRadius: 10, background: '#FFFFFF', fontSize: 14, fontFamily: 'inherit', color: '#211E1E', boxShadow: '2px 2px 0 #211E1E', boxSizing: 'border-box', outline: 'none' }}
               />
               {query && (
                 <button onClick={() => setQuery('')} aria-label="Clear search" style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#9A8E78', fontWeight: 900, fontSize: 13, lineHeight: 1, padding: 2 }}>✕</button>
@@ -8782,11 +9069,21 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
 }
 
 function TicketsTab({ label, active, onClick, badge }) {
+  const n = typeof badge === 'number' ? badge : 0;
   return (
-    <button type="button" onClick={onClick} className={'tkt-tab ' + (active ? 'is-active' : 'is-idle')}>
+    <button type="button" role="tab" aria-selected={active} onClick={onClick}
+      className={'tkt-tab ' + (active ? 'is-active' : 'is-idle')} style={{ position: 'relative' }}>
       {label}
-      {badge != null && badge > 0 && (
-        <span style={{ minWidth: 18, height: 18, padding: '0 5px', display: 'grid', placeItems: 'center', background: active ? '#FDC831' : '#B92323', color: active ? '#211E1E' : '#FFFFFF', borderRadius: 999, fontSize: 10, fontWeight: 900 }}>{badge}</span>
+      {n > 0 && (
+        <span aria-label={`${n} unseen update${n === 1 ? '' : 's'}`} style={{
+          position: 'absolute', top: -7, right: -7,
+          minWidth: 18, height: 18, padding: '0 5px', boxSizing: 'border-box',
+          display: 'grid', placeItems: 'center',
+          background: '#DA3327', color: '#FFFFFF',
+          borderRadius: 999, fontSize: 10.5, fontWeight: 900, lineHeight: 1,
+          fontFamily: "'Archivo', sans-serif",
+          boxShadow: '0 0 0 2px #ECE3D3',
+        }}>{n > 9 ? '9+' : n}</span>
       )}
     </button>
   );
@@ -9094,6 +9391,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
         setSt({ loading: false, ticket: j, error: null });
         // Mark seen so the bell stops flagging this ticket as having new activity.
         markTicketSeen(j.id != null ? j.id : id, j.updated_at || j.created_at);
+        markTabSeen('tickets', j.id != null ? j.id : id, j.updated_at || j.created_at);
       })
       // Keep whatever we already have (the list row we opened with) on failure,
       // so the header stays visible instead of dropping to an error screen.
@@ -9137,16 +9435,26 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
     return () => { off = true; };
   }, [ticketForAtts, id]);
 
-  const send = async () => {
-    const body = reply.trim();
-    if (!body && replyFiles.length === 0) return;
+  const send = async (opts = {}) => {
+    const hasText = !htmlIsEmpty(reply);
+    if (!hasText && replyFiles.length === 0) return;
     setSending(true); setReplyErr('');
-    const commentBody = body || ('Added ' + (replyFiles.length > 1 ? 'attachments' : 'an attachment') + ': ' + replyFiles.map((f) => f.name).join(', '));
+    const commentBody = hasText ? sanitizeHtml(reply) : ('Added ' + (replyFiles.length > 1 ? 'attachments' : 'an attachment') + ': ' + replyFiles.map((f) => f.name).join(', '));
     try {
       await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/comments', { body: commentBody });
       if (replyFiles.length) {
         try { await uploadAttachments(id, replyFiles); }
         catch (e) { setReplyErr('Reply sent, but an attachment didn’t upload: ' + (e.message || 'error') + '.'); }
+      }
+      // Combined "send &…" actions from the split button — best-effort so the
+      // reply is never lost if the follow-up change is rejected.
+      if (opts.priority) {
+        try { await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/priority', { priority: opts.priority }); }
+        catch (e) { setReplyErr('Reply sent, but couldn’t change priority: ' + (e.message || 'error') + '.'); }
+      }
+      if (opts.resolve) {
+        try { await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action: 'resolve' }); }
+        catch (e) { setReplyErr('Reply sent, but couldn’t resolve: ' + (e.message || 'error') + '.'); }
       }
       setReply(''); setReplyFiles([]); setConfirmReopen(false);
       await load(); // picks up reopen-on-reply (server flips resolved/closed → open)
@@ -9159,11 +9467,11 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
 
   // Gate sending: on a resolved/closed ticket, the first click asks to confirm
   // the reopen (replying reopens it). Second click (or Cancel) resolves it.
-  const requestSend = () => {
-    if (!reply.trim() && replyFiles.length === 0) return;
+  const requestSend = (opts) => {
+    if (htmlIsEmpty(reply) && replyFiles.length === 0) return;
     const s = String((st.ticket && st.ticket.status) || '').toLowerCase();
     if ((s === 'resolved' || s === 'closed') && !confirmReopen) { setConfirmReopen(true); return; }
-    send();
+    send(opts);
   };
 
   // Close / reopen — the lifecycle actions a requester gets. Both reversible.
@@ -9413,16 +9721,13 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
                         This ticket is {String(t.status).toLowerCase()} — replying will reopen it.
                       </div>
                     )}
-                    <textarea
-                      style={{ ...TK.field, minHeight: 84, resize: 'vertical', fontSize: 14.5, lineHeight: 1.5 }}
+                    <RichReply
                       value={reply}
-                      onChange={(e) => setReply(e.target.value)}
-                      onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') requestSend(); }}
+                      onChange={setReply}
+                      onSubmit={requestSend}
+                      disabled={sending}
                       placeholder="Write a message to the IT Team…" />
-                    <div style={{ marginTop: 10 }}>
-                      <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
-                    </div>
-                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '8px 0 0' }}>{replyErr}</p>}
+                    {replyErr && <p style={{ color: '#B92323', fontSize: 13, margin: '10px 0 0' }}>{replyErr}</p>}
 
                     {reopenOnReply && confirmReopen ? (
                       <div style={{ marginTop: 12, border: '1px solid #211E1E', background: '#FFF7DD', borderRadius: 8, padding: '11px 14px' }}>
@@ -9431,13 +9736,18 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
                         </div>
                         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                           <button onClick={() => setConfirmReopen(false)} disabled={sending} className="btn btn-outline" style={{ padding: '7px 14px', fontSize: 12 }}>Cancel</button>
-                          <button onClick={send} disabled={sending} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
+                          <button onClick={() => send()} disabled={sending} className="btn btn-primary" style={{ padding: '7px 14px', fontSize: 12 }}>{sending ? 'Reopening…' : 'Reopen & send reply'}</button>
                         </div>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end', marginTop: 12 }}>
-                        <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
-                        <button onClick={requestSend} disabled={sending || (!reply.trim() && replyFiles.length === 0)} className="btn btn-primary">{sending ? 'Sending…' : 'Send reply'}</button>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
+                        <AttachmentPicker files={replyFiles} onChange={setReplyFiles} disabled={sending} />
+                        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 11, color: '#9A8E78' }}>⌘/Ctrl + Enter</span>
+                          <ReplySend ticket={t} sending={sending} reopenOnReply={reopenOnReply}
+                            disabled={sending || (htmlIsEmpty(reply) && replyFiles.length === 0)}
+                            onSend={requestSend} />
+                        </div>
                       </div>
                     )}
                   </>
@@ -9527,8 +9837,9 @@ function ApprovalsView({ refreshKey, onActed, query, onViewingChange }) {
       ) : shown.map((p) => (
         <button key={p.request_id} onClick={() => setSelId(p.request_id)} {...ROW_HOVER} style={{
           ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
-          display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', width: '100%',
+          display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
         }}>
+          <TicketLeadIcon className="tkt-app-icon" ticket={{ type: 'service_request' }} size={34} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
               <TicketTypeBadge type="service_request" />
@@ -9559,7 +9870,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
     let off = false;
     setSt({ loading: true, data: null, error: null });
     ticketsApiJson('GET', '/api/approvals/' + encodeURIComponent(id))
-      .then((j) => { if (!off) setSt({ loading: false, data: j, error: null }); })
+      .then((j) => { if (!off) { setSt({ loading: false, data: j, error: null }); markTabSeen('approvals', id); } })
       .catch((e) => { if (!off) setSt({ loading: false, data: null, error: e.message }); });
     return () => { off = true; };
   }, [id]);
@@ -9586,7 +9897,9 @@ function ApprovalDetailView({ id, onBack, onActed }) {
       {st.error && <TicketsNotice title="Couldn’t load this request" body={st.error} />}
       {d && (
         <>
-          <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14 }}>
+          <div style={{ ...TK.card, padding: '22px 24px', marginBottom: 14, display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+            <TicketLeadIcon ticket={{ type: 'service_request' }} size={40} />
+            <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <TicketTypeBadge type="service_request" />
               {d.ticket && <TicketNumber value={d.ticket.ticket_number} size={14} />}
@@ -9602,6 +9915,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
             {d.catalog_item && d.catalog_item.description && (
               <p style={{ marginTop: 14, fontSize: 14, color: '#211E1E', lineHeight: 1.55 }}>{d.catalog_item.description}</p>
             )}
+            </div>
           </div>
 
           {stages.length > 0 && (
@@ -21322,9 +21636,9 @@ function KnowledgePage({ onBack, onOpenGuide }) {
         padding: "44px 32px 32px",
       }}>
         <div style={{ maxWidth: 1120, margin: "0 auto" }}>
-          <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 8 }}>
-            Knowledge base
-          </div>
+          <button onClick={onBack} className="kb-back-btn" style={{ marginBottom: 22 }}>
+            <span className="kb-back-arrow">←</span>Back
+          </button>
           <h1 style={{
             fontFamily: "'Archivo', sans-serif",
             fontSize: 40, fontWeight: 900,
@@ -21335,9 +21649,7 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           }}>
             Answers before you <span className="annotate-underline">file a ticket</span>.
           </h1>
-          <p style={{ fontSize: 15.5, color: "#4A3F2E", margin: "14px 0 22px", maxWidth: 580, lineHeight: 1.5 }}>
-            Curated from our 400+ article library — the ones that actually solve the tickets we see every day.
-          </p>
+          <div style={{ height: 22 }} />
 
           {/* Search bar */}
           <form onSubmit={onSubmit} className="kb-search-form" style={{
@@ -21408,10 +21720,6 @@ function KnowledgePage({ onBack, onOpenGuide }) {
                 </button>
               );
             })}
-            <button onClick={onBack} className="kb-back-btn" style={{ marginLeft: "auto" }}>
-              <span className="kb-back-arrow">←</span>
-              Back to IT Hub
-            </button>
           </div>
         </div>
       </div>
@@ -21962,7 +22270,6 @@ function StatusPage({ onBack }) {
   const overallTone = down.length ? 'red' : degraded.length ? 'amber' : 'green';
   const toneAccent = overallTone === 'green' ? '#0A8A3E' : overallTone === 'amber' ? '#B8860B' : '#DA3327';
 
-  const [reportOpen, setReportOpen] = React.useState(false);
   const [expandedSvc, setExpandedSvc] = React.useState(null);
   const [filter, setFilter] = React.useState('all'); // all | issues | operational
   const [query, setQuery] = React.useState('');
@@ -22005,7 +22312,11 @@ function StatusPage({ onBack }) {
         borderBottom: "1px solid #211E1E",
         padding: "44px 32px 44px",
       }}>
-        <div style={{ maxWidth: 1120, margin: "0 auto", display: "grid", gridTemplateColumns: "auto 1fr auto", gap: 24, alignItems: "center" }}>
+        <div style={{ maxWidth: 1120, margin: "0 auto" }}>
+          <button onClick={onBack} className="kb-back-btn" style={{ marginBottom: 22 }}>
+            <span className="kb-back-arrow">←</span>Back
+          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 24, alignItems: "center" }}>
           <div style={{
             width: 88, height: 88,
             background: toneAccent,
@@ -22052,9 +22363,6 @@ function StatusPage({ onBack }) {
               )}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button onClick={onBack} className="btn btn-outline">← Back</button>
-            <button onClick={() => setReportOpen(true)} className="btn btn-primary">Report an issue</button>
           </div>
         </div>
       </div>
@@ -22194,8 +22502,6 @@ function StatusPage({ onBack }) {
         </div>
 
       </div>
-
-      {reportOpen && <ReportIssueModal onClose={() => setReportOpen(false)} services={allServices}/>}
 
       <style>{`
         @keyframes livePulse {
@@ -22555,64 +22861,6 @@ function IncidentCard({ incident, open }) {
         </div>
       )}
     </div>
-  );
-}
-
-// Report-an-issue modal — lets users flag something broken that we haven't caught
-function ReportIssueModal({ onClose, services }) {
-  const [svc, setSvc] = React.useState(services[0]?.name || "");
-  const [what, setWhat] = React.useState("");
-  const [sent, setSent] = React.useState(false);
-  const valid = svc && what.trim();
-
-  return ReactDOM.createPortal(
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0, zIndex: 2147483600,
-      background: "rgba(33,30,30,0.55)",
-      backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)",
-      display: "grid", placeItems: "center", padding: 24,
-    }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "min(560px, 100%)",
-        background: "#F7F4EF",
-        border: "1px solid #211E1E", borderRadius: 16,
-        boxShadow: "5px 5px 0 #211E1E",
-        padding: 28,
-      }}>
-        {!sent ? (
-          <form onSubmit={(e) => { e.preventDefault(); if (valid) setSent(true); }}>
-            <div style={{ fontFamily: "Archivo, sans-serif", fontWeight: 900, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "#4A3F2E", marginBottom: 6 }}>
-              Something not working?
-            </div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 18px", color: "#211E1E", letterSpacing: "-0.015em" }}>
-              Tell us what's broken
-            </h2>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4A3F2E", marginBottom: 6, fontFamily: "Archivo, sans-serif", letterSpacing: "0.02em", textTransform: "uppercase" }}>Service</label>
-            <select value={svc} onChange={(e) => setSvc(e.target.value)} style={inputStyle}>
-              {services.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-              <option value="other">Something else</option>
-            </select>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#4A3F2E", margin: "14px 0 6px", fontFamily: "Archivo, sans-serif", letterSpacing: "0.02em", textTransform: "uppercase" }}>What are you seeing?</label>
-            <textarea value={what} onChange={(e) => setWhat(e.target.value)} rows={4} placeholder="e.g. Zoom launches but meetings join black screen…" style={{ ...inputStyle, resize: "vertical", minHeight: 88, fontFamily: "'Archivo', sans-serif" }}/>
-            <p style={{ fontSize: 12, color: "#78684C", margin: "10px 0 0", lineHeight: 1.4 }}>
-              If it's affecting multiple people, we'll open a public incident.
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 20 }}>
-              <button type="button" onClick={onClose} className="btn btn-outline" style={{ padding: "10px 16px" }}>Cancel</button>
-              <button type="submit" disabled={!valid} className="btn btn-primary" style={{ padding: "10px 18px", opacity: valid ? 1 : 0.5, cursor: valid ? "pointer" : "not-allowed" }}>File report →</button>
-            </div>
-          </form>
-        ) : (
-          <div style={{ textAlign: "center", padding: "12px 8px" }}>
-            <div style={{ width: 72, height: 72, margin: "0 auto 16px", background: "#0A8A3E", border: "1px solid #211E1E", borderRadius: "50%", boxShadow: "2px 2px 0 #211E1E", display: "grid", placeItems: "center", color: "#FFFFFF", fontSize: 36, fontWeight: 900 }}>✓</div>
-            <h2 style={{ fontFamily: "'Archivo', sans-serif", fontSize: 22, fontWeight: 800, margin: "0 0 8px", color: "#211E1E" }}>Report filed.</h2>
-            <p style={{ fontSize: 14, color: "#4A3F2E", margin: "0 0 22px" }}>On-call will take a look. If it turns into an incident you'll see it listed above.</p>
-            <button onClick={onClose} className="btn btn-primary" style={{ padding: "10px 18px" }}>Close</button>
-          </div>
-        )}
-      </div>
-    </div>,
-    document.body
   );
 }
 

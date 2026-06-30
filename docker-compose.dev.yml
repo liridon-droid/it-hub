@@ -1,0 +1,11 @@
+# Local dev override — ONLY exposes the Postgres port to the host so the
+# host-run Express server (server/.env.local) can reach it at localhost:5433.
+# Prod is unaffected: the EC2 deploy uses bin/deploy.sh with docker-compose.yml
+# alone and never loads this file.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d it-hub-postgres
+services:
+  it-hub-postgres:
+    ports:
+      - "5433:5432"

@@ -15,3 +15,6 @@ server/uploads/
 *.log
 npm-debug.log*
 .module-state.json
+
+# Local dev process logs
+.dev-logs/
