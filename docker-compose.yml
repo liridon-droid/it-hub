@@ -52,12 +52,6 @@ services:
       # /api/me + /api/ai/proxy on the mini's docker network.
       - SLICEDESK_API_URL=${SLICEDESK_API_URL:-http://it-catalog-server:3001}
       - SLICEDESK_LOGIN_URL=${SLICEDESK_LOGIN_URL:-/portal/login}
-      # Slack-bot service token — lets the IT Hub Slack bot call /api/chat
-      # server-to-server (Authorization: Bearer) with no user session. Set the
-      # value in the deploy .env; empty disables bot auth entirely.
-      # BOT_DEFAULT_EMAIL is the identity bot questions run under.
-      - BOT_SERVICE_TOKEN=${BOT_SERVICE_TOKEN:-}
-      - BOT_DEFAULT_EMAIL=${BOT_DEFAULT_EMAIL:-it-hub-slackbot@slice.com}
     depends_on:
       it-hub-postgres:
         condition: service_healthy
