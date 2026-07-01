@@ -10,6 +10,33 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 
+// ─── scroll helpers ──────────────────────────────────
+// The app's real scroll container is .page-scroll — html/body have
+// overflow:hidden, so window.scrollTo on its own is a no-op. Reset the
+// container first, then the window and document elements as defensive
+// fallbacks (covers modal/portal surfaces and older engines).
+function scrollAppToTop() {
+  if (typeof document === 'undefined') return;
+  const scroller = document.querySelector('.page-scroll');
+  if (scroller && scroller.scrollTo) scroller.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  if (typeof window !== 'undefined' && window.scrollTo) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  if (document.documentElement) document.documentElement.scrollTop = 0;
+  if (document.body) document.body.scrollTop = 0;
+}
+
+// useLayoutEffect scrolls before the browser paints, so a new view never flashes
+// at the previous scroll position; fall back to useEffect where layout effects
+// aren't available (SSR).
+const useIsomorphicLayoutEffect = (typeof window !== 'undefined') ? React.useLayoutEffect : React.useEffect;
+
+// Scroll to the top on mount and whenever `deps` change. Pass the state that
+// identifies "a new view" — the page/stage, a sub-mode, or the step within a
+// flow — so every surface lands at the top on navigation instead of inheriting
+// the previous scroll offset. Keep the deps array a constant length per caller.
+function useScrollToTop(deps) {
+  useIsomorphicLayoutEffect(scrollAppToTop, deps);
+}
+
 // ─── data (f679b940) ──────────────────────────────────
 // Quick prompts surfaced on the landing page
 const QUICK_PROMPTS = [
@@ -1650,6 +1677,10 @@ function QuestionFlow({ query, onBack, onDone }) {
   const [answers, setAnswers] = useState({});
   const [thinking, setThinking] = useState(true);
 
+  // Advancing to the next clarifying question is forward navigation — start each
+  // question at the top rather than inheriting the previous one's scroll.
+  useScrollToTop([step]);
+
   // Ask Claude for clarifying questions tailored to the user's actual query.
   // While we wait we show the same "thinking…" state the page already had.
   useEffect(() => {
@@ -2871,13 +2902,7 @@ function App() {
   };
   // Scroll to top whenever we change pages — otherwise clicking nav while scrolled
   // leaves the new page offscreen and users think it didn't navigate.
-  // The real scroll container is .page-scroll (html/body have overflow:hidden),
-  // so window.scrollTo is a no-op here.
-  React.useEffect(() => {
-    const scroller = document.querySelector('.page-scroll');
-    if (scroller) scroller.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [stage]);
+  useScrollToTop([stage]);
   const navActive = (stage === "onboarding" || stage === "onboarding-filed") ? "Onboarding"
     : stage === "offboarding" ? "Offboarding"
     : stage === "knowledge" ? "Knowledge"
@@ -8963,6 +8988,10 @@ function TicketsPage({ initialTab = 'mine', onBack, onReportIssue, onRequest }) 
   const [refreshKey, setRefreshKey] = React.useState(0);
   const refresh = () => setRefreshKey((k) => k + 1);
 
+  // Switching tab (My Tickets ↔ Approvals) is a view change within the same page,
+  // so the stage-level reset doesn't fire — land at the top on each swap.
+  useScrollToTop([tab]);
+
   // Per-tab "unseen" badges: My tickets flags tickets with an IT update you
   // haven't opened; Approvals flags requests awaiting you that you haven't looked
   // at yet. Recomputes on refresh, on a 30s poll, and on NOTIF_EVT — so opening
@@ -9116,6 +9145,15 @@ function OnBehalfTag({ ticket, size = 11 }) {
   );
 }
 
+// One-line description snippet for a ticket row. Collapses whitespace/newlines
+// to a single line; CSS ellipsis adds the trailing “…” when it overflows. Falls
+// back to a neutral label so every row keeps the same height even when a ticket
+// has no body text.
+function ticketBlurb(t) {
+  const raw = (t && (t.description || t.summary || '')).toString().replace(/\s+/g, ' ').trim();
+  return raw || (t && t.category_name) || 'No description added.';
+}
+
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
@@ -9218,7 +9256,7 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {shown.map((t) => (
           <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} className="tkt-row" style={{
-            ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '14px 18px',
+            ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '15px 18px',
             display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
           }}>
             {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={34} />; })()}
@@ -9229,6 +9267,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
                 <OnBehalfTag ticket={t} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: '#211E1E', letterSpacing: '-0.01em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</div>
+              {/* One-line description so rows carry a little more context. Always
+                  rendered (with a fallback) so every row stays the same height. */}
+              <div style={{ fontSize: 12.5, color: '#78684C', marginTop: 3, lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ticketBlurb(t)}</div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, whiteSpace: 'nowrap' }}>
               {(() => {
@@ -9362,13 +9403,8 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   const icons = useCatalogIcons();
 
   // Opening a ticket — or paging to the next/prev one (the list remounts us via
-  // key={id}) — should start at the top, even if the list behind was scrolled
-  // down. The real scroll container is .page-scroll (body has overflow:hidden).
-  React.useEffect(() => {
-    const scroller = document.querySelector('.page-scroll');
-    if (scroller) scroller.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
-  }, []);
+  // key={id}) — should start at the top, even if the list behind was scrolled down.
+  useScrollToTop([]);
 
   // Image attachments open in an in-page lightbox (Freshservice-style) rather
   // than a new tab. { url, name } of the image being viewed, or null. The image
@@ -9991,11 +10027,16 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   const [responses, setResponses] = React.useState({});
   const [justification, setJustification] = React.useState('');
   const [urgency, setUrgency] = React.useState('medium');
-  // null = requesting for yourself; otherwise { id, name, email } of the colleague.
-  const [requestedFor, setRequestedFor] = React.useState(null);
+  // [] = requesting for yourself; otherwise a list of { id, name, email } people.
+  // One request is created per person (fan-out) — see RequestedForPicker.
+  const [requestedFor, setRequestedFor] = React.useState([]);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
-  const [result, setResult] = React.useState(null);
+  const [results, setResults] = React.useState([]); // created ticket(s) shown on the done view
+  // The signed-in user — powers the "Add myself" shortcut and self-requests.
+  const self = React.useMemo(() => (typeof window !== 'undefined' ? {
+    id: window.PORTAL_CURRENT_ID, name: window.PORTAL_CURRENT_USER, email: window.PORTAL_CURRENT_EMAIL,
+  } : {}), []);
   const [ffSubject, setFfSubject] = React.useState('');
   const [ffDesc, setFfDesc] = React.useState('');
   const [attachFiles, setAttachFiles] = React.useState([]);
@@ -10040,7 +10081,53 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
 
   React.useEffect(() => { loadCatalog(); }, [loadCatalog]);
 
+  // Land at the top on every step change — opening an item's form while scrolled
+  // down the catalog list (or moving list → form → done) otherwise inherits the
+  // previous scroll offset and drops the user mid-page. Keyed on the item too so
+  // switching between items also resets.
+  useScrollToTop([view, item && item.id]);
+
   const fields = (item && Array.isArray(item.request_form_fields)) ? item.request_form_fields : [];
+
+  // Fan-out: create one request per chosen recipient (or a single self-request
+  // when none were picked). makeOne(target) posts one request for `target` — a
+  // { id, name, email } person, or null to request for yourself. Any attachments
+  // are uploaded to each created ticket. On a mid-batch failure we re-throw the
+  // error with the tickets already created attached, so the caller can still
+  // show what went through.
+  const fanOut = async (makeOne) => {
+    const targets = (requestedFor && requestedFor.length) ? requestedFor : [null];
+    const created = [];
+    let attachWarned = '';
+    try {
+      for (const target of targets) {
+        const t = await makeOne(target);
+        if (attachFiles.length && t && (t.id || t.ticket_number)) {
+          try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
+          catch (ae) { attachWarned = 'An attachment didn’t upload to one of the requests: ' + (ae.message || 'error') + '.'; }
+        }
+        // Tag on-behalf tickets with the recipient's name so the done screen can
+        // spell out who each one is for (self-requests carry no tag).
+        created.push(target && target.name && t && typeof t === 'object' ? { ...t, _forName: target.name } : t);
+      }
+    } catch (e) {
+      e.created = created; e.total = targets.length; throw e;
+    }
+    return { created, attachWarned, total: targets.length };
+  };
+
+  // Turn any fan-out failure into a user-facing message, showing partial success
+  // (some requests created before the error) when that happened.
+  const reportFanOutError = (e, fallback) => {
+    const ve = e.data && e.data.validation_errors;
+    const msg = ve && ve.length ? ve.map((x) => x.message || (x.field + ': ' + x.error)).join(' ') : (e.message || fallback);
+    if (e.created && e.created.length) {
+      setAttachWarn(e.created.length + ' of ' + e.total + ' requests were created — the rest failed: ' + msg);
+      setResults(e.created); setView('done');
+    } else {
+      setErr(msg); setBusy(false);
+    }
+  };
 
   const submitCatalog = async () => {
     for (const f of fields) {
@@ -10058,56 +10145,78 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       setErr('Please add a justification for this request.');
       return;
     }
-    setBusy(true); setErr('');
+    setBusy(true); setErr(''); setAttachWarn('');
     try {
       const just = justification.trim();
-      const t = await ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
-        urgency, form_responses: responses, ...(just ? { justification: just } : {}), ...(requestedFor ? { requested_for: requestedFor } : {}),
-      });
-      if (attachFiles.length && (t.id || t.ticket_number)) {
-        try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
-        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); }
-      }
-      setResult(t); setView('done');
+      const { created, attachWarned } = await fanOut((target) =>
+        ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
+          urgency, form_responses: responses,
+          ...(just ? { justification: just } : {}),
+          ...(target ? { requested_for: target } : {}),
+        }));
+      if (attachWarned) setAttachWarn(attachWarned);
+      setResults(created); setView('done');
     } catch (e) {
-      const ve = e.data && e.data.validation_errors;
-      setErr(ve && ve.length ? ve.map((x) => x.message || (x.field + ': ' + x.error)).join(' ') : (e.message || 'Couldn’t submit your request.'));
-      setBusy(false);
+      reportFanOutError(e, 'Couldn’t submit your request.');
     }
   };
 
   const submitFreeform = async () => {
     if (!ffSubject.trim()) { setErr('Please add a short summary of what you need.'); return; }
-    setBusy(true); setErr('');
+    setBusy(true); setErr(''); setAttachWarn('');
     try {
-      const t = await ticketsApiJson('POST', '/api/tickets', {
-        subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium', ...(requestedFor ? { requested_for: requestedFor } : {}),
-      });
-      if (attachFiles.length && (t.id || t.ticket_number)) {
-        try { await uploadAttachments(t.id || t.ticket_number, attachFiles); }
-        catch (ae) { setAttachWarn('Your request was created, but an attachment didn’t upload: ' + (ae.message || 'error') + '.'); }
-      }
-      setResult(t); setView('done');
+      const { created, attachWarned } = await fanOut((target) =>
+        ticketsApiJson('POST', '/api/tickets', {
+          subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
+          ...(target ? { requested_for: target } : {}),
+        }));
+      if (attachWarned) setAttachWarn(attachWarned);
+      setResults(created); setView('done');
     } catch (e) {
-      setErr(e.message || 'Couldn’t submit your request.');
-      setBusy(false);
+      reportFanOutError(e, 'Couldn’t submit your request.');
+      return;
     }
   };
 
   const setResp = (key, val) => setResponses((r) => ({ ...r, [key]: val }));
 
-  // Success
+  // Submit-button label reflects the fan-out count: "Submit N requests" when
+  // several people are chosen, otherwise the plain "Submit request".
+  const submitCount = requestedFor.length || 1;
+  const submitLabel = busy ? 'Submitting…' : (submitCount > 1 ? 'Submit ' + submitCount + ' requests' : 'Submit request');
+
+  // Success — one or several requests may have been created (one per person).
   if (view === 'done') {
-    const pending = result && String(result.status || '').toLowerCase() === 'pending';
+    const multi = results.length > 1;
+    const anyPending = results.some((t) => String((t && t.status) || '').toLowerCase() === 'pending');
     return (
-      <Shell title="Request submitted" kicker="Service request" icon={item && item.icon_url} onClose={onClose} maxWidth={620}>
-        <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 8px', lineHeight: 1.55 }}>
-          Your request <strong>{result && (result.ticket_number || result.id)}</strong> is in.
-        </p>
+      <Shell title={multi ? results.length + ' requests submitted' : 'Request submitted'} kicker="Service request" icon={item && item.icon_url} onClose={onClose} maxWidth={620}>
+        {multi ? (
+          <>
+            <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 10px', lineHeight: 1.55 }}>
+              {results.length} requests are in — one per person.
+            </p>
+            <ul style={{ margin: '0 0 14px', padding: 0, listStyle: 'none' }}>
+              {results.map((t, i) => (
+                <li key={(t && (t.id || t.ticket_number)) || i} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13.5, color: '#55503F', padding: '6px 0', borderTop: i ? '1px solid #F0EBE0' : 'none' }}>
+                  <strong style={{ color: '#211E1E' }}>{(t && (t.ticket_number || t.id)) || 'Created'}</strong>
+                  {t && t._forName && <span style={{ color: '#6B5B36' }}>for {t._forName}</span>}
+                  {String((t && t.status) || '').toLowerCase() === 'pending' && <span style={{ fontSize: 11.5, color: '#9A4A00', fontWeight: 800 }}>Needs approval</span>}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <p style={{ fontSize: 15, color: '#211E1E', margin: '0 0 8px', lineHeight: 1.55 }}>
+            Your request <strong>{results[0] && (results[0].ticket_number || results[0].id)}</strong>{results[0] && results[0]._forName ? ' for ' + results[0]._forName : ''} is in.
+          </p>
+        )}
         <p style={{ fontSize: 13.5, color: '#78684C', margin: '0 0 22px', lineHeight: 1.55 }}>
-          {pending
-            ? 'It needs an approval before it can be fulfilled — you’ll be notified once it’s decided, and you can track it under My Tickets.'
-            : 'You can track its progress any time under My Tickets.'}
+          {multi
+            ? 'All ' + results.length + ' are saved under your My Tickets — each tagged “For ‹name›” so you can tell them apart. ' + (anyPending ? 'Some need an approval first; you’ll be notified once they’re decided.' : 'Track their progress there any time.')
+            : (anyPending
+                ? 'It needs an approval before it can be fulfilled — you’ll be notified once it’s decided, and you can track it under My Tickets.'
+                : 'You can track its progress any time under My Tickets.')}
         </p>
         {attachWarn && <p style={{ fontSize: 13, color: '#9A4A00', margin: '0 0 18px', lineHeight: 1.5 }}>{attachWarn}</p>}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -10128,13 +10237,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <input style={TK.field} value={ffSubject} onChange={(e) => setFfSubject(e.target.value)} placeholder="e.g. Access to Figma" autoFocus />
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
-        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} selfName={(typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || ''} />
+        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
           {catalog && catalog.length > 0 && <button className="btn btn-outline" onClick={() => { setErr(''); setView('list'); }} disabled={busy}>← Catalog</button>}
-          <button className="btn btn-primary" onClick={submitFreeform} disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
+          <button className="btn btn-primary" onClick={submitFreeform} disabled={busy}>{submitLabel}</button>
         </div>
       </Shell>
     );
@@ -10151,7 +10260,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
             Needs approval
           </div>
         )}
-        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} selfName={(typeof window !== 'undefined' && window.PORTAL_CURRENT_USER) || ''} />
+        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
         {fields.map((f) => (
           <div key={f.key}>
             <label style={TK.label}>{f.label || f.key}{f.required ? ' *' : ''}</label>
@@ -10171,7 +10280,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
-          <button className="btn btn-primary" onClick={submitCatalog} disabled={busy}>{busy ? 'Submitting…' : 'Submit request'}</button>
+          <button className="btn btn-primary" onClick={submitCatalog} disabled={busy}>{submitLabel}</button>
         </div>
       </Shell>
     );
@@ -10379,17 +10488,24 @@ function CatalogField({ field, value, onChange }) {
 }
 
 // "Requesting for" — defaults to yourself; lets anyone raise a request on behalf
-// of a colleague via a typeahead over the hub directory (/api/users). value is
-// null (= self) or { id, name, email }. The server records the signed-in user
-// as the submitter regardless, so on-behalf requests stay auditable.
-function RequestedForPicker({ value, onChange, selfName }) {
-  const [editing, setEditing] = React.useState(false);
+// of one or more colleagues via a typeahead over the hub directory (/api/users).
+// `value` is an array of { id, name, email } people ([] = just yourself). Each
+// person becomes a separate request (fan-out) at submit time — the caller loops
+// over this list. The server records the signed-in user as the submitter on
+// every one, so on-behalf requests stay auditable.
+function RequestedForPicker({ value, onChange, self }) {
+  // Tolerate the older single-object/null shape in case a caller isn't updated.
+  const people = Array.isArray(value) ? value : (value ? [value] : []);
   const [q, setQ] = React.useState('');
   const [results, setResults] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState('');
+
+  const selfId = self && self.id != null ? String(self.id) : '';
+  const has = (id) => people.some((p) => String(p.id) === String(id));
+  const selfPicked = selfId && has(selfId);
+
   React.useEffect(() => {
-    if (!editing) return;
     const term = q.trim();
     if (term.length < 2) { setResults([]); setLoading(false); return; }
     let off = false; setLoading(true); setErr('');
@@ -10400,42 +10516,62 @@ function RequestedForPicker({ value, onChange, selfName }) {
         .finally(() => { if (!off) setLoading(false); });
     }, 250);
     return () => { off = true; clearTimeout(h); };
-  }, [q, editing]);
+  }, [q]);
 
-  const pick = (u) => { onChange({ id: u.id, name: u.name, email: u.email }); setEditing(false); setQ(''); setResults([]); };
-  const reset = () => { onChange(null); setEditing(false); setQ(''); setResults([]); };
+  const add = (u) => {
+    if (u.id == null || has(u.id)) { setQ(''); setResults([]); return; }
+    onChange([...people, { id: u.id, name: u.name, email: u.email }]);
+    setQ(''); setResults([]);
+  };
+  const remove = (id) => onChange(people.filter((p) => String(p.id) !== String(id)));
+  const addSelf = () => { if (self && self.id != null) add(self); };
+
+  const chip = (label, id, { removable = true, dashed = false } = {}) => (
+    <span key={id || label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: removable ? '6px 8px 6px 8px' : '6px 12px 6px 8px', border: '1px solid ' + (dashed ? '#C9C0AB' : '#211E1E'), borderStyle: dashed ? 'dashed' : 'solid', borderRadius: 999, background: '#FFFDF4', fontSize: 13.5, fontWeight: 700, color: dashed ? '#78684C' : '#211E1E' }}>
+      <span style={{ width: 22, height: 22, borderRadius: '50%', background: dashed ? '#C9C0AB' : '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{String(label || '?').charAt(0).toUpperCase()}</span>
+      {label}
+      {removable && <button type="button" onClick={() => remove(id)} aria-label={'Remove ' + label} style={{ marginLeft: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#78684C', fontSize: 16, lineHeight: 1, fontWeight: 700 }}>×</button>}
+    </span>
+  );
+
+  // Directory hits already in the list are hidden from the dropdown.
+  const shown = results.filter((u) => !has(u.id));
 
   return (
     <div style={{ marginBottom: 4 }}>
-      <label style={TK.label}>Requesting for</label>
-      {!editing ? (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 8px', border: '1px solid #211E1E', borderRadius: 999, background: '#FFFDF4', fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>
-            <span style={{ width: 22, height: 22, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{String((value && value.name) || selfName || '?').charAt(0).toUpperCase()}</span>
-            {value ? value.name : (selfName ? selfName + ' (you)' : 'Yourself')}
-          </span>
-          <button type="button" onClick={() => setEditing(true)} style={textActionBtn}>{value ? 'Change' : 'Someone else?'}</button>
-          {value && <button type="button" onClick={reset} style={textActionBtn}>← back to me</button>}
-        </div>
-      ) : (
-        <div style={{ position: 'relative' }}>
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search a colleague by name or email…" style={TK.field} />
-          {q.trim().length >= 2 && (
-            <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 248, overflowY: 'auto' }}>
-              {loading && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
-              {!loading && results.map((u) => (
-                <button key={u.id} type="button" onClick={() => pick(u)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
-                  {(u.email || u.title) && <span style={{ fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
-                </button>
-              ))}
-              {!loading && results.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
-            </div>
-          )}
-          {err && <p style={{ color: '#B92323', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
-          <div style={{ marginTop: 6 }}><button type="button" onClick={reset} style={textActionBtn}>Cancel — request for myself</button></div>
-        </div>
-      )}
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <label style={TK.label}>Requesting for</label>
+        {selfId && !selfPicked && <button type="button" onClick={addSelf} style={textActionBtn}>+ Add myself</button>}
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        {people.length === 0
+          ? chip(self && self.name ? self.name + ' (you)' : 'Yourself', selfId || 'self', { removable: false, dashed: true })
+          : people.map((p) => chip(String(p.id) === selfId ? (p.name || 'You') + ' (you)' : (p.name || p.email || p.id), p.id))}
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Add a colleague by name or email…" style={TK.field} />
+        {q.trim().length >= 2 && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 248, overflowY: 'auto' }}>
+            {loading && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
+            {!loading && shown.map((u) => (
+              <button key={u.id} type="button" onClick={() => add(u)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
+                {(u.email || u.title) && <span style={{ fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+              </button>
+            ))}
+            {!loading && shown.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
+          </div>
+        )}
+        {err && <p style={{ color: '#B92323', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+      </div>
+
+      <p style={{ fontSize: 12, color: '#78684C', margin: '8px 0 0', lineHeight: 1.45 }}>
+        {people.length <= 1
+          ? 'One request will be created. Add colleagues to raise the same request for each of them.'
+          : people.length + ' separate requests will be created — one per person.'}
+      </p>
     </div>
   );
 }
@@ -11337,11 +11473,7 @@ function Onboarding({ onBack, onFiled }) {
   // The top-level App also resets on stage change, but sub-mode changes inside
   // Onboarding don't bubble up — without this, switching to history while
   // scrolled deep on the roster leaves the new view scrolled offscreen.
-  React.useEffect(() => {
-    const scroller = document.querySelector('.page-scroll');
-    if (scroller) scroller.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [mode]);
+  useScrollToTop([mode]);
 
   const startNewHire = () => {
     setHires([makeBlankHire()]);
@@ -11817,17 +11949,10 @@ function OnboardingWizard({ hires, setHires, currentIdx, setCurrentIdx, onBack, 
     setStep(i);
   };
 
-  // also clear errors whenever user navigates to a new step, and scroll to top
+  // Clear errors and scroll to the top whenever the user moves to a new step.
   React.useEffect(() => {
     setErrors({});
-    // scroll back to top on step change
-    try {
-      const scroller = document.querySelector('.page-scroll');
-      if (scroller) scroller.scrollTo({ top: 0, behavior: "smooth" });
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    } catch (e) {}
+    scrollAppToTop();
   }, [step]);
 
   // Banner auto-dismisses after 1.2s — the red field outlines stick around
@@ -20393,11 +20518,7 @@ function Offboarding({ onBack, onFiled }) {
   // top-level App also resets on stage change, but sub-mode changes inside
   // Offboarding don't bubble up — without this, switching to history while
   // scrolled deep on the dashboard leaves the new view scrolled offscreen.
-  React.useEffect(() => {
-    const scroller = document.querySelector('.page-scroll');
-    if (scroller) scroller.scrollTo({ top: 0, left: 0, behavior: "instant" });
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [mode]);
+  useScrollToTop([mode]);
 
   // Hard cap on bulk size — see questionnaire (max_bulk=30). Beyond this,
   // HR should be using a CSV import flow we haven't built yet.
