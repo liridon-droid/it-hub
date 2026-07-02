@@ -1149,7 +1149,10 @@ app.post('/api/help/clarify', requireSliceUser, async (req, res) => {
 // Screenshot triage — the user uploads (or pastes) a screenshot and we ask
 // Claude to read it via vision. We pass the current list of guide titles so
 // suggestions are grounded in real KB content, not invented. Hardware damage
-// short-circuits to "file a ticket" with no self-repair steps.
+// short-circuits to "file a ticket" with no self-repair steps. A second,
+// text-only pass (groundScreenshotSteps) then rewrites next_steps using the
+// suggested guides' actual content, so steps say "enter vpn.slice.com" instead
+// of "open the VPN guide to find the address".
 const SCREENSHOT_PROMPT =
   "You are an IT-support triage assistant for Slice (the pizzeria platform). The user has shared a screenshot of an issue they're hitting. Read EVERYTHING visible — error banners, dialog text, button labels, app names, browser URLs, status bar / menubar icons, OS chrome — and produce a structured diagnosis.\n\n" +
   "Slice environment — assume these unless the screenshot proves otherwise:\n" +
@@ -1177,6 +1180,96 @@ const SCREENSHOT_PROMPT =
   "- is_hardware_issue: boolean. True ONLY for physical damage / hardware failure as defined above.\n" +
   "- cta: short call-to-action label for the primary button. Use \"File a ticket with the IT Team\" for hardware. Otherwise something action-oriented like \"Open the password reset guide\".\n" +
   "- guide_suggestions: 0–3 items with the EXACT id (number) and title from the provided list, plus a 1-sentence reason it's relevant.";
+
+// Second pass — swap the vision call's generic next_steps for steps grounded in
+// actual guide content. The vision pass only sees guide titles (200 bodies would
+// blow up its context), so the best it can say is "open the guide". By now we
+// know which 1–3 guides matter, so we pull their chunks (FTS on the diagnosis is
+// the fallback when it picked none) and let a cheap text-only call rewrite the
+// steps with the real values — portal addresses, menu paths — quoted from the
+// guides. Best-effort: any failure keeps the vision pass's steps.
+const SCREENSHOT_GROUND_PROMPT =
+  "You are tightening the next-steps on an IT-support triage card for Slice (the pizzeria platform). A vision model has diagnosed a user's screenshot and drafted generic next_steps; you also get excerpts from the internal knowledge-base guides that triage matched. Rewrite the steps so the user can act without opening anything else.\n\n" +
+  "Rules:\n" +
+  "- Every specific value — URL, portal or server address, hostname, menu path, setting or field name, keyboard shortcut — MUST appear verbatim in the excerpts. Never invent or guess specifics.\n" +
+  "- Generic recovery actions that need no lookup (quit and reopen the app, reconnect, retry sign-in with OneLogin) are fine to keep.\n" +
+  "- Never tell the user to open or read a guide — the card already links the suggested guides. Extract the answer instead.\n" +
+  "- Never copy credentials or secrets out of an excerpt; point at 1Password instead.\n" +
+  "- Escalation always goes to **the IT Team** via the Submit a ticket button — even if an excerpt names some other team.\n" +
+  "- 2–4 steps, each ≤ 140 chars, imperative voice, in the order the user should do them.\n" +
+  "- If the excerpts don't actually cover the diagnosed issue, set grounded to false and copy original_steps through unchanged.\n\n" +
+  "The user message is one JSON object: {diagnosis, clues, user_note, original_steps, excerpts}.\n" +
+  "Output ONE JSON object on one line, no markdown fence:\n" +
+  "  {\"grounded\":true,\"next_steps\":[\"...\"]}";
+
+async function groundScreenshotSteps(req, clean, userNote) {
+  if (clean.is_hardware_issue || clean.next_steps.length === 0) return;
+
+  // Prefer chunks of the exact guides the vision pass suggested (in suggestion
+  // order — most relevant first). FTS on the diagnosis is the fallback.
+  let rows = [];
+  const ids = clean.guide_suggestions.map((g) => g.id);
+  if (ids.length > 0) {
+    const r = await pool.query(
+      `SELECT gc.content, gc.guide_id, g.title
+         FROM guide_chunks gc
+         JOIN guides g ON g.id = gc.guide_id
+        WHERE gc.guide_id = ANY($1::int[]) AND g.deleted_at IS NULL
+        ORDER BY array_position($1::int[], gc.guide_id), gc.id ASC
+        LIMIT 8`,
+      [ids],
+    );
+    rows = r.rows;
+  }
+  if (rows.length === 0) {
+    const q = [clean.diagnosis, userNote].filter(Boolean).join(' ').trim();
+    if (q) rows = await ftsSearch(q);
+  }
+  if (rows.length === 0) return;
+
+  // Cap what we forward — most chunks are small, but guides can run long.
+  const excerpts = [];
+  let budget = 6000;
+  for (const row of rows) {
+    const body = String(row.content || '').slice(0, 1500);
+    if (body.length > budget) break;
+    budget -= body.length;
+    excerpts.push(`[guide #${row.guide_id} — "${row.title}"]\n${body}`);
+  }
+  if (excerpts.length === 0) return;
+
+  const { text } = await callClaudeProxy(req, {
+    system: SCREENSHOT_GROUND_PROMPT,
+    messages: [{
+      role: 'user',
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          diagnosis: clean.diagnosis,
+          clues: clean.clues,
+          user_note: userNote || null,
+          original_steps: clean.next_steps,
+          excerpts,
+        }),
+      }],
+    }],
+    max_tokens: 400,
+  });
+
+  let parsed = null;
+  try { parsed = JSON.parse(text); } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
+  }
+  if (parsed?.grounded !== true) return;
+  const steps = Array.isArray(parsed.next_steps)
+    ? parsed.next_steps.slice(0, 4).map((s) => String(s).slice(0, 200)).filter(Boolean)
+    : [];
+  if (steps.length >= 2) {
+    clean.next_steps = steps;
+    clean.steps_grounded = true;
+  }
+}
 
 app.post('/api/help/screenshot', requireSliceUser, async (req, res) => {
   const { imageDataUrl, note } = req.body ?? {};
@@ -1249,6 +1342,7 @@ app.post('/api/help/screenshot', requireSliceUser, async (req, res) => {
             : []),
       is_hardware_issue: isHw,
       cta: String(parsed.cta || (isHw ? 'File a ticket with the IT Team' : 'Open the suggested guide')).slice(0, 80),
+      steps_grounded: false,
       guide_suggestions: Array.isArray(parsed.guide_suggestions)
         ? parsed.guide_suggestions
             .slice(0, 3)
@@ -1262,6 +1356,14 @@ app.post('/api/help/screenshot', requireSliceUser, async (req, res) => {
             .filter((g) => validIds.has(g.id) && g.title)
         : [],
     };
+    // Second pass: replace the generic steps with ones grounded in the matched
+    // guides' content. Best-effort — on any failure the vision pass's steps
+    // (always renderable) go out unchanged.
+    try {
+      await groundScreenshotSteps(req, clean, userNote);
+    } catch (e) {
+      console.warn('[screenshot] grounding pass failed:', e.message);
+    }
     res.json(clean);
   } catch (err) {
     console.warn('[screenshot]', err.message);
