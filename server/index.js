@@ -1271,7 +1271,7 @@ async function groundScreenshotSteps(req, clean, userNote) {
   }
 }
 
-app.post('/api/help/screenshot', requireSliceUser, async (req, res) => {
+app.post('/api/help/screenshot', requireBotOrUser, async (req, res) => {
   const { imageDataUrl, note } = req.body ?? {};
   const m = String(imageDataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
   if (!m) return res.status(400).json({ error: 'imageDataUrl must be a base64 image data URL' });
@@ -1630,7 +1630,7 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-app.post('/api/chat/:id/feedback', requireSliceUser, async (req, res, next) => {
+app.post('/api/chat/:id/feedback', requireBotOrUser, async (req, res, next) => {
   const { rating, comment } = req.body ?? {};
   if (rating !== 1 && rating !== -1) return res.status(400).json({ error: 'rating must be 1 or -1' });
   try {
