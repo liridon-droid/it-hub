@@ -1441,6 +1441,36 @@ function normalizeHistory(h) {
   return out.slice(-10);
 }
 
+// Admin-authored operating rules / training notes for the IT Hub Slack bot,
+// managed in SliceDesk (Settings → Slack Bot) and served at
+// GET /api/ext/itbot/rules. We fetch them (reusing the module API key already
+// used for the AI proxy) and inject them into the chat prompt — so IT steers
+// the bot from SliceDesk while the knowledge base stays here in it-hub. Cached
+// ~60s; any failure degrades to no extra rules so chat never breaks.
+let _botRulesCache = { text: '', at: 0 };
+const BOT_RULES_TTL_MS = 60 * 1000;
+async function loadBotRules() {
+  const now = Date.now();
+  if (now - _botRulesCache.at < BOT_RULES_TTL_MS) return _botRulesCache.text;
+  try {
+    const base = (process.env.SLICEDESK_API_URL || moduleConfig.hubApiBase || '').replace(/\/$/, '');
+    if (!base || !moduleConfig.apiKey) { _botRulesCache = { text: '', at: now }; return ''; }
+    const res = await fetch(`${base}/api/ext/itbot/rules`, {
+      headers: { Authorization: `Bearer ${moduleConfig.apiKey}` },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      _botRulesCache = { text: data && typeof data.text === 'string' ? data.text : '', at: now };
+    } else {
+      _botRulesCache = { text: _botRulesCache.text, at: now };
+    }
+  } catch (e) {
+    console.warn('[chat] loadBotRules failed:', e.message);
+    _botRulesCache = { text: _botRulesCache.text, at: now };
+  }
+  return _botRulesCache.text;
+}
+
 app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
   const { query, history } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
@@ -1474,6 +1504,12 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
     let answer = null;
     let usage = null;
     let mode = 'retrieval';
+
+    // SliceDesk-managed operating rules (fetched + cached). Injected into the
+    // KB-answer prompt below, and also drive the no-match behavioral path so
+    // rules like "when someone asks 'any IT?', ask them to describe the issue"
+    // fire even when no guide matched.
+    const adminRulesBlock = await loadBotRules();
 
     // Claude calls go through slicedesk's /api/ext/ai/proxy — that endpoint
     // owns the Anthropic API key, billing, and audit logs. We just POST
@@ -1523,7 +1559,8 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               "- Use [N] citations.\n" +
               "- Keep it tight — no preamble, no recap of the question.\n\n" +
               "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
-              "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team.",
+              "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team." +
+              (adminRulesBlock ? `\n\n${adminRulesBlock}` : ''),
             messages: [
               ...priorTurns,
               {
@@ -1556,6 +1593,43 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
         // Slicedesk unreachable / proxy error → fall back to retrieval-only
         // mode so the chatbot still returns the citations rather than 500.
         console.warn('[chat] slicedesk proxy failed:', err.message);
+      }
+    }
+
+    // Behavioral rules on the no-match path. The KB-answer block above only
+    // runs when a guide matched, so greeting / catch-all rules (e.g. "any IT?"
+    // → ask them to describe the issue) never fired there. When we have no
+    // KB-grounded answer yet and admin rules exist, make a rules-only turn so
+    // those rules can drive the reply — without inventing IT facts.
+    if (!answer && !throttled && SLICEDESK_API_URL && adminRulesBlock) {
+      try {
+        const upstream = await aiProxyFetch(req, {
+          method: 'POST',
+          headers: aiProxyHeaders(req),
+          body: JSON.stringify({
+            model: CHAT_MODEL,
+            max_tokens: 500,
+            system:
+              "You are the IT-support assistant for Slice, replying in Slack. No IT guide matched this message.\n" +
+              "Follow the admin-configured rules below. If a rule says how to respond to this kind of message, do exactly that. " +
+              "If it's a vague or greeting-style request for help (e.g. \"any IT?\", \"anyone available?\", \"I need help\"), ask them to briefly describe their problem. " +
+              "If no rule applies and it isn't a help request, reply with the single token NOREPLY and nothing else. " +
+              "Never invent IT procedures, steps, URLs, or facts — you have no knowledge base here. Keep it to 1–2 friendly sentences.\n\n" +
+              adminRulesBlock,
+            messages: [...priorTurns, { role: 'user', content: query }],
+          }),
+        });
+        if (upstream.ok) {
+          const msg = await upstream.json();
+          const txt = (msg.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+          if (txt && !/^NOREPLY$/i.test(txt.replace(/[.!?\s]+$/, '').trim())) {
+            answer = txt;
+            mode = 'rules';
+            usage = msg.usage || usage;
+          }
+        }
+      } catch (err) {
+        console.warn('[chat] rules-only turn failed:', err.message);
       }
     }
 
