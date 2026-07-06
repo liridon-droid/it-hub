@@ -25042,14 +25042,19 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       {/* Full-width opaque yellow mask: the article scrolling under the bar
           disappears behind it instead of peeking through the gap above. The
           white card inside is centered at the article text width. */}
+      {/* Sticky INSIDE the scroll container (not fixed-to-viewport) so it
+          shares the scrollbar context — and it reuses the article's exact
+          830px/24px container, so the bar edges align pixel-perfect with
+          the article card below. Opaque yellow wrapper masks content
+          scrolling under. */}
       <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 110,
+        position: 'sticky', top: 0, zIndex: 110,
         background: '#FDC831',
-        padding: '12px 12px 0',
-        display: 'flex', justifyContent: 'center',
+        padding: '8px 0 0',
+        width: '100%', flexShrink: 0, boxSizing: 'border-box',
       }}>
+      <div style={{ maxWidth: 830, margin: '0 auto', padding: '0 24px', width: '100%', boxSizing: 'border-box' }}>
       <div style={{
-        width: 'min(782px, 100%)', boxSizing: 'border-box',
         background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12,
         boxShadow: '3px 3px 0 #211E1E',
         display: 'flex', alignItems: 'center', gap: 10,
@@ -25186,9 +25191,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         </div>
       </div>
       </div>
+      </div>
 
       <div style={{
-        maxWidth: 830, margin: '0 auto', padding: '84px 24px 80px',
+        maxWidth: 830, margin: '0 auto', padding: '20px 24px 80px',
         width: '100%', boxSizing: 'border-box',
         flex: '1 0 auto', display: 'flex', flexDirection: 'column',
       }}>
