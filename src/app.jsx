@@ -25096,7 +25096,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             border: '1px solid #211E1E', borderRadius: 8,
             background: '#FFFFFF', boxSizing: 'border-box',
             boxShadow: '1px 1px 0 #211E1E',
-            width: searchOpen ? 'min(380px, 42vw)' : 34,
+            width: searchOpen ? 'clamp(150px, calc(100vw - 470px), 340px)' : 34,
             transition: 'width .22s cubic-bezier(.22,.61,.36,1)',
             overflow: 'hidden', cursor: searchOpen ? 'text' : 'pointer',
             zIndex: 6,
@@ -25126,7 +25126,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           </div>
           {searchQ.trim() !== '' && (
             <div style={{
-              position: 'absolute', top: '115%', right: 0, width: 'min(380px, 42vw)',
+              position: 'absolute', top: '115%', right: 0, width: 'clamp(220px, calc(100vw - 470px), 340px)',
               background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
               boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden',
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
