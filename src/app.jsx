@@ -24851,6 +24851,25 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     return () => { cancelled = true; };
   }, [category, guide.id]);
 
+  // Guide search in the top bar — jump to any other guide without leaving
+  // the reader.
+  const [searchQ, setSearchQ] = React.useState("");
+  const [allGuides, setAllGuides] = React.useState([]);
+  React.useEffect(() => {
+    fetch('/api/guides', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => setAllGuides(Array.isArray(rows) ? rows : []))
+      .catch(() => {});
+  }, []);
+  const searchHits = React.useMemo(() => {
+    const q = searchQ.trim().toLowerCase();
+    if (!q) return [];
+    return allGuides
+      .filter((g) => String(g.id) !== String(guide.id))
+      .filter((g) => (g.title || '').toLowerCase().includes(q) || (g.category || '').toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [allGuides, searchQ, guide.id]);
+
   // Pin — the SAME pin list as SliceDesk Docs (user_pinned_docs): pinning
   // here surfaces the guide on the portal home, SliceDesk Docs home,
   // profile, and the Pinned Docs widget.
@@ -25013,123 +25032,150 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           filter: brightness(0.95);
         }
       `}</style>
-      <button className="back-to-hub-btn" onClick={onClose} style={{
-        position: 'fixed', top: 20, left: 20, zIndex: 110,
-        background: '#FFFFFF',
-        border: '1px solid #211E1E',
-        borderRadius: 8,
-        padding: '8px 14px',
-        fontFamily: "'Archivo', sans-serif",
-        fontSize: 13, fontWeight: 700,
-        color: '#211E1E',
-        cursor: 'pointer',
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        boxShadow: '1px 1px 0 #211E1E',
+      {/* Top action bar — one white card matching the Tickets detail bar
+          (solid white, ink outline, offset shadow). Back on the LEFT, guide
+          search in the middle, Pin / Share / Export on the RIGHT. Fixed so
+          the article scrolls cleanly under it. */}
+      <div style={{
+        position: 'fixed', top: 10, left: 12, right: 12, zIndex: 110,
+        background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12,
+        boxShadow: '3px 3px 0 #211E1E',
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '8px 12px',
       }}>
-        <span className="back-to-hub-arrow">←</span>
-        Back to hub
-      </button>
-
-      {/* Export — PDF / Markdown / HTML, same engine as SliceDesk Docs. */}
-      <div style={{ position: 'fixed', top: 20, right: 300, zIndex: 110 }}>
-        <button
-          className="share-guide-btn"
-          onClick={() => setExportOpen((v) => !v)}
-          title="Export this guide"
-          style={{
-            background: '#FFFFFF', color: '#211E1E',
-            border: '1px solid #211E1E', borderRadius: 8,
-            padding: '8px 14px',
-            fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
-            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
-          }}>
-          ⬇ Export
+        <button className="back-to-hub-btn" onClick={onClose} style={{
+          background: '#FFFFFF', color: '#211E1E',
+          border: '1px solid #211E1E', borderRadius: 8,
+          padding: '7px 13px',
+          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
+          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+        }}>
+          <span className="back-to-hub-arrow">←</span>
+          Back to Docs
         </button>
-        {exportOpen && (
-          <div style={{
-            position: 'absolute', right: 0, top: '110%', minWidth: 150,
-            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
-            boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden',
-          }}>
-            {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
-              <button key={f} onClick={() => exportGuide(f)}
-                style={{
-                  display: 'block', width: '100%', textAlign: 'left',
-                  padding: '9px 14px', fontSize: 13,
-                  fontFamily: "'Archivo', sans-serif", fontWeight: 600,
-                  background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
-                }}>
-                {l}
-              </button>
-            ))}
+
+        {/* Guide search — dropdown of matches, click to jump. */}
+        <div style={{ position: 'relative', flex: 1, minWidth: 140, maxWidth: 460, margin: '0 auto' }}>
+          <input
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') setSearchQ(''); }}
+            placeholder="Search guides…"
+            style={{
+              width: '100%', padding: '7px 12px', boxSizing: 'border-box',
+              border: '1px solid #211E1E', borderRadius: 8,
+              fontSize: 13, fontFamily: 'inherit',
+              background: '#FFFDF4', color: '#211E1E',
+            }}
+          />
+          {searchQ.trim() !== '' && (
+            <div style={{
+              position: 'absolute', top: '115%', left: 0, right: 0,
+              background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+              boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden',
+              maxHeight: 280, overflowY: 'auto', zIndex: 120,
+            }}>
+              {searchHits.length === 0 ? (
+                <div style={{ padding: '9px 12px', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
+              ) : searchHits.map((g) => (
+                <button key={g.id}
+                  onClick={() => { setSearchQ(''); onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category }); }}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '8px 12px', fontSize: 13, fontFamily: 'inherit',
+                    background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
+                  }}>
+                  <b style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800 }}>{g.title}</b>
+                  {g.category && <span style={{ color: '#78684C', marginLeft: 8, fontSize: 11.5, fontWeight: 600 }}>{g.category}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* Pin — same pin list as SliceDesk Docs (home / profile / widget). */}
+          <button
+            className="share-guide-btn"
+            onClick={togglePin}
+            title={pinned ? 'Unpin this guide' : 'Pin this guide to your hub home + SliceDesk profile'}
+            style={{
+              ...{
+          background: '#FFFFFF', color: '#211E1E',
+          border: '1px solid #211E1E', borderRadius: 8,
+          padding: '7px 13px',
+          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
+          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+        },
+              background: pinned ? '#211E1E' : '#FFFFFF',
+              color: pinned ? '#FDC831' : '#211E1E',
+            }}>
+            {pinned ? '📌 Pinned' : '📌 Pin'}
+          </button>
+
+          {/* Copy-link. */}
+          <button
+            className="share-guide-btn"
+            onClick={shareLink}
+            title={shareCopied ? 'Link copied!' : 'Copy link to this guide'}
+            style={{
+              ...{
+          background: '#FFFFFF', color: '#211E1E',
+          border: '1px solid #211E1E', borderRadius: 8,
+          padding: '7px 13px',
+          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
+          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+        },
+              background: shareCopied ? '#211E1E' : '#FFFFFF',
+              color: shareCopied ? '#FDC831' : '#211E1E',
+            }}>
+            {shareCopied ? '✓ Link copied' : '🔗 Share'}
+          </button>
+
+          {/* Export — PDF / Markdown / HTML, same engine as SliceDesk Docs. */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className="share-guide-btn"
+              onClick={() => setExportOpen((v) => !v)}
+              title="Export this guide"
+              style={{
+          background: '#FFFFFF', color: '#211E1E',
+          border: '1px solid #211E1E', borderRadius: 8,
+          padding: '7px 13px',
+          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
+          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
+          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+        }}>
+              ⬇ Export
+            </button>
+            {exportOpen && (
+              <div style={{
+                position: 'absolute', right: 0, top: '115%', minWidth: 160,
+                background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+                boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden', zIndex: 120,
+              }}>
+                {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
+                  <button key={f} onClick={() => exportGuide(f)}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '9px 14px', fontSize: 13,
+                      fontFamily: "'Archivo', sans-serif", fontWeight: 600,
+                      background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
+                    }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Pin — same pin list as SliceDesk Docs (home / profile / widget). */}
-      <button
-        className="share-guide-btn"
-        onClick={togglePin}
-        title={pinned ? 'Unpin this guide' : 'Pin this guide to your hub home + SliceDesk profile'}
-        style={{
-          position: 'fixed', top: 20, right: 190, zIndex: 110,
-          background: pinned ? '#211E1E' : '#FFFFFF',
-          color: pinned ? '#FDC831' : '#211E1E',
-          border: '1px solid #211E1E',
-          borderRadius: 8,
-          padding: '8px 14px',
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 13, fontWeight: 700,
-          cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-        }}>
-        {pinned ? '📌 Pinned' : '📌 Pin'}
-      </button>
-
-      {/* Copy-link — mirrors Back-to-Hub on the opposite side. Always copies
-          the deep link to clipboard and flashes confirmation; no native
-          share-sheet detour. */}
-      <button
-        className="share-guide-btn"
-        onClick={shareLink}
-        title={shareCopied ? 'Link copied!' : 'Copy link to this guide'}
-        style={{
-          position: 'fixed', top: 20, right: 20, zIndex: 110,
-          background: shareCopied ? '#211E1E' : '#FFFFFF',
-          color: shareCopied ? '#FDC831' : '#211E1E',
-          border: '1px solid #211E1E',
-          borderRadius: 8,
-          padding: '8px 14px',
-          fontFamily: "'Archivo', sans-serif",
-          fontSize: 13, fontWeight: 700,
-          cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', gap: 8,
-          boxShadow: shareCopied ? '1px 1px 0 #FDC831' : '1px 1px 0 #211E1E',
-          transition: 'transform .15s, box-shadow .15s, background .15s, color .15s',
-        }}
-      >
-        {shareCopied ? (
-          <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            Link copied
-          </>
-        ) : (
-          <>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="18" cy="5" r="3"/>
-              <circle cx="6" cy="12" r="3"/>
-              <circle cx="18" cy="19" r="3"/>
-              <path d="m8.59 13.51 6.83 3.98M15.41 6.51l-6.82 3.98"/>
-            </svg>
-            Share
-          </>
-        )}
-      </button>
-
       <div style={{
-        maxWidth: 830, margin: '0 auto', padding: '40px 24px 80px',
+        maxWidth: 830, margin: '0 auto', padding: '84px 24px 80px',
         width: '100%', boxSizing: 'border-box',
         flex: '1 0 auto', display: 'flex', flexDirection: 'column',
       }}>
