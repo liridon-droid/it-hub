@@ -9730,7 +9730,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
           same outline style and have fixed widths so nothing reflows. */}
       {/* Sticky wrapper is opaque page-yellow so content scrolling under the
           bar disappears behind it (no card frames peeking through the gap). */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#FDC831', padding: '10px 0 8px', marginBottom: 14 }}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#FDC831', padding: '10px 0 0', marginBottom: 14 }}>
       <div style={{
         ...TK.card,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
@@ -25045,7 +25045,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       <div style={{
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 110,
         background: '#FDC831',
-        padding: '12px 12px 10px',
+        padding: '12px 12px 0',
         display: 'flex', justifyContent: 'center',
       }}>
       <div style={{
