@@ -25085,22 +25085,20 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           onMouseEnter={() => setSearchHover(true)}
           onMouseLeave={() => setSearchHover(false)}
           onClick={() => searchInputRef.current && searchInputRef.current.focus()}
-          style={{ position: 'relative', flexShrink: 0 }}
+          style={{ position: 'relative', flexShrink: 0, width: 34, height: 34 }}
         >
+          {/* Right-anchored overlay: expands LEFT over the bar's empty
+              middle so the Pin/Share/Export buttons never move. */}
           <div style={{
+            position: 'absolute', top: 0, right: 0, height: 34,
             display: 'flex', alignItems: 'center',
             border: '1px solid #211E1E', borderRadius: 8,
-            background: '#FFFDF4', height: 34, boxSizing: 'border-box',
+            background: '#FFFDF4', boxSizing: 'border-box',
             width: searchOpen ? 'min(380px, 42vw)' : 34,
             transition: 'width .22s cubic-bezier(.22,.61,.36,1)',
             overflow: 'hidden', cursor: searchOpen ? 'text' : 'pointer',
+            zIndex: 6,
           }}>
-            <span style={{ width: 32, textAlign: 'center', flexShrink: 0, display: 'inline-flex', justifyContent: 'center' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"/>
-                <line x1="21" y1="21" x2="16.5" y2="16.5"/>
-              </svg>
-            </span>
             <input
               ref={searchInputRef}
               value={searchQ}
@@ -25113,13 +25111,19 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               style={{
                 flex: 1, minWidth: 0, border: 'none', outline: 'none',
                 background: 'transparent', fontSize: 13, fontFamily: 'inherit',
-                color: '#211E1E', padding: '0 10px 0 0',
+                color: '#211E1E', padding: '0 0 0 12px',
               }}
             />
+            <span style={{ width: 32, textAlign: 'center', flexShrink: 0, display: 'inline-flex', justifyContent: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"/>
+                <line x1="21" y1="21" x2="16.5" y2="16.5"/>
+              </svg>
+            </span>
           </div>
           {searchQ.trim() !== '' && (
             <div style={{
-              position: 'absolute', top: '115%', left: 0, right: 0,
+              position: 'absolute', top: '115%', right: 0, width: 'min(380px, 42vw)',
               background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
               boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden',
               maxHeight: 280, overflowY: 'auto', zIndex: 120,
