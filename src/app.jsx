@@ -1620,8 +1620,14 @@ function OnCallCard({ onSubmit, onOpenTickets }) {
           the channel in Slack desktop without a browser detour. Falls back to
           Slack web if desktop isn't installed. Same-tab nav rather than
           target=_blank because the Slice Mac App swallows new-tab. */}
+      {/* When embedded in the SliceDesk module iframe, same-tab nav is
+          blocked by Slack's frame-ancestors policy — open a new tab instead
+          (the iframe sandbox allows popups). Standalone keeps same-tab nav
+          for the Slice Mac App. */}
       <a className="oncall-btn-primary"
          href="https://app.slack.com/client/T04HEPC7P/C9FPB2M1S"
+         target={window.self !== window.top ? "_blank" : undefined}
+         rel={window.self !== window.top ? "noopener" : undefined}
          style={{ textDecoration: "none", color: "inherit" }}>
         <div className="oncall-slack-icon" style={{
           width: 36, height: 36, borderRadius: 8,
