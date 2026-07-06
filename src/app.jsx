@@ -24871,6 +24871,26 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     } catch { setPinned(!next); }
   }, [pinned, guide.id]);
 
+  // Export — same md/html/pdf exports as SliceDesk Docs. Downloads go
+  // through fetch (the network shim attaches the hub_token header, which a
+  // plain <a href> wouldn't get) then a blob object-URL click.
+  const [exportOpen, setExportOpen] = React.useState(false);
+  const exportGuide = React.useCallback(async (fmt) => {
+    setExportOpen(false);
+    try {
+      const r = await fetch(`/api/guides/${encodeURIComponent(guide.id)}/export?format=${fmt}`, { credentials: 'include' });
+      if (!r.ok) throw new Error('export failed');
+      const blob = await r.blob();
+      const cd = r.headers.get('content-disposition') || '';
+      const m = cd.match(/filename="([^"]+)"/);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = m ? m[1] : `guide-${guide.id}.${fmt}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    } catch {}
+  }, [guide.id]);
+
   const shareLink = React.useCallback(async () => {
     const url = `${window.location.origin}/portal/?guide=${guide.id}`;
     try {
@@ -25009,6 +25029,42 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         <span className="back-to-hub-arrow">←</span>
         Back to hub
       </button>
+
+      {/* Export — PDF / Markdown / HTML, same engine as SliceDesk Docs. */}
+      <div style={{ position: 'fixed', top: 20, right: 300, zIndex: 110 }}>
+        <button
+          className="share-guide-btn"
+          onClick={() => setExportOpen((v) => !v)}
+          title="Export this guide"
+          style={{
+            background: '#FFFFFF', color: '#211E1E',
+            border: '1px solid #211E1E', borderRadius: 8,
+            padding: '8px 14px',
+            fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8,
+          }}>
+          ⬇ Export
+        </button>
+        {exportOpen && (
+          <div style={{
+            position: 'absolute', right: 0, top: '110%', minWidth: 150,
+            background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 8,
+            boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden',
+          }}>
+            {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
+              <button key={f} onClick={() => exportGuide(f)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '9px 14px', fontSize: 13,
+                  fontFamily: "'Archivo', sans-serif", fontWeight: 600,
+                  background: 'transparent', border: 'none', cursor: 'pointer', color: '#211E1E',
+                }}>
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Pin — same pin list as SliceDesk Docs (home / profile / widget). */}
       <button
