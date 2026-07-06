@@ -9728,11 +9728,13 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
           of the UI and content scrolls cleanly UNDER it. Back on the LEFT;
           Close/Reopen then the ticket nav on the RIGHT. All buttons share the
           same outline style and have fixed widths so nothing reflows. */}
+      {/* Sticky wrapper is opaque page-yellow so content scrolling under the
+          bar disappears behind it (no card frames peeking through the gap). */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#FDC831', padding: '10px 0 8px', marginBottom: 14 }}>
       <div style={{
         ...TK.card,
-        position: 'sticky', top: 10, zIndex: 20,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
-        padding: '10px 14px', marginBottom: 14,
+        padding: '10px 14px',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minWidth: 0 }}>
           <button onClick={onBack} className="btn btn-outline" style={{ padding: '5px 11px', fontSize: 11 }}>← Back</button>
@@ -9755,6 +9757,7 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
             <button onClick={() => go(nextTicket)} disabled={!nextTicket} className="btn btn-outline" style={navBtn(!!nextTicket)} title={nextTicket ? 'Next ticket' : 'No next ticket'} aria-label="Next ticket">→</button>
           </div>
         )}
+      </div>
       </div>
       {st.loading && <TicketsNotice title="Loading ticket…" />}
       {st.error && !t && <TicketsNotice title="Couldn’t load this ticket" body={st.error} />}
@@ -25036,8 +25039,17 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           (solid white, ink outline, offset shadow). Back on the LEFT, guide
           search in the middle, Pin / Share / Export on the RIGHT. Fixed so
           the article scrolls cleanly under it. */}
+      {/* Full-width opaque yellow mask: the article scrolling under the bar
+          disappears behind it instead of peeking through the gap above. The
+          white card inside is centered at the article text width. */}
       <div style={{
-        position: 'fixed', top: 10, left: 12, right: 12, zIndex: 110,
+        position: 'fixed', top: 0, left: 0, right: 0, zIndex: 110,
+        background: '#FDC831',
+        padding: '12px 12px 10px',
+        display: 'flex', justifyContent: 'center',
+      }}>
+      <div style={{
+        width: 'min(782px, 100%)', boxSizing: 'border-box',
         background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12,
         boxShadow: '3px 3px 0 #211E1E',
         display: 'flex', alignItems: 'center', gap: 10,
@@ -25172,6 +25184,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             )}
           </div>
         </div>
+      </div>
       </div>
 
       <div style={{
