@@ -25093,7 +25093,8 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             position: 'absolute', top: 0, right: 0, height: 34,
             display: 'flex', alignItems: 'center',
             border: '1px solid #211E1E', borderRadius: 8,
-            background: '#FFFDF4', boxSizing: 'border-box',
+            background: '#FFFFFF', boxSizing: 'border-box',
+            boxShadow: '1px 1px 0 #211E1E',
             width: searchOpen ? 'min(380px, 42vw)' : 34,
             transition: 'width .22s cubic-bezier(.22,.61,.36,1)',
             overflow: 'hidden', cursor: searchOpen ? 'text' : 'pointer',
@@ -25109,9 +25110,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               placeholder="Search guides…"
               tabIndex={searchOpen ? 0 : -1}
               style={{
-                flex: 1, minWidth: 0, border: 'none', outline: 'none',
+                flex: searchOpen ? 1 : '0 0 0px', minWidth: 0, width: searchOpen ? undefined : 0,
+                border: 'none', outline: 'none',
                 background: 'transparent', fontSize: 13, fontFamily: 'inherit',
-                color: '#211E1E', padding: '0 0 0 12px',
+                color: '#211E1E', padding: searchOpen ? '0 0 0 12px' : 0,
               }}
             />
             <span style={{ width: 32, textAlign: 'center', flexShrink: 0, display: 'inline-flex', justifyContent: 'center' }}>
