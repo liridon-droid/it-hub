@@ -24857,6 +24857,12 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   // Guide search in the top bar — jump to any other guide without leaving
   // the reader.
   const [searchQ, setSearchQ] = React.useState("");
+  const [searchHover, setSearchHover] = React.useState(false);
+  const [searchFocus, setSearchFocus] = React.useState(false);
+  const searchInputRef = React.useRef(null);
+  // Collapsed to a magnifier by default; expands on hover and stays open
+  // while focused or holding a query.
+  const searchOpen = searchHover || searchFocus || searchQ.trim() !== "";
   const [allGuides, setAllGuides] = React.useState([]);
   React.useEffect(() => {
     fetch('/api/guides', { credentials: 'include' })
@@ -25072,20 +25078,44 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           Back to Docs
         </button>
 
-        {/* Guide search — dropdown of matches, click to jump. */}
-        <div style={{ position: 'relative', flex: 1, minWidth: 140, maxWidth: 460, margin: '0 auto' }}>
-          <input
-            value={searchQ}
-            onChange={(e) => setSearchQ(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Escape') setSearchQ(''); }}
-            placeholder="Search guides…"
-            style={{
-              width: '100%', padding: '7px 12px', boxSizing: 'border-box',
-              border: '1px solid #211E1E', borderRadius: 8,
-              fontSize: 13, fontFamily: 'inherit',
-              background: '#FFFDF4', color: '#211E1E',
-            }}
-          />
+        {/* Guide search — a magnifying glass that expands on hover (stays
+            open while focused / holding a query). Dropdown of matches below. */}
+        <div
+          onMouseEnter={() => setSearchHover(true)}
+          onMouseLeave={() => setSearchHover(false)}
+          onClick={() => searchInputRef.current && searchInputRef.current.focus()}
+          style={{ position: 'relative', margin: '0 auto', flexShrink: 0 }}
+        >
+          <div style={{
+            display: 'flex', alignItems: 'center',
+            border: '1px solid #211E1E', borderRadius: 8,
+            background: '#FFFDF4', height: 34, boxSizing: 'border-box',
+            width: searchOpen ? 'min(380px, 42vw)' : 34,
+            transition: 'width .22s cubic-bezier(.22,.61,.36,1)',
+            overflow: 'hidden', cursor: searchOpen ? 'text' : 'pointer',
+          }}>
+            <span style={{ width: 32, textAlign: 'center', flexShrink: 0, display: 'inline-flex', justifyContent: 'center' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#211E1E" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"/>
+                <line x1="21" y1="21" x2="16.5" y2="16.5"/>
+              </svg>
+            </span>
+            <input
+              ref={searchInputRef}
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              onFocus={() => setSearchFocus(true)}
+              onBlur={() => setSearchFocus(false)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setSearchQ(''); e.currentTarget.blur(); } }}
+              placeholder="Search guides…"
+              tabIndex={searchOpen ? 0 : -1}
+              style={{
+                flex: 1, minWidth: 0, border: 'none', outline: 'none',
+                background: 'transparent', fontSize: 13, fontFamily: 'inherit',
+                color: '#211E1E', padding: '0 10px 0 0',
+              }}
+            />
+          </div>
           {searchQ.trim() !== '' && (
             <div style={{
               position: 'absolute', top: '115%', left: 0, right: 0,
