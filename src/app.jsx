@@ -25078,13 +25078,14 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           Back to Docs
         </button>
 
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
         {/* Guide search — a magnifying glass that expands on hover (stays
             open while focused / holding a query). Dropdown of matches below. */}
         <div
           onMouseEnter={() => setSearchHover(true)}
           onMouseLeave={() => setSearchHover(false)}
           onClick={() => searchInputRef.current && searchInputRef.current.focus()}
-          style={{ position: 'relative', margin: '0 auto', flexShrink: 0 }}
+          style={{ position: 'relative', flexShrink: 0 }}
         >
           <div style={{
             display: 'flex', alignItems: 'center',
@@ -25140,8 +25141,6 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             </div>
           )}
         </div>
-
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {/* Pin — same pin list as SliceDesk Docs (home / profile / widget). */}
           <button
             className="share-guide-btn"
