@@ -103,6 +103,36 @@ export function registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin }
     } catch (e) { next(e); }
   });
 
+  // PINS — proxied to the SHARED SliceDesk pin list (user_pinned_docs), so
+  // pinning here shows up in SliceDesk Docs / profile / home widget and
+  // vice versa. Registered BEFORE /api/guides/:id so 'pins' isn't captured
+  // as a guide id.
+  app.get("/api/guides/pins", requireSliceUser, async (req, res, next) => {
+    try {
+      const rows = await hubFetch(`/api/ext/portal/pins?user_id=${encodeURIComponent(String(req.user.id))}`);
+      for (const g of rows || []) _idToSlug.set(String(g.id), g.slug);
+      res.json((rows || []).map((g) => toGuide(g)));
+    } catch (e) { next(e); }
+  });
+
+  app.post("/api/guides/:id/pin", requireSliceUser, async (req, res, next) => {
+    try {
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: "not found" });
+      await hubFetch("/api/ext/portal/pins", { method: "POST", body: { user_id: String(req.user.id), slug } });
+      res.status(201).json({ pinned: true });
+    } catch (e) { next(e); }
+  });
+
+  app.delete("/api/guides/:id/pin", requireSliceUser, async (req, res, next) => {
+    try {
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: "not found" });
+      await hubFetch(`/api/ext/portal/pins?user_id=${encodeURIComponent(String(req.user.id))}&slug=${encodeURIComponent(slug)}`, { method: "DELETE" });
+      res.json({ pinned: false });
+    } catch (e) { next(e); }
+  });
+
   // DETAIL (id === numeric how_to_guides id → resolve to slug)
   app.get('/api/guides/:id', requireSliceUser, async (req, res, next) => {
     try {

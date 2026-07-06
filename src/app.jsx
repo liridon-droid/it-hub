@@ -683,6 +683,15 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
       .catch(() => {});
   }, []);
 
+  // The user's pinned guides — shared with SliceDesk Docs pins.
+  const [pinnedGuides, setPinnedGuides] = React.useState([]);
+  React.useEffect(() => {
+    fetch('/api/guides/pins')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => setPinnedGuides(Array.isArray(rows) ? rows : []))
+      .catch(() => {});
+  }, []);
+
   // Quick prompts always go through the question flow \u2014 never shortcut straight
   // to a guide. The user might mean "password problem in Slack", "Wi-Fi on a
   // tablet", or "set up a Windows machine" \u2014 only the question flow can ask
@@ -982,6 +991,39 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           <OnCallCard onSubmit={submit} onOpenTickets={onOpenTickets} />
         </div>
       </div>
+
+      {/* Pinned guides — the user's own pins (shared with SliceDesk Docs). */}
+      {pinnedGuides.length > 0 && (
+        <div style={{
+          maxWidth: 1120, margin: "72px auto 0",
+          animation: "fadeUp .8s .3s var(--ease) both"
+        }}>
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, color: "var(--ink)", margin: 0, letterSpacing: "-0.015em" }}>
+              📌 Your pinned guides
+            </h2>
+          </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+            gap: 14
+          }}>
+            {pinnedGuides.slice(0, 8).map((g) => (
+              <button key={g.id}
+                onClick={() => onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category })}
+                style={{
+                  textAlign: "left", cursor: "pointer",
+                  background: "#FFFFFF", border: "1.5px solid #211E1E", borderRadius: 14,
+                  padding: "16px 18px", boxShadow: "3px 3px 0 rgba(33,30,30,0.9)",
+                  fontFamily: "inherit",
+                }}>
+                <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 14, fontWeight: 800, color: "#211E1E", marginBottom: 4, letterSpacing: "-0.01em" }}>{g.title}</div>
+                <div style={{ fontSize: 11.5, color: "#5C4916", fontWeight: 600 }}>{g.category || "Guide"}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Below fold: quick-access grid */}
       <div style={{
@@ -2756,6 +2798,24 @@ function App() {
       })
       .catch(() => {});
   }, []);
+
+  // Keep ?guide=N in the URL while a guide is open (and mirror it to the
+  // parent SliceDesk shell via postMessage when embedded) so users can just
+  // copy the address bar to share an article — no Share button required.
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const url = new URL(window.location.href);
+      if (guide && guide.id) url.searchParams.set("guide", String(guide.id));
+      else url.searchParams.delete("guide");
+      window.history.replaceState(window.history.state, "", url.pathname + (url.search || ""));
+    } catch {}
+    try {
+      if (window.self !== window.top) {
+        window.parent.postMessage({ type: "slicedesk:module-query", params: { guide: guide && guide.id ? String(guide.id) : null } }, "*");
+      }
+    } catch {}
+  }, [guide]);
   const [filedTicket, setFiledTicket] = useState(null);
   const [ticketDraft, setTicketDraft] = useState(null);
   // Which tab the Tickets page opens on — "mine" (My Tickets) or "approvals".
@@ -24791,6 +24851,26 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     return () => { cancelled = true; };
   }, [category, guide.id]);
 
+  // Pin — the SAME pin list as SliceDesk Docs (user_pinned_docs): pinning
+  // here surfaces the guide on the portal home, SliceDesk Docs home,
+  // profile, and the Pinned Docs widget.
+  const [pinned, setPinned] = React.useState(false);
+  React.useEffect(() => {
+    let alive = true;
+    fetch('/api/guides/pins', { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => { if (alive) setPinned((rows || []).some((g) => String(g.id) === String(guide.id))); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [guide.id]);
+  const togglePin = React.useCallback(async () => {
+    const next = !pinned;
+    setPinned(next);
+    try {
+      await fetch(`/api/guides/${encodeURIComponent(guide.id)}/pin`, { method: next ? 'POST' : 'DELETE', credentials: 'include' });
+    } catch { setPinned(!next); }
+  }, [pinned, guide.id]);
+
   const shareLink = React.useCallback(async () => {
     const url = `${window.location.origin}/portal/?guide=${guide.id}`;
     try {
@@ -24928,6 +25008,26 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
       }}>
         <span className="back-to-hub-arrow">←</span>
         Back to hub
+      </button>
+
+      {/* Pin — same pin list as SliceDesk Docs (home / profile / widget). */}
+      <button
+        className="share-guide-btn"
+        onClick={togglePin}
+        title={pinned ? 'Unpin this guide' : 'Pin this guide to your hub home + SliceDesk profile'}
+        style={{
+          position: 'fixed', top: 20, right: 190, zIndex: 110,
+          background: pinned ? '#211E1E' : '#FFFFFF',
+          color: pinned ? '#FDC831' : '#211E1E',
+          border: '1px solid #211E1E',
+          borderRadius: 8,
+          padding: '8px 14px',
+          fontFamily: "'Archivo', sans-serif",
+          fontSize: 13, fontWeight: 700,
+          cursor: 'pointer',
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+        }}>
+        {pinned ? '📌 Pinned' : '📌 Pin'}
       </button>
 
       {/* Copy-link — mirrors Back-to-Hub on the opposite side. Always copies
