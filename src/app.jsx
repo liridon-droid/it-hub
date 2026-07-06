@@ -25073,6 +25073,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
           cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
           boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+          height: 34, boxSizing: 'border-box',
         }}>
           <span className="back-to-hub-arrow">←</span>
           Back to Docs
@@ -25160,6 +25161,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
           cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
           boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+          height: 34, boxSizing: 'border-box',
         },
               background: pinned ? '#211E1E' : '#FFFFFF',
               color: pinned ? '#FDC831' : '#211E1E',
@@ -25180,6 +25182,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
           cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
           boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+          height: 34, boxSizing: 'border-box',
         },
               background: shareCopied ? '#211E1E' : '#FFFFFF',
               color: shareCopied ? '#FDC831' : '#211E1E',
@@ -25200,8 +25203,9 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
           cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
           boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
+          height: 34, boxSizing: 'border-box',
         }}>
-              ⬇ Export
+              ↓ Export
             </button>
             {exportOpen && (
               <div style={{
