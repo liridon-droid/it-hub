@@ -5186,7 +5186,10 @@ function Nav({ onHome, onNavigate, active: activeProp, onOpenNotifications, onOp
 // Sits between the Notifications bell and the user avatar. Same-tab nav (no
 // target=_blank) so it works inside the Slice Mac App wrapper, which doesn't
 // honor new-tab requests. Brand red + black border to match other Slice CTAs.
+// Standalone only: embedded as a SliceDesk module the shell's own chrome is
+// already around us, and the link would nav the iframe to SliceDesk-in-SliceDesk.
 function ItServicesButton() {
+  if (IS_EMBEDDED) return null;
   return (
     <a
       href="https://slicedesk.slice.services/"
