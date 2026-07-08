@@ -70,6 +70,108 @@ import './styles.css';
   };
 })();
 
+// ── Dev-only Knowledge-base fixtures ────────────────────────────────────────
+// The KB loads from the hub (/api/guides). In `npm run dev` there's no backend,
+// so those calls fail (the Vite proxy can't reach :3001) and the Knowledge page
+// renders empty — nothing to iterate on. This shim serves a couple of sample
+// guides, but ONLY in dev AND ONLY when the real API is unavailable or returns
+// no rows, so a real dev backend still wins. import.meta.env.DEV is false in
+// production builds, so this whole block is dropped from the shipped bundle —
+// prod always shows real guides only.
+if (import.meta.env.DEV) {
+  const md = (lines) => lines.join('\n');
+  const DEV_SAMPLE_GUIDES = [
+    {
+      id: 90001,
+      title: 'Set up Slice email on your phone',
+      category: 'Email',
+      tags: ['email', 'mobile', 'outlook'],
+      source_type: 'guide',
+      helpful_count: 42, unhelpful_count: 3,
+      created_at: '2026-05-02T09:00:00.000Z',
+      updated_at: '2026-06-28T14:30:00.000Z',
+      metadata: {},
+      body: md([
+        'Add your Slice email to the Outlook mobile app in a couple of minutes.',
+        '',
+        '## Before you start',
+        '',
+        '- Install **Microsoft Outlook** from the App Store or Google Play.',
+        '- Have your OneLogin password handy.',
+        '',
+        '## Steps',
+        '',
+        '1. Open Outlook and tap **Add Account**.',
+        '2. Enter your `name@slice.com` address and tap **Continue**.',
+        "3. You'll be redirected to OneLogin — sign in and approve the MFA prompt.",
+        '4. When asked to add another account, tap **Maybe Later**.',
+        '',
+        "That's it — mail, calendar, and contacts sync automatically.",
+        '',
+        '> Still stuck? File a ticket and IT will help you finish setup.',
+      ]),
+    },
+    {
+      id: 90002,
+      title: 'Report a phishing email',
+      category: 'Security',
+      tags: ['security', 'phishing', 'email'],
+      source_type: 'guide',
+      helpful_count: 88, unhelpful_count: 1,
+      created_at: '2026-04-11T11:15:00.000Z',
+      updated_at: '2026-07-01T08:05:00.000Z',
+      metadata: {},
+      body: md([
+        'See something suspicious? Reporting it takes seconds and keeps everyone safer.',
+        '',
+        '## How to report',
+        '',
+        '1. Open the suspicious email.',
+        '2. Click the **Report Phishing** button in the toolbar.',
+        '3. Confirm — it goes to the security team and leaves your inbox.',
+        '',
+        '## What counts as phishing?',
+        '',
+        '- Unexpected password-reset or invoice requests.',
+        '- Links to look-alike login pages.',
+        '- Urgent "act now" language from an unknown sender.',
+        '',
+        'If you already clicked a link or entered your password, **change it in OneLogin immediately** and file a ticket.',
+      ]),
+    },
+  ];
+
+  const jsonRes = (data) => new Response(JSON.stringify(data), {
+    status: 200, headers: { 'Content-Type': 'application/json' },
+  });
+  const baseFetch = window.fetch;
+  window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+    const path = url.replace(window.location.origin, '');
+    const isList = /\/api\/guides(?:\?|$)/.test(path);
+    const idMatch = path.match(/\/api\/guides\/(\d+)(?:\?|$)/);
+    if (!isList && !idMatch) return baseFetch(input, init);
+    try {
+      const res = await baseFetch(input, init);
+      if (isList) {
+        if (res.ok) {
+          const data = await res.clone().json().catch(() => null);
+          if (Array.isArray(data) && data.length) return res; // real guides win
+        }
+        return jsonRes(DEV_SAMPLE_GUIDES);
+      }
+      if (res.ok) return res;
+      const g = DEV_SAMPLE_GUIDES.find((x) => String(x.id) === idMatch[1]);
+      return g ? jsonRes(g) : res;
+    } catch (e) {
+      if (isList) return jsonRes(DEV_SAMPLE_GUIDES);
+      const g = DEV_SAMPLE_GUIDES.find((x) => String(x.id) === idMatch[1]);
+      if (g) return jsonRes(g);
+      throw e;
+    }
+  };
+}
+
 // The bundle's JSX uses React.useState, ReactDOM.createPortal, etc., as if
 // they were globals (because in the standalone bundle they are). Expose them
 // on window before importing App so the JSX inside app.jsx finds them.

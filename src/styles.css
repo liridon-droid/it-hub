@@ -263,7 +263,26 @@
       transform .22s cubic-bezier(.22, .61, .36, 1),
       box-shadow .22s cubic-bezier(.22, .61, .36, 1);
   }
-  .surface-interactive { cursor: pointer; }
+  .surface-interactive { cursor: pointer; position: relative; }
+  /* Invisible hover-hit-area extension. On :hover the card lifts up-and-left
+     (translate(-3px,-3px)), so it retreats out from under a cursor sitting on
+     its bottom-right edge — the cursor lands on the non-interactive offset
+     shadow, :hover drops, the card snaps back, and it flip-flops. This pseudo
+     extends the hit area 6px past the bottom-right so the cursor stays inside
+     :hover through the whole lift. It sits above the card's background (and the
+     page behind it) but below the card's content — which we lift with z-index
+     below — so it catches the dead-zone without ever blocking clicks or the
+     icon's own hover. */
+  .surface-interactive::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: -8px; bottom: -8px;
+  }
+  /* Lift the card's own content above the ::after hit-pad. :where() keeps this
+     at zero specificity, so any child that sets its own position/z-index (a
+     badge, dot, popover) still wins — plain static children just float above
+     the pad so clicks and the icon hover keep working. */
+  :where(.surface-interactive) > * { position: relative; z-index: 1; }
   .surface-interactive:hover {
     transform: translate(-3px, -3px);
     box-shadow:
@@ -687,35 +706,56 @@
 
   /* Knowledge "Pick a category" cards — same premium feel as the Help-page
      Shortcuts: card lifts with layered shadow, icon tile grows + tilts on hover. */
+  /* The <button> is a STABLE hit area — it carries no visuals and never
+     transforms, so hovering the bottom-right edge (where the card meets its
+     offset shadow) can't kick off the hover-jitter loop. All the lift/press
+     motion lives on .kb-cat-card-inner, whose transforms don't change the
+     button's geometry and therefore can't drop the pointer out of :hover. */
   .kb-cat-card {
-    text-align: left;
-    background: #FFFFFF;
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
     color: #211E1E;
+    text-align: left;
+    cursor: pointer;
+    font-family: 'Archivo', sans-serif;
+  }
+  .kb-cat-card-inner {
+    display: block;
+    background: #FFFFFF;
     border: 1px solid #211E1E;
     border-radius: 14px;
     box-shadow:
       2px 2px 0 #211E1E,
       0 4px 14px rgba(33, 30, 30, 0.06);
     padding: 22px 20px;
-    cursor: pointer;
-    font-family: 'Archivo', sans-serif;
     transition:
       transform .22s cubic-bezier(.22, .61, .36, 1),
       box-shadow .22s cubic-bezier(.22, .61, .36, 1);
   }
-  .kb-cat-card:hover {
+  .kb-cat-card:hover .kb-cat-card-inner {
     transform: translate(-3px, -3px);
     box-shadow:
       4px 4px 0 #211E1E,
       0 14px 28px rgba(33, 30, 30, 0.12),
       0 4px 10px rgba(33, 30, 30, 0.06);
   }
-  .kb-cat-card:active {
+  .kb-cat-card:active .kb-cat-card-inner {
     transform: translate(1px, 1px);
     box-shadow:
       1px 1px 0 #211E1E,
       0 2px 6px rgba(33, 30, 30, 0.05);
     transition-duration: .08s;
+  }
+  /* Keyboard focus hugs the resting card shape (cheese ring). */
+  .kb-cat-card:focus-visible { outline: none; }
+  .kb-cat-card:focus-visible .kb-cat-card-inner {
+    box-shadow:
+      2px 2px 0 #211E1E,
+      0 0 0 3px #FDC831,
+      0 0 0 4px #211E1E;
   }
   /* Icon tile — yellow letter chip that grows + tilts + glows on card hover */
   .kb-cat-icon {

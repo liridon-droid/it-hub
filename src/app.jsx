@@ -9224,6 +9224,7 @@ function ticketBlurb(t) {
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
   const [selTicket, setSelTicket] = React.useState(null);
+  const [page, setPage] = React.useState(0);
   const icons = useCatalogIcons();
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
@@ -9280,6 +9281,19 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     return hay.includes(q);
   });
 
+  // Paginate the (search-filtered) list — 25 rows per page, matching the full
+  // ticketing platform. Prev/next controls sit at the bottom of the list. The
+  // detail view (below) still navigates across the whole filtered `shown` list,
+  // not just the current page, so its ←/→ never dead-ends at a page boundary.
+  const PAGE_SIZE = 25;
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  const safePage = Math.min(Math.max(page, 0), pageCount - 1);
+  // A new search resets to the first page (the result set changed underneath us).
+  React.useEffect(() => { setPage(0); }, [q]);
+  const pageStart = safePage * PAGE_SIZE;
+  const pageItems = shown.slice(pageStart, pageStart + PAGE_SIZE);
+  const goToPage = (p) => { setPage(Math.min(Math.max(p, 0), pageCount - 1)); scrollAppToTop(); };
+
   if (selTicket) return (
     <TicketDetailView
       key={selTicket.id}
@@ -9319,8 +9333,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           {`No tickets match “${query}”.`}
         </div>
       ) : (
+      <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {shown.map((t) => (
+        {pageItems.map((t) => (
           <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} className="tkt-row" style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '15px 18px',
             display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
@@ -9352,6 +9367,31 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           </button>
         ))}
       </div>
+      {shown.length > PAGE_SIZE && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 18, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
+            Showing {pageStart + 1}–{Math.min(shown.length, pageStart + PAGE_SIZE)} of {shown.length}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              className="btn btn-outline"
+              onClick={() => goToPage(safePage - 1)}
+              disabled={safePage === 0}
+              style={{ padding: '7px 13px', fontSize: 12, opacity: safePage === 0 ? 0.4 : 1, cursor: safePage === 0 ? 'default' : 'pointer' }}
+              aria-label="Previous page">← Prev</button>
+            <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 12.5, fontWeight: 800, color: '#55503F', minWidth: 92, textAlign: 'center' }}>
+              Page {safePage + 1} of {pageCount}
+            </span>
+            <button
+              className="btn btn-outline"
+              onClick={() => goToPage(safePage + 1)}
+              disabled={safePage >= pageCount - 1}
+              style={{ padding: '7px 13px', fontSize: 12, opacity: safePage >= pageCount - 1 ? 0.4 : 1, cursor: safePage >= pageCount - 1 ? 'default' : 'pointer' }}
+              aria-label="Next page">Next →</button>
+          </div>
+        </div>
+      )}
+      </>
       )}
     </div>
   );
@@ -21943,13 +21983,15 @@ function KnowledgePage({ onBack, onOpenGuide }) {
           {liveCats.map((c) => {
             return (
               <button key={c.id} className="kb-cat-card" onClick={() => { setActiveCat(c.id); setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); }}>
-                <div className="kb-cat-icon">
-                  {c.label.charAt(0)}
+                <div className="kb-cat-card-inner">
+                  <div className="kb-cat-icon">
+                    {c.label.charAt(0)}
+                  </div>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, marginBottom: 4, letterSpacing: "-0.005em" }}>
+                    {c.label}
+                  </div>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.7 }}>{c.count} articles</div>
                 </div>
-                <div style={{ fontSize: 14.5, fontWeight: 800, marginBottom: 4, letterSpacing: "-0.005em" }}>
-                  {c.label}
-                </div>
-                <div style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.7 }}>{c.count} articles</div>
               </button>
             );
           })}
@@ -24990,6 +25032,17 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     boxShadow: active ? '1px 1px 0 #FDC831' : '1px 1px 0 #211E1E',
   });
 
+  // Square icon button shared by the sticky top-right tools (pin / share /
+  // export) and the top-left back arrow. 34px matches the collapsed search.
+  const toolBtn = (active) => ({
+    width: 34, height: 34, padding: 0, flexShrink: 0,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: active ? '#211E1E' : '#FFFFFF',
+    color: active ? '#FDC831' : '#211E1E',
+    border: '1px solid #211E1E', borderRadius: 8,
+    boxShadow: '1px 1px 0 #211E1E', cursor: 'pointer', boxSizing: 'border-box',
+  });
+
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 100,
@@ -25025,6 +25078,23 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         .back-to-hub-btn:hover .back-to-hub-arrow {
           transform: translateX(-4px);
         }
+        /* Guide chrome — icon tools grow from center on hover (no jitter, since
+           a centered scale never retreats from the pointer) and press in on
+           click; the back arrow grows a touch and nudges left. */
+        .guide-tool, .guide-back {
+          transition: transform .16s cubic-bezier(.34,1.56,.64,1),
+                      box-shadow .16s var(--ease, cubic-bezier(.22,.61,.36,1)),
+                      background .16s ease, color .16s ease;
+        }
+        .guide-tool:hover { transform: scale(1.14); box-shadow: 2px 2px 0 #211E1E; z-index: 2; }
+        .guide-tool:active { transform: scale(0.92); box-shadow: 1px 1px 0 #211E1E; }
+        .guide-back:hover { transform: scale(1.10); box-shadow: 2px 2px 0 #211E1E; }
+        .guide-back:active { transform: scale(0.92); box-shadow: 1px 1px 0 #211E1E; }
+        .guide-back-arrow {
+          display: inline-block;
+          transition: transform .18s var(--ease, cubic-bezier(.22,.61,.36,1));
+        }
+        .guide-back:hover .guide-back-arrow { transform: translateX(-3px); }
         .feedback-btn:not(:disabled):hover .feedback-emoji {
           transform: scale(1.18);
         }
@@ -25054,32 +25124,26 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           the article card below. Opaque yellow wrapper masks content
           scrolling under. */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 110,
-        background: '#FDC831',
-        padding: '8px 0 0',
-        width: '100%', flexShrink: 0, boxSizing: 'border-box',
+        maxWidth: 830, margin: '0 auto', padding: '20px 24px 80px',
+        width: '100%', boxSizing: 'border-box',
+        flex: '1 0 auto', display: 'flex', flexDirection: 'column',
       }}>
-      <div style={{ maxWidth: 830, margin: '0 auto', padding: '0 24px', width: '100%', boxSizing: 'border-box' }}>
-      <div style={{
-        background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 12,
-        boxShadow: '3px 3px 0 #211E1E',
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '8px 12px',
-      }}>
-        <button className="back-to-hub-btn" onClick={onClose} style={{
-          background: '#FFFFFF', color: '#211E1E',
-          border: '1px solid #211E1E', borderRadius: 8,
-          padding: '7px 13px',
-          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
-          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
-          height: 34, boxSizing: 'border-box',
+        <article ref={articleRef} style={{
+          background: '#FFFFFF',
+          border: '1px solid #211E1E',
+          borderRadius: 14,
+          boxShadow: '3px 3px 0 #211E1E',
+          padding: '16px 64px 40px',
+          fontSize: 15, lineHeight: 1.65, color: '#211E1E',
+          fontFamily: "'Archivo', sans-serif",
+          position: 'relative',
         }}>
-          <span className="back-to-hub-arrow">←</span>
-          Back to Docs
-        </button>
-
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 'auto' }}>
+          {/* Tools — icon-only, parked at the article's top-right corner.
+              Absolute (not sticky): they stay at the top of the guide and
+              scroll away with it. Wrapper is click-through; only the cluster
+              captures the pointer. Search expands leftward on hover. */}
+          <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 5, pointerEvents: 'none', display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, pointerEvents: 'auto' }}>
         {/* Guide search — a magnifying glass that expands on hover (stays
             open while focused / holding a query). Dropdown of matches below. */}
         <div
@@ -25148,64 +25212,55 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             </div>
           )}
         </div>
-          {/* Pin — same pin list as SliceDesk Docs (home / profile / widget). */}
+          {/* Pin — same pin list as SliceDesk Docs (home / profile / widget).
+              Fills charcoal when pinned. */}
           <button
-            className="share-guide-btn"
+            className="guide-tool"
             onClick={togglePin}
+            aria-label={pinned ? 'Unpin this guide' : 'Pin this guide'}
+            aria-pressed={pinned}
             title={pinned ? 'Unpin this guide' : 'Pin this guide to your hub home + SliceDesk profile'}
-            style={{
-              ...{
-          background: '#FFFFFF', color: '#211E1E',
-          border: '1px solid #211E1E', borderRadius: 8,
-          padding: '7px 13px',
-          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
-          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
-          height: 34, boxSizing: 'border-box',
-        },
-              background: pinned ? '#211E1E' : '#FFFFFF',
-              color: pinned ? '#FDC831' : '#211E1E',
-            }}>
-            {pinned ? '📌 Pinned' : '📌 Pin'}
+            style={toolBtn(pinned)}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 17v5"/>
+              <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
+            </svg>
           </button>
 
-          {/* Copy-link. */}
+          {/* Copy-link — a check briefly replaces the link icon on success. */}
           <button
-            className="share-guide-btn"
+            className="guide-tool"
             onClick={shareLink}
+            aria-label="Copy link to this guide"
             title={shareCopied ? 'Link copied!' : 'Copy link to this guide'}
-            style={{
-              ...{
-          background: '#FFFFFF', color: '#211E1E',
-          border: '1px solid #211E1E', borderRadius: 8,
-          padding: '7px 13px',
-          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
-          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
-          height: 34, boxSizing: 'border-box',
-        },
-              background: shareCopied ? '#211E1E' : '#FFFFFF',
-              color: shareCopied ? '#FDC831' : '#211E1E',
-            }}>
-            {shareCopied ? '✓ Link copied' : '🔗 Share'}
+            style={toolBtn(shareCopied)}>
+            {shareCopied ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
+                <path d="M15 7h2a5 5 0 1 1 0 10h-2"/>
+                <line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+            )}
           </button>
 
           {/* Export — PDF / Markdown / HTML, same engine as SliceDesk Docs. */}
           <div style={{ position: 'relative' }}>
             <button
-              className="share-guide-btn"
+              className="guide-tool"
               onClick={() => setExportOpen((v) => !v)}
+              aria-label="Export this guide"
+              aria-expanded={exportOpen}
               title="Export this guide"
-              style={{
-          background: '#FFFFFF', color: '#211E1E',
-          border: '1px solid #211E1E', borderRadius: 8,
-          padding: '7px 13px',
-          fontFamily: "'Archivo', sans-serif", fontSize: 13, fontWeight: 700,
-          cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7,
-          boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap',
-          height: 34, boxSizing: 'border-box',
-        }}>
-              ↓ Export
+              style={toolBtn(exportOpen)}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
             </button>
             {exportOpen && (
               <div style={{
@@ -25227,25 +25282,23 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               </div>
             )}
           </div>
-        </div>
-      </div>
-      </div>
-      </div>
-
-      <div style={{
-        maxWidth: 830, margin: '0 auto', padding: '20px 24px 80px',
-        width: '100%', boxSizing: 'border-box',
-        flex: '1 0 auto', display: 'flex', flexDirection: 'column',
-      }}>
-        <article ref={articleRef} style={{
-          background: '#FFFFFF',
-          border: '1px solid #211E1E',
-          borderRadius: 14,
-          boxShadow: '3px 3px 0 #211E1E',
-          padding: '40px 64px',
-          fontSize: 15, lineHeight: 1.65, color: '#211E1E',
-          fontFamily: "'Archivo', sans-serif",
-        }}>
+          </div>
+          </div>
+          {/* Back arrow — sticky in the card's white left gutter, so it rides
+              down with you as you read. Zero-height wrapper keeps it out of
+              the text flow; nudged left of the content into the 64px padding.
+              Card padding-top is 16 so at rest it sits in line with the
+              top-right tools; the spacer below restores the title clearance. */}
+          <div style={{ position: 'sticky', top: 16, zIndex: 5, height: 0, pointerEvents: 'none' }}>
+            <button className="guide-back" onClick={onClose} aria-label="Back to Docs" title="Back to Docs" style={{
+              ...toolBtn(false), pointerEvents: 'auto',
+              position: 'relative', left: -48,
+              fontSize: 17, fontWeight: 800, lineHeight: 1,
+            }}>
+              <span className="guide-back-arrow">←</span>
+            </button>
+          </div>
+          <div aria-hidden="true" style={{ height: 50 }} />
           {loading && <p style={{ color: '#888', margin: 0 }}>Loading…</p>}
           {error && (
             <div>
