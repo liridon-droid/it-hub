@@ -2837,9 +2837,24 @@ function App() {
     window.__PORTAL_OPEN_TICKET__ = tnum;
     openTickets("mine");
   }, []);
+  // Deep-link: land on the request page when `?item=N` came in on a non-/request
+  // path (e.g. /portal/?item=5). setStage pushes the /request path; the modal's
+  // URL-sync effect re-adds ?item once the form opens.
+  React.useEffect(() => {
+    if (catalogReq && catalogReq.itemId != null) setStage("request");
+    // One-shot on mount — catalogReq here is only ever the URL-seeded value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Catalog request modal raised from the chat flow (App-level so the answer
   // page can open it). { itemId } preselects the matched app's request form.
-  const [catalogReq, setCatalogReq] = useState(null);
+  // Deep-link: `?item=N` (any path) opens that catalog item's request form
+  // directly — the URL is read once here, and CatalogRequestModal keeps it in
+  // sync while a form is open so the address bar is always shareable.
+  const [catalogReq, setCatalogReq] = useState(() => {
+    if (typeof window === "undefined") return null;
+    const id = new URLSearchParams(window.location.search).get("item");
+    return id ? { itemId: id } : null;
+  });
   // "Request something" is its own page now (stage 'request'), not a modal.
   // Remember which stage we opened it from so closing returns there.
   const requestReturnRef = React.useRef('landing');
@@ -10189,6 +10204,26 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   }, [initialItemId, pickItem]);
 
   React.useEffect(() => { loadCatalog(); }, [loadCatalog]);
+
+  // Keep ?item=N in the URL while an item's request form is open (and mirror it
+  // to the parent SliceDesk shell when embedded) so the address bar is a
+  // shareable link to that catalog item — same pattern as ?guide=N. Cleared
+  // when the user is back on the list, on the done screen, or leaves the page.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const open = view === 'form' && item && item.id != null;
+    try {
+      const url = new URL(window.location.href);
+      if (open) url.searchParams.set('item', String(item.id));
+      else url.searchParams.delete('item');
+      window.history.replaceState(window.history.state, '', url.pathname + (url.search || ''));
+    } catch {}
+    try {
+      if (window.self !== window.top) {
+        window.parent.postMessage({ type: 'slicedesk:module-query', params: { item: open ? String(item.id) : null } }, '*');
+      }
+    } catch {}
+  }, [view, item]);
 
   // Land at the top on every step change — opening an item's form while scrolled
   // down the catalog list (or moving list → form → done) otherwise inherits the
@@ -24945,6 +24980,17 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   // through fetch (the network shim attaches the hub_token header, which a
   // plain <a href> wouldn't get) then a blob object-URL click.
   const [exportOpen, setExportOpen] = React.useState(false);
+  // Close the export menu on any press outside it (pointerdown, not click,
+  // so it also closes when the outside press starts a drag or text-select).
+  const exportRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!exportOpen) return;
+    const onDown = (e) => {
+      if (exportRef.current && !exportRef.current.contains(e.target)) setExportOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    return () => document.removeEventListener('pointerdown', onDown);
+  }, [exportOpen]);
   const exportGuide = React.useCallback(async (fmt) => {
     setExportOpen(false);
     try {
@@ -24978,12 +25024,6 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
     }
   }, [guide.id]);
 
-  React.useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !lightbox) onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   // Image lightbox — click any guide image to open it fullscreen.
   // Uses event delegation on the article so newly-rendered images Just Work
   // without rewiring listeners every time the markdown re-renders. We also
@@ -24991,6 +25031,18 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   // prev/next navigation through them.
   const articleRef = React.useRef(null);
   const [lightbox, setLightbox] = React.useState(null);
+
+  // Escape peels back one layer at a time: export menu first, then (when no
+  // lightbox is up — that has its own Escape handling) the guide itself.
+  React.useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      if (exportOpen) { setExportOpen(false); return; }
+      if (!lightbox) onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose, exportOpen, lightbox]);
   React.useEffect(() => {
     const el = articleRef.current;
     if (!el) return;
@@ -25033,9 +25085,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   });
 
   // Square icon button shared by the sticky top-right tools (pin / share /
-  // export) and the top-left back arrow. 34px matches the collapsed search.
+  // export) and the top-left back arrow. 34px matches the collapsed search;
+  // minWidth (not width) lets a button widen to reveal its hover label.
   const toolBtn = (active) => ({
-    width: 34, height: 34, padding: 0, flexShrink: 0,
+    minWidth: 34, height: 34, padding: '0 8px', flexShrink: 0,
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: active ? '#211E1E' : '#FFFFFF',
     color: active ? '#FDC831' : '#211E1E',
@@ -25078,16 +25131,35 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
         .back-to-hub-btn:hover .back-to-hub-arrow {
           transform: translateX(-4px);
         }
-        /* Guide chrome — icon tools grow from center on hover (no jitter, since
-           a centered scale never retreats from the pointer) and press in on
-           click; the back arrow grows a touch and nudges left. */
+        /* Guide chrome — icon tools grow sideways on hover/focus/open,
+           revealing their text label ("Pin", "Copy link", "Export"). The
+           cluster is right-anchored, so a growing button only extends toward
+           the bar's empty middle: it never retreats from the pointer, and the
+           buttons to its right never move. Press sinks into the shadow. */
         .guide-tool, .guide-back {
           transition: transform .16s cubic-bezier(.34,1.56,.64,1),
                       box-shadow .16s var(--ease, cubic-bezier(.22,.61,.36,1)),
                       background .16s ease, color .16s ease;
         }
-        .guide-tool:hover { transform: scale(1.14); box-shadow: 2px 2px 0 #211E1E; z-index: 2; }
-        .guide-tool:active { transform: scale(0.92); box-shadow: 1px 1px 0 #211E1E; }
+        .guide-tool:hover, .guide-tool:focus-visible, .guide-tool[aria-expanded="true"] {
+          box-shadow: 2px 2px 0 #211E1E; transform: translate(-1px, -1px); z-index: 2;
+        }
+        .guide-tool:active { transform: translate(1px, 1px); box-shadow: 1px 1px 0 #211E1E; }
+        .guide-tool-label {
+          display: inline-block; max-width: 0; opacity: 0; margin-left: 0;
+          overflow: hidden; white-space: nowrap;
+          font-family: 'Archivo', sans-serif; font-size: 12px; font-weight: 800;
+          letter-spacing: 0.02em;
+          transition: max-width .2s var(--ease, cubic-bezier(.22,.61,.36,1)),
+                      opacity .15s ease, margin-left .2s var(--ease, cubic-bezier(.22,.61,.36,1));
+        }
+        .guide-tool:hover .guide-tool-label,
+        .guide-tool:focus-visible .guide-tool-label,
+        .guide-tool[aria-expanded="true"] .guide-tool-label {
+          max-width: 96px; opacity: 1; margin-left: 7px;
+        }
+        .guide-menu-item { transition: background .12s ease; }
+        .guide-menu-item:hover, .guide-menu-item:focus-visible { background: #FDF3D3; }
         .guide-back:hover { transform: scale(1.10); box-shadow: 2px 2px 0 #211E1E; }
         .guide-back:active { transform: scale(0.92); box-shadow: 1px 1px 0 #211E1E; }
         .guide-back-arrow {
@@ -25198,7 +25270,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               {searchHits.length === 0 ? (
                 <div style={{ padding: '9px 12px', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>No matching guides.</div>
               ) : searchHits.map((g) => (
-                <button key={g.id}
+                <button key={g.id} className="guide-menu-item"
                   onClick={() => { setSearchQ(''); onOpenGuide && onOpenGuide({ id: g.id, title: g.title, category: g.category }); }}
                   style={{
                     display: 'block', width: '100%', textAlign: 'left',
@@ -25225,6 +25297,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               <path d="M12 17v5"/>
               <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>
             </svg>
+            <span className="guide-tool-label" aria-hidden="true">{pinned ? 'Pinned' : 'Pin'}</span>
           </button>
 
           {/* Copy-link — a check briefly replaces the link icon on success. */}
@@ -25245,10 +25318,11 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 <line x1="8" y1="12" x2="16" y2="12"/>
               </svg>
             )}
+            <span className="guide-tool-label" aria-hidden="true">{shareCopied ? 'Copied!' : 'Copy link'}</span>
           </button>
 
           {/* Export — PDF / Markdown / HTML, same engine as SliceDesk Docs. */}
-          <div style={{ position: 'relative' }}>
+          <div ref={exportRef} style={{ position: 'relative' }}>
             <button
               className="guide-tool"
               onClick={() => setExportOpen((v) => !v)}
@@ -25261,6 +25335,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 <polyline points="7 10 12 15 17 10"/>
                 <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
+              <span className="guide-tool-label" aria-hidden="true">Export</span>
             </button>
             {exportOpen && (
               <div style={{
@@ -25269,7 +25344,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
                 boxShadow: '3px 3px 0 rgba(33,30,30,0.9)', overflow: 'hidden', zIndex: 120,
               }}>
                 {[['pdf', 'PDF document'], ['md', 'Markdown (.md)'], ['html', 'HTML file']].map(([f, l]) => (
-                  <button key={f} onClick={() => exportGuide(f)}
+                  <button key={f} className="guide-menu-item" onClick={() => exportGuide(f)}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left',
                       padding: '9px 14px', fontSize: 13,
@@ -25293,12 +25368,16 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             <button className="guide-back" onClick={onClose} aria-label="Back to Docs" title="Back to Docs" style={{
               ...toolBtn(false), pointerEvents: 'auto',
               position: 'relative', left: -48,
-              fontSize: 17, fontWeight: 800, lineHeight: 1,
             }}>
-              <span className="guide-back-arrow">←</span>
+              <span className="guide-back-arrow" style={{ display: 'inline-flex' }}>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="19" y1="12" x2="5" y2="12"/>
+                  <polyline points="12 19 5 12 12 5"/>
+                </svg>
+              </span>
             </button>
           </div>
-          <div aria-hidden="true" style={{ height: 50 }} />
+          <div aria-hidden="true" style={{ height: 62 }} />
           {loading && <p style={{ color: '#888', margin: 0 }}>Loading…</p>}
           {error && (
             <div>
