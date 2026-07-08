@@ -2715,6 +2715,17 @@ const APP_BASE = (() => {
 })();
 const withBase = (p) => APP_BASE + p;
 
+// Module mode: SliceDesk embeds us cross-origin in an iframe. There we must
+// never rewrite the iframe's path — the URL carries ?hub_token=… which every
+// API call reads live (main.jsx), and pushState would both wipe it and stack
+// history entries that hijack the parent page's back button. Deep links and
+// shareable URLs go through the parent shell (slicedesk:module-query
+// postMessage) instead.
+const IS_EMBEDDED = (() => {
+  if (typeof window === "undefined") return false;
+  try { return window.self !== window.top; } catch { return true; }
+})();
+
 const STAGE_TO_PATH = {
   landing: "/",
   questions: "/help",
@@ -2764,8 +2775,12 @@ function App() {
     setStageRaw((prev) => {
       const prevPath = STAGE_TO_PATH[prev] || "/";
       const nextPath = STAGE_TO_PATH[next] || "/";
-      if (prevPath !== nextPath && typeof window !== "undefined") {
-        try { window.history.pushState({ stage: next }, "", withBase(nextPath)); } catch {}
+      // Embedded: leave the iframe URL alone (see IS_EMBEDDED). Standalone:
+      // carry the query string across — dropping it used to strip params like
+      // ?guide / ?ticket mid-navigation; the effects that own each param
+      // add/remove theirs via replaceState.
+      if (prevPath !== nextPath && typeof window !== "undefined" && !IS_EMBEDDED) {
+        try { window.history.pushState({ stage: next }, "", withBase(nextPath) + window.location.search); } catch {}
       }
       return next;
     });
@@ -10212,17 +10227,23 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
     const open = view === 'form' && item && item.id != null;
-    try {
-      const url = new URL(window.location.href);
-      if (open) url.searchParams.set('item', String(item.id));
-      else url.searchParams.delete('item');
-      window.history.replaceState(window.history.state, '', url.pathname + (url.search || ''));
-    } catch {}
-    try {
-      if (window.self !== window.top) {
-        window.parent.postMessage({ type: 'slicedesk:module-query', params: { item: open ? String(item.id) : null } }, '*');
-      }
-    } catch {}
+    const sync = (id) => {
+      try {
+        const url = new URL(window.location.href);
+        if (id != null) url.searchParams.set('item', String(id));
+        else url.searchParams.delete('item');
+        window.history.replaceState(window.history.state, '', url.pathname + (url.search || ''));
+      } catch {}
+      try {
+        if (window.self !== window.top) {
+          window.parent.postMessage({ type: 'slicedesk:module-query', params: { item: id != null ? String(id) : null } }, '*');
+        }
+      } catch {}
+    };
+    sync(open ? item.id : null);
+    // Cleanup clears the param on unmount (leaving the request page) so a
+    // stale ?item doesn't stick to the URL — or the SliceDesk shell's.
+    return () => { if (open) sync(null); };
   }, [view, item]);
 
   // Land at the top on every step change — opening an item's form while scrolled
