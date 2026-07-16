@@ -540,6 +540,39 @@ app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   }
 });
 
+// ── Bot ticket-status lookup ────────────────────────────────────────────────
+// GET /api/bot/ticket/:idOrNumber — lightweight status check for the Slack bot.
+// Accepts the BOT_SERVICE_TOKEN (requireBotOrUser). Proxies to tickets.slice.services
+// via the hub module proxy, but returns only non-sensitive summary fields — no
+// ownership gate is applied because the caller already knows the ticket number,
+// and the Slack bot passes only the number the employee typed themselves.
+// The IT Hub Slack bot calls this endpoint so employees can check status by
+// typing e.g. "IT-90012" or "status 90012" directly in Slack.
+app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
+  const idOrNumber = decodeURIComponent(req.params.idOrNumber || '').trim();
+  if (!idOrNumber) return res.status(400).json({ error: 'ticket id or number is required' });
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(idOrNumber)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    // Return only safe, status-summary fields. No PII beyond what the caller
+    // already knows (they typed the ticket number) and nothing that would let
+    // someone read a stranger's private ticket content.
+    res.json({
+      ticket_number: data.ticket_number,
+      id:            data.id,
+      status:        data.status,
+      subject:       data.subject,
+      priority:      data.priority,
+      type:          data.type,
+      requester_name: data.requester_name,
+      created_at:    data.created_at,
+      updated_at:    data.updated_at,
+    });
+  } catch (err) {
+    ticketProxyError(res, err, 'bot.ticket');
+  }
+});
+
 // Service catalog — the "request something" path (access to an app / service).
 app.get('/api/catalog', requireSliceUser, async (req, res) => {
   try {
@@ -1441,34 +1474,90 @@ function normalizeHistory(h) {
   return out.slice(-10);
 }
 
-// Admin-authored operating rules / training notes for the IT Hub Slack bot,
-// managed in SliceDesk (Settings → Slack Bot) and served at
-// GET /api/ext/itbot/rules. We fetch them (reusing the module API key already
-// used for the AI proxy) and inject them into the chat prompt — so IT steers
-// the bot from SliceDesk while the knowledge base stays here in it-hub. Cached
-// ~60s; any failure degrades to no extra rules so chat never breaks.
-let _botRulesCache = { text: '', at: 0 };
+// Admin-authored operating rules / training notes + enabled integrations for
+// the IT Hub Slack bot, managed in SliceDesk (Settings → Slack Bot) and served
+// at GET /api/ext/itbot/rules. We fetch them (reusing the module API key
+// already used for the AI proxy) and inject them into the chat prompt — so IT
+// steers the bot from SliceDesk while the knowledge base stays here in it-hub.
+// Cached ~60s; any failure degrades gracefully so chat never breaks.
+let _botRulesCache = { text: '', integrations: [], at: 0 };
 const BOT_RULES_TTL_MS = 60 * 1000;
 async function loadBotRules() {
   const now = Date.now();
-  if (now - _botRulesCache.at < BOT_RULES_TTL_MS) return _botRulesCache.text;
+  if (now - _botRulesCache.at < BOT_RULES_TTL_MS) return _botRulesCache;
   try {
     const base = (process.env.SLICEDESK_API_URL || moduleConfig.hubApiBase || '').replace(/\/$/, '');
-    if (!base || !moduleConfig.apiKey) { _botRulesCache = { text: '', at: now }; return ''; }
+    if (!base || !moduleConfig.apiKey) {
+      _botRulesCache = { text: '', integrations: [], at: now };
+      return _botRulesCache;
+    }
     const res = await fetch(`${base}/api/ext/itbot/rules`, {
       headers: { Authorization: `Bearer ${moduleConfig.apiKey}` },
     });
     if (res.ok) {
       const data = await res.json();
-      _botRulesCache = { text: data && typeof data.text === 'string' ? data.text : '', at: now };
+      _botRulesCache = {
+        text: data && typeof data.text === 'string' ? data.text : '',
+        integrations: Array.isArray(data?.integrations) ? data.integrations : [],
+        at: now,
+      };
     } else {
-      _botRulesCache = { text: _botRulesCache.text, at: now };
+      _botRulesCache = { ..._botRulesCache, at: now };
     }
   } catch (e) {
     console.warn('[chat] loadBotRules failed:', e.message);
-    _botRulesCache = { text: _botRulesCache.text, at: now };
+    _botRulesCache = { ..._botRulesCache, at: now };
   }
-  return _botRulesCache.text;
+  return _botRulesCache;
+}
+
+// Fetch asset context from SliceDesk's AssetM proxy when the asset_manager
+// integration is enabled and the query sounds asset-related.
+const ASSET_KEYWORDS = /\b(laptops?|macbooks?|devices?|computers?|assets?|hardware|serial|models?|assigned (to|laptop)|inventory|equipment|what (do i|have i|is) (have|got|assigned|mine)|under my name)\b/i;
+// Fetch asset context from SliceDesk's AssetM proxy.
+// When userEmail is provided the proxy resolves it to a person id and returns
+// only that person's assigned assets — the right path for "what laptop do I
+// have?" queries. Falls back to a keyword search when no email is given.
+async function fetchAssetContext(query, userEmail) {
+  try {
+    const base = (process.env.SLICEDESK_API_URL || moduleConfig.hubApiBase || '').replace(/\/$/, '');
+    if (!base || !moduleConfig.apiKey) return null;
+    const params = new URLSearchParams({ q: query });
+    if (userEmail) params.set('email', userEmail);
+    const url = `${base}/api/ext/itbot/asset-search?${params}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${moduleConfig.apiKey}` },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    // Person lookup returns { person: {...}, assets: [...] }.
+    // List search returns { data: [...], total: N, ... }.
+    // Normalise both to an array.
+    const results = Array.isArray(data?.assets) ? data.assets
+      : Array.isArray(data?.data) ? data.data
+      : Array.isArray(data?.results) ? data.results
+      : Array.isArray(data) ? data
+      : [];
+    if (results.length === 0) return null;
+    // Format results as a readable block for Claude.
+    const personName = data?.person?.name;
+    const header = personName ? `Assets assigned to ${personName}:\n` : '';
+    const lines = results.map((r, i) => {
+      const name = r.name || r.assetTag || r.asset_tag || r.displayName || r.display_name || `Asset ${i + 1}`;
+      const parts = [];
+      if (r.category) parts.push(r.category);
+      if (r.model || r.modelName) parts.push(r.model || r.modelName);
+      if (r.serialNumber || r.serial_number || r.serial) parts.push(`SN: ${r.serialNumber || r.serial_number || r.serial}`);
+      if (r.status) parts.push(`Status: ${r.status}`);
+      if (!personName && (r.assignee?.name || r.assigned_to || r.user_name)) parts.push(`Assigned to: ${r.assignee?.name || r.assigned_to || r.user_name}`);
+      return `- ${name}${parts.length ? ' — ' + parts.join(', ') : ''}`;
+    });
+    return header + lines.join('\n');
+  } catch (e) {
+    console.warn('[chat] fetchAssetContext failed:', e.message);
+    return null;
+  }
 }
 
 app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
@@ -1505,11 +1594,23 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
     let usage = null;
     let mode = 'retrieval';
 
-    // SliceDesk-managed operating rules (fetched + cached). Injected into the
-    // KB-answer prompt below, and also drive the no-match behavioral path so
-    // rules like "when someone asks 'any IT?', ask them to describe the issue"
-    // fire even when no guide matched.
-    const adminRulesBlock = await loadBotRules();
+    // SliceDesk-managed operating rules + enabled integrations (fetched + cached).
+    // Rules are injected into the KB-answer prompt and also drive the no-match
+    // behavioral path. Enabled integrations activate data sources like AssetM.
+    const botConfig = await loadBotRules();
+    const adminRulesBlock = botConfig.text;
+    const enabledIntegrations = botConfig.integrations;
+
+    // Asset Manager context — fetch live data when asset_manager is enabled and
+    // the query mentions hardware/device keywords. Injected into the prompt so
+    // Claude can answer "what laptop do I have?" with real inventory data.
+    let assetContext = null;
+    if (enabledIntegrations.includes('asset_manager') && ASSET_KEYWORDS.test(query)) {
+      // Bot requests (Slack) carry the asker's email in req.body.userEmail since
+      // they authenticate with a service token, not a per-user session cookie.
+      const assetEmail = req.user?._bot ? (req.body.userEmail || null) : (req.user?.email || null);
+      assetContext = await fetchAssetContext(query, assetEmail);
+    }
 
     // Claude calls go through slicedesk's /api/ext/ai/proxy — that endpoint
     // owns the Anthropic API key, billing, and audit logs. We just POST
@@ -1560,13 +1661,15 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               "- Keep it tight — no preamble, no recap of the question.\n\n" +
               "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
               "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team." +
-              (adminRulesBlock ? `\n\n${adminRulesBlock}` : ''),
+              (adminRulesBlock ? `\n\n${adminRulesBlock}` : '') +
+              (assetContext ? `\n\n**Asset Manager data is available.** When the user asks about hardware, devices, or assets, use the <asset_manager> block in the user message to answer with real inventory data. Cite it as "[Asset Manager]".` : ''),
             messages: [
               ...priorTurns,
               {
                 role: 'user',
                 content:
                   `<knowledge_base>\n${context}\n</knowledge_base>\n\n` +
+                  (assetContext ? `<asset_manager>\n${assetContext}\n</asset_manager>\n\n` : '') +
                   `<question>\n${query}\n</question>`,
               },
             ],
@@ -1601,7 +1704,7 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
     // → ask them to describe the issue) never fired there. When we have no
     // KB-grounded answer yet and admin rules exist, make a rules-only turn so
     // those rules can drive the reply — without inventing IT facts.
-    if (!answer && !throttled && SLICEDESK_API_URL && adminRulesBlock) {
+    if (!answer && !throttled && SLICEDESK_API_URL && (adminRulesBlock || assetContext)) {
       try {
         const upstream = await aiProxyFetch(req, {
           method: 'POST',
@@ -1615,8 +1718,12 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               "If it's a vague or greeting-style request for help (e.g. \"any IT?\", \"anyone available?\", \"I need help\"), ask them to briefly describe their problem. " +
               "If no rule applies and it isn't a help request, reply with the single token NOREPLY and nothing else. " +
               "Never invent IT procedures, steps, URLs, or facts — you have no knowledge base here. Keep it to 1–2 friendly sentences.\n\n" +
-              adminRulesBlock,
-            messages: [...priorTurns, { role: 'user', content: query }],
+              (adminRulesBlock || '') +
+              (assetContext ? `\n\n**Asset Manager data is available.** The user's assigned hardware is in the <asset_manager> block. Use it to answer questions about their devices directly. Cite it as "[Asset Manager]".` : ''),
+            messages: [...priorTurns, {
+              role: 'user',
+              content: (assetContext ? `<asset_manager>\n${assetContext}\n</asset_manager>\n\n` : '') + query,
+            }],
           }),
         });
         if (upstream.ok) {
