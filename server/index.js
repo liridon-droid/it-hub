@@ -1622,11 +1622,12 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
         }
 
         if (ok) {
-          // Ownership gate — same logic as GET /api/bot/ticket for session users.
-          const uid = String(req.user?.id || '');
-          if (data.requester_id != null &&
-              String(data.requester_id) !== uid &&
-              String(data.submitter_id ?? '') !== uid) {
+          // Ownership gate — the ticket service uses its own user IDs that don't
+          // match IT Hub session IDs, so compare on email instead of numeric ID.
+          // requester_email from the ticket service vs req.user.email from the session.
+          const userEmail = (req.user?.email || '').trim().toLowerCase();
+          const requesterEmail = (data.requester_email || '').trim().toLowerCase();
+          if (userEmail && requesterEmail && userEmail !== requesterEmail) {
             return res.json({
               answer: `I can only show you your own tickets. If **${data.ticket_number || chatTicketId}** is yours, make sure you're signed in with the right account.`,
               citations: [], suggestions: [], mode: 'ticket',
