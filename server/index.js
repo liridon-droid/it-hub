@@ -543,9 +543,17 @@ app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
 // ── Bot ticket-status lookup ────────────────────────────────────────────────
 // GET /api/bot/ticket/:idOrNumber — lightweight status check for the Slack bot.
 // Accepts the BOT_SERVICE_TOKEN (requireBotOrUser). Proxies to tickets.slice.services
-// via the hub module proxy, but returns only non-sensitive summary fields — no
-// ownership gate is applied because the caller already knows the ticket number,
-// and the Slack bot passes only the number the employee typed themselves.
+// via the hub module proxy and returns a non-sensitive summary.
+//
+// Ownership gate: ticket numbers are sequential so skipping auth would let any
+// valid session or bot token enumerate IDs and harvest subjects/requester names
+// (which can contain sensitive info). We gate the same way as the detailed
+// ticket endpoint:
+//   • Bot callers  — must pass ?userEmail= (the Slack asker's address, mirroring
+//                    the asset-search pattern). We compare it against the ticket's
+//                    requester_email from the ticket service.
+//   • Session users — we compare req.user.id against requester_id / submitter_id,
+//                    identical to the ownership check in the attachment endpoint.
 // The IT Hub Slack bot calls this endpoint so employees can check status by
 // typing e.g. "IT-90012" or "status 90012" directly in Slack.
 app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
@@ -554,9 +562,26 @@ app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
   try {
     const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(idOrNumber)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    // Return only safe, status-summary fields. No PII beyond what the caller
-    // already knows (they typed the ticket number) and nothing that would let
-    // someone read a stranger's private ticket content.
+
+    // Ownership gate — prevents sequential enumeration.
+    if (req.user?._bot) {
+      // Bot requests carry the asker's email as ?userEmail= since they authenticate
+      // with a service token rather than a per-user session (same pattern as asset-search).
+      const askerEmail = (req.query.userEmail || '').trim().toLowerCase();
+      if (!askerEmail) return res.status(400).json({ error: 'userEmail query parameter is required' });
+      const requesterEmail = (data.requester_email || '').trim().toLowerCase();
+      if (!requesterEmail || askerEmail !== requesterEmail) {
+        return res.status(403).json({ error: 'This ticket does not belong to you.' });
+      }
+    } else {
+      // Regular authenticated session — compare IDs the same way the attachment endpoint does.
+      if (data.requester_id != null && String(data.requester_id) !== String(req.user.id) &&
+          String(data.submitter_id ?? '') !== String(req.user.id)) {
+        return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+      }
+    }
+
+    // Return only safe, status-summary fields.
     res.json({
       ticket_number: data.ticket_number,
       id:            data.id,
@@ -1560,11 +1585,74 @@ async function fetchAssetContext(query, userEmail) {
   }
 }
 
+// Ticket-number patterns for the /api/chat shortcut (mirrors the Slack bot).
+const CHAT_TICKET_ID_RX    = /\bIT-(\d{4,})\b/i;
+const CHAT_TICKET_QUERY_RX = /\b(?:ticket|status(?:\s+of)?|check|update(?:\s+on)?)\s*(?:#|no\.?\s*)?(\d{4,})\b/i;
+
+function extractChatTicketId(text) {
+  const m = CHAT_TICKET_ID_RX.exec(text);
+  if (m) return `IT-${m[1].toUpperCase()}`;
+  const m2 = CHAT_TICKET_QUERY_RX.exec(text);
+  if (m2) return m2[1]; // bare number e.g. "90012"
+  return null;
+}
+
 app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
   const { query, history } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
   const priorTurns = normalizeHistory(history);
   try {
+    // ── Ticket status shortcut ──────────────────────────────────────────
+    // If the query is a bare ticket number or an explicit status question,
+    // look up the ticket and return its status directly — without hitting
+    // Claude. This fixes the "I don't have access to ticket status" fallback
+    // that Claude gives when it can't resolve a ticket query.
+    // Falls through to the normal chat path on any error (service down,
+    // ticket not found by non-404 error, etc.) so the UX degrades gracefully.
+    const chatTicketId = extractChatTicketId(query);
+    if (chatTicketId) {
+      try {
+        const { ok, status: httpStatus, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(chatTicketId)}`);
+
+        if (httpStatus === 404) {
+          return res.json({
+            answer: `I couldn't find a ticket matching **${chatTicketId}**. Double-check the number and try again, or submit a new one using the **Submit a ticket** button.`,
+            citations: [], suggestions: [], mode: 'ticket',
+          });
+        }
+
+        if (ok) {
+          // Ownership gate — same logic as GET /api/bot/ticket for session users.
+          const uid = String(req.user?.id || '');
+          if (data.requester_id != null &&
+              String(data.requester_id) !== uid &&
+              String(data.submitter_id ?? '') !== uid) {
+            return res.json({
+              answer: `I can only show you your own tickets. If **${data.ticket_number || chatTicketId}** is yours, make sure you're signed in with the right account.`,
+              citations: [], suggestions: [], mode: 'ticket',
+            });
+          }
+
+          // Format a concise status card as Markdown.
+          const statusLabel = String(data.status || 'Unknown');
+          const statusEmoji = { open: '🟡', pending: '🔵', resolved: '✅', closed: '⬛' }[statusLabel.toLowerCase()] || '📋';
+          const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+          const lines = [
+            `**${data.ticket_number || chatTicketId}** — ${statusEmoji} ${statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}`,
+            data.subject    ? `**Subject:** ${data.subject}` : null,
+            data.priority   ? `**Priority:** ${data.priority}` : null,
+            data.type       ? `**Type:** ${data.type}` : null,
+            fmt(data.created_at)  ? `**Opened:** ${fmt(data.created_at)}` : null,
+            fmt(data.updated_at)  ? `**Last updated:** ${fmt(data.updated_at)}` : null,
+          ].filter(Boolean);
+          return res.json({ answer: lines.join('\n'), citations: [], suggestions: [], mode: 'ticket' });
+        }
+        // Non-404 non-ok response (e.g. ticket service error) → fall through.
+      } catch {
+        // Ticket service unavailable → fall through to normal chat path.
+      }
+    }
+
     const matches = await ftsSearch(query);
 
     // Build a clean preview: strip leading markdown header marks so cards
