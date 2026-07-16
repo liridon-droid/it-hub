@@ -1622,10 +1622,15 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
         }
 
         if (ok) {
-          // Ownership gate — the ticket service uses its own user IDs that don't
-          // match IT Hub session IDs, so compare on email instead of numeric ID.
-          // requester_email from the ticket service vs req.user.email from the session.
-          const userEmail = (req.user?.email || '').trim().toLowerCase();
+          // Ownership gate — compare on email, not numeric ID (ticket service
+          // and IT Hub use different ID namespaces).
+          // Bot requests (Slack bot calling /api/chat) carry the Slack asker's
+          // email in req.body.userEmail — same pattern as asset-lookup context.
+          // Web session users are identified by req.user.email.
+          const userEmail = (req.user?._bot
+            ? (req.body.userEmail || '')
+            : (req.user?.email || '')
+          ).trim().toLowerCase();
           const requesterEmail = (data.requester_email || '').trim().toLowerCase();
           if (userEmail && requesterEmail && userEmail !== requesterEmail) {
             return res.json({
