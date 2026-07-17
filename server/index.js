@@ -222,34 +222,23 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
 });
 
 // List the signed-in user's own tickets (newest first; optional status filter).
+// Queries the ticket module by email rather than numeric ID — the two systems
+// use different ID namespaces, so an ID-based query returns nothing.
+// The secondary dedup filter is also email-based for the same reason.
 app.get('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const uid = String(u.id);
+  const userEmail = (u.email || '').trim().toLowerCase();
   const status = req.query.status ? String(req.query.status) : null;
-  // Two filters: tickets you're the requester of, AND tickets you opened on
-  // someone's behalf. Issued explicitly (rather than the module's involving_id OR)
-  // so this stays correct against an OLDER module that doesn't know the submitter
-  // filter yet: requester_id is always honored, so you never lose your own tickets;
-  // the submitter call yields nothing extra until the module is deployed. No
-  // regression in either deploy order.
-  const fetchBy = async (key) => {
-    const p = new URLSearchParams({ [key]: u.id, per_page: '50' });
-    if (status) p.set('status', status);
-    const r = await ticketModuleFetch('GET', `/tickets?${p}`);
-    return r.ok && r.data && Array.isArray(r.data.tickets) ? r.data.tickets : [];
-  };
   try {
-    const [mine, onBehalf] = await Promise.all([fetchBy('requester_id'), fetchBy('submitter_id')]);
-    // Merge + dedup, and defensively keep only tickets the caller is actually
-    // party to — so an ignored submitter filter on an old module (which would
-    // return everyone's tickets) can never leak someone else's into your list.
-    const byId = new Map();
-    for (const t of [...mine, ...onBehalf]) {
-      if (String(t.requester_id) === uid || String(t.submitter_id ?? '') === uid) byId.set(t.id, t);
-    }
-    const tickets = [...byId.values()].sort(
-      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
-    );
+    const p = new URLSearchParams({ requester_email: userEmail, per_page: '50' });
+    if (status) p.set('status', status);
+    const { ok, status: httpStatus, data } = await ticketModuleFetch('GET', `/tickets?${p}`);
+    if (!ok) return res.status(httpStatus).json({ error: data.error || `Ticket service returned ${httpStatus}` });
+    const raw = Array.isArray(data.tickets) ? data.tickets : [];
+    // Safety filter: only keep tickets that genuinely belong to this user.
+    const tickets = raw
+      .filter((t) => (t.requester_email || '').trim().toLowerCase() === userEmail)
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
     res.json({ tickets, total: tickets.length });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.list');
@@ -261,12 +250,17 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
 // user could enumerate ticket ids and read anyone's. No role bypass: even
 // super_admins only see their own tickets in the portal (agent triage lives in
 // the ticket module's own UI, not here).
+// Ownership is checked by email rather than numeric ID: the ticket service and
+// the IT Hub session use different ID namespaces, so an ID comparison always
+// mismatches. Fail closed — 403 if either email is absent.
 app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
   const u = req.user;
   try {
     const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-    if (data.requester_id != null && String(data.requester_id) !== String(u.id) && String(data.submitter_id ?? '') !== String(u.id)) {
+    const userEmail       = (u.email || '').trim().toLowerCase();
+    const requesterEmail  = (data.requester_email || '').trim().toLowerCase();
+    if (!userEmail || !requesterEmail || userEmail !== requesterEmail) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json(data);
@@ -277,20 +271,22 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
 
 // Add a reply to a ticket. The reply is attributed to the signed-in user and
 // posted to the ticketing system as a public comment (is_internal:false), so the
-// IT agents see it on the ticket. Gated to the ticket's requester — same rule as
-// GET, with no role bypass — so you can't reply on a ticket that isn't yours by
+// IT agents see it on the ticket. Gated to the ticket’s requester — same rule as
+// GET, with no role bypass — so you can’t reply on a ticket that isn’t yours by
 // guessing its id. We re-read the ticket first to enforce that ownership server-side.
-app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
+app.post(‘/api/tickets/:id/comments’, requireSliceUser, async (req, res) => {
   const u = req.user;
   const body = req.body && req.body.body;
   if (!body || !String(body).trim()) {
-    return res.status(400).json({ error: 'A reply can’t be empty.' });
+    return res.status(400).json({ error: ‘A reply can’t be empty.’ });
   }
   try {
-    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
+    const look = await ticketModuleFetch(‘GET’, `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
-      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    const userEmailC      = (u.email || ‘’).trim().toLowerCase();
+    const requesterEmailC = (look.data.requester_email || ‘’).trim().toLowerCase();
+    if (!userEmailC || !requesterEmailC || userEmailC !== requesterEmailC) {
+      return res.status(403).json({ error: ‘This ticket belongs to someone else.’ });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
       body: String(body).slice(0, 8000),
@@ -595,6 +591,51 @@ app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
     });
   } catch (err) {
     ticketProxyError(res, err, 'bot.ticket');
+  }
+});
+
+// GET /api/bot/tickets — all tickets for a user (bot-accessible, email-gated).
+// Mirrors /api/bot/ticket/:id but returns the full list rather than one ticket.
+// Bot callers must pass ?userEmail= (the Slack asker's email). Session users get
+// their list from their session email. Fail closed: 400 if the bot omits userEmail.
+// Secondary server-side filter ensures only tickets whose requester_email matches
+// are returned even if the ticket module's own filter is imprecise.
+app.get('/api/bot/tickets', requireBotOrUser, async (req, res) => {
+  try {
+    let askerEmail;
+    if (req.user?._bot) {
+      askerEmail = (req.query.userEmail || '').trim().toLowerCase();
+      if (!askerEmail) return res.status(400).json({ error: 'userEmail query parameter is required' });
+    } else {
+      askerEmail = (req.user?.email || '').trim().toLowerCase();
+      if (!askerEmail) return res.status(400).json({ error: 'Could not determine your email address.' });
+    }
+
+    const p = new URLSearchParams({ requester_email: askerEmail, per_page: '50' });
+    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets?${p}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+
+    const raw = Array.isArray(data.tickets) ? data.tickets : [];
+    // Safety filter: discard any tickets the service returned that don't belong
+    // to this email (guards against a loose module-side filter).
+    const tickets = raw
+      .filter((t) => (t.requester_email || '').trim().toLowerCase() === askerEmail)
+      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+      .map((t) => ({
+        ticket_number:  t.ticket_number,
+        id:             t.id,
+        status:         t.status,
+        subject:        t.subject,
+        priority:       t.priority,
+        type:           t.type,
+        requester_name: t.requester_name,
+        created_at:     t.created_at,
+        updated_at:     t.updated_at,
+      }));
+
+    res.json({ tickets, total: tickets.length });
+  } catch (err) {
+    ticketProxyError(res, err, 'bot.tickets');
   }
 });
 
@@ -1585,6 +1626,63 @@ async function fetchAssetContext(query, userEmail) {
   }
 }
 
+// Fetch the Slack asker's Freshservice tickets via SliceDesk's itbot proxy.
+// Uses the same MODULE_API_KEY as the other itbot extension calls (rules,
+// asset-search). Returns a sorted array of ticket objects on success, or null
+// on any error so the caller can fall through to the normal chat path.
+async function fetchUserTickets(userEmail) {
+  try {
+    const base = (process.env.SLICEDESK_API_URL || moduleConfig.hubApiBase || '').replace(/\/$/, '');
+    if (!base || !moduleConfig.apiKey) return null;
+    const res = await fetch(
+      `${base}/api/ext/itbot/tickets?userEmail=${encodeURIComponent(userEmail)}`,
+      {
+        headers: { Authorization: `Bearer ${moduleConfig.apiKey}` },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!res.ok) {
+      console.warn('[chat] fetchUserTickets', res.status, await res.text().catch(() => ''));
+      return null;
+    }
+    const data = await res.json();
+    if (!Array.isArray(data.tickets)) return null;
+    // Newest first — the endpoint already sorts this way but be defensive.
+    return data.tickets.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+  } catch (e) {
+    console.warn('[chat] fetchUserTickets failed:', e.message);
+    return null;
+  }
+}
+
+// Fetch a single Freshservice ticket by id (numeric or "IT-NNNNN") via the
+// SliceDesk itbot proxy, verifying it belongs to userEmail.
+// Returns the ticket object on success, null on any error or 403, and the
+// string "not_found" on 404 so the caller can give a specific "not found" reply.
+async function fetchUserTicket(ticketId, userEmail) {
+  try {
+    const base = (process.env.SLICEDESK_API_URL || moduleConfig.hubApiBase || '').replace(/\/$/, '');
+    if (!base || !moduleConfig.apiKey) return null;
+    const res = await fetch(
+      `${base}/api/ext/itbot/tickets/${encodeURIComponent(ticketId)}?userEmail=${encodeURIComponent(userEmail)}`,
+      {
+        headers: { Authorization: `Bearer ${moduleConfig.apiKey}` },
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (res.status === 404) return 'not_found';
+    if (res.status === 403) return null; // not their ticket
+    if (!res.ok) {
+      console.warn('[chat] fetchUserTicket', res.status, await res.text().catch(() => ''));
+      return null;
+    }
+    return await res.json();
+  } catch (e) {
+    console.warn('[chat] fetchUserTicket failed:', e.message);
+    return null;
+  }
+}
+
 // Ticket-number patterns for the /api/chat shortcut (mirrors the Slack bot).
 const CHAT_TICKET_ID_RX    = /\bIT-(\d{4,})\b/i;
 const CHAT_TICKET_QUERY_RX = /\b(?:ticket|status(?:\s+of)?|check|update(?:\s+on)?)\s*(?:#|no\.?\s*)?(\d{4,})\b/i;
@@ -1597,11 +1695,75 @@ function extractChatTicketId(text) {
   return null;
 }
 
+// Two-part test for a ticket-list query: the message must mention "ticket(s)"
+// AND contain a first-person signal ("my", "mine", "I have", "I've", etc.).
+// The specific-ID check is the guard — "check my ticket 90012" has both signals
+// but extractChatTicketId returns a value, so it stays on the single-ticket path.
+// This catches natural phrasings a regex-only approach misses:
+//   "show me my tickets"      → has ticket + my  ✓
+//   "what tickets do I have"  → has ticket + I have ✓
+//   "my open tickets"         → has ticket + my  ✓
+//   "list all my tickets"     → has ticket + my  ✓
+function isChatTicketListQuery(text) {
+  if (extractChatTicketId(text)) return false;
+  return /\btickets?\b/i.test(text) &&
+         /\bmy\b|\bmine\b|\bi\s+have\b|\bi'?ve\b|\bfor\s+me\b|\bunder\s+my\b/i.test(text);
+}
+
 app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
   const { query, history } = req.body ?? {};
   if (!query) return res.status(400).json({ error: 'query required' });
   const priorTurns = normalizeHistory(history);
   try {
+    // ── Ticket list shortcut ────────────────────────────────────────────
+    // "my tickets" / "show my tickets" / "what tickets do I have?" etc.
+    // Returns all tickets for the caller without hitting Claude.
+    // Falls through on any error (service down, missing email, etc.) so the
+    // UX degrades gracefully to the normal chat path.
+    if (isChatTicketListQuery(query)) {
+      try {
+        const listUserEmail = (req.user?._bot
+          ? (req.body.userEmail || '')
+          : (req.user?.email || '')
+        ).trim().toLowerCase();
+
+        if (listUserEmail) {
+          const listTickets = await fetchUserTickets(listUserEmail);
+          if (Array.isArray(listTickets)) {
+            // listTickets is already filtered by email and sorted newest-first
+            // by the SliceDesk /api/ext/itbot/tickets proxy.
+
+            if (listTickets.length === 0) {
+              return res.json({
+                answer: "You don't have any tickets yet. Use the **Submit a ticket** button to open one.",
+                citations: [], suggestions: [], mode: 'ticket',
+              });
+            }
+
+            const fmtDate = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+            const statusEmojis = { open: '🔵', in_progress: '🟡', pending: '🟠', resolved: '✅', closed: '✅', cancelled: '❌' };
+            const listLines = [
+              `You have **${listTickets.length}** ticket${listTickets.length === 1 ? '' : 's'}:\n`,
+              ...listTickets.slice(0, 10).map((t) => {
+                const sk = String(t.status || '').toLowerCase().replace(/ /g, '_');
+                const emoji = statusEmojis[sk] || '📋';
+                const slabel = (t.status || 'Unknown').replace('_', ' ');
+                const slabelFmt = slabel.charAt(0).toUpperCase() + slabel.slice(1);
+                const updated = fmtDate(t.updated_at);
+                return `**${t.ticket_number || t.id}** — ${emoji} ${slabelFmt} — ${t.subject || '(no subject)'}` +
+                  (updated ? ` _(updated ${updated})_` : '');
+              }),
+              ...(listTickets.length > 10 ? [`\n_… and ${listTickets.length - 10} more. Visit the ticket portal to see all._`] : []),
+            ];
+            return res.json({ answer: listLines.join('\n'), citations: [], suggestions: [], mode: 'ticket' });
+          }
+        }
+        // Fall through if email is missing or service failed.
+      } catch {
+        // Ticket service unavailable → fall through to normal chat path.
+      }
+    }
+
     // ── Ticket status shortcut ──────────────────────────────────────────
     // If the query is a bare ticket number or an explicit status question,
     // look up the ticket and return its status directly — without hitting
@@ -1612,48 +1774,38 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
     const chatTicketId = extractChatTicketId(query);
     if (chatTicketId) {
       try {
-        const { ok, status: httpStatus, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(chatTicketId)}`);
+        const ticketUserEmail = (req.user?._bot
+          ? (req.body.userEmail || '')
+          : (req.user?.email || '')
+        ).trim().toLowerCase();
 
-        if (httpStatus === 404) {
-          return res.json({
-            answer: `I couldn't find a ticket matching **${chatTicketId}**. Double-check the number and try again, or submit a new one using the **Submit a ticket** button.`,
-            citations: [], suggestions: [], mode: 'ticket',
-          });
-        }
+        if (ticketUserEmail) {
+          const data = await fetchUserTicket(chatTicketId, ticketUserEmail);
 
-        if (ok) {
-          // Ownership gate — compare on email, not numeric ID (ticket service
-          // and IT Hub use different ID namespaces).
-          // Bot requests (Slack bot calling /api/chat) carry the Slack asker's
-          // email in req.body.userEmail — same pattern as asset-lookup context.
-          // Web session users are identified by req.user.email.
-          const userEmail = (req.user?._bot
-            ? (req.body.userEmail || '')
-            : (req.user?.email || '')
-          ).trim().toLowerCase();
-          const requesterEmail = (data.requester_email || '').trim().toLowerCase();
-          if (userEmail && requesterEmail && userEmail !== requesterEmail) {
+          if (data === 'not_found') {
             return res.json({
-              answer: `I can only show you your own tickets. If **${data.ticket_number || chatTicketId}** is yours, make sure you're signed in with the right account.`,
+              answer: `I couldn't find a ticket matching **${chatTicketId}**. Double-check the number and try again, or submit a new one using the **Submit a ticket** button.`,
               citations: [], suggestions: [], mode: 'ticket',
             });
           }
 
-          // Format a concise status card as Markdown.
-          const statusLabel = String(data.status || 'Unknown');
-          const statusEmoji = { open: '🟡', pending: '🔵', resolved: '✅', closed: '⬛' }[statusLabel.toLowerCase()] || '📋';
-          const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
-          const lines = [
-            `**${data.ticket_number || chatTicketId}** — ${statusEmoji} ${statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}`,
-            data.subject    ? `**Subject:** ${data.subject}` : null,
-            data.priority   ? `**Priority:** ${data.priority}` : null,
-            data.type       ? `**Type:** ${data.type}` : null,
-            fmt(data.created_at)  ? `**Opened:** ${fmt(data.created_at)}` : null,
-            fmt(data.updated_at)  ? `**Last updated:** ${fmt(data.updated_at)}` : null,
-          ].filter(Boolean);
-          return res.json({ answer: lines.join('\n'), citations: [], suggestions: [], mode: 'ticket' });
+          if (data) {
+            // Format a concise status card as Markdown.
+            const statusLabel = String(data.status || 'Unknown');
+            const statusEmoji = { open: '🟡', pending: '🔵', resolved: '✅', closed: '⬛' }[statusLabel.toLowerCase()] || '📋';
+            const fmt = (iso) => iso ? new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+            const lines = [
+              `**${chatTicketId}** — ${statusEmoji} ${statusLabel.charAt(0).toUpperCase() + statusLabel.slice(1)}`,
+              data.subject  ? `**Subject:** ${data.subject}` : null,
+              data.priority ? `**Priority:** ${data.priority}` : null,
+              data.type     ? `**Type:** ${data.type}` : null,
+              fmt(data.created_at) ? `**Opened:** ${fmt(data.created_at)}` : null,
+              fmt(data.updated_at) ? `**Last updated:** ${fmt(data.updated_at)}` : null,
+            ].filter(Boolean);
+            return res.json({ answer: lines.join('\n'), citations: [], suggestions: [], mode: 'ticket' });
+          }
+          // null → ownership denied or service error → fall through.
         }
-        // Non-404 non-ok response (e.g. ticket service error) → fall through.
       } catch {
         // Ticket service unavailable → fall through to normal chat path.
       }
