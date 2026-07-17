@@ -556,38 +556,52 @@ app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
   const idOrNumber = decodeURIComponent(req.params.idOrNumber || '').trim();
   if (!idOrNumber) return res.status(400).json({ error: 'ticket id or number is required' });
   try {
-    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(idOrNumber)}`);
-    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
-
-    // Ownership gate — prevents sequential enumeration.
     if (req.user?._bot) {
-      // Bot requests carry the asker's email as ?userEmail= since they authenticate
-      // with a service token rather than a per-user session (same pattern as asset-search).
+      // Bot callers: route through the SliceDesk itbot proxy which owns the
+      // ticket_system DB credentials and verifies ownership at the query level.
       const askerEmail = (req.query.userEmail || '').trim().toLowerCase();
       if (!askerEmail) return res.status(400).json({ error: 'userEmail query parameter is required' });
-      const requesterEmail = (data.requester_email || '').trim().toLowerCase();
-      if (!requesterEmail || askerEmail !== requesterEmail) {
+
+      const data = await fetchUserTicket(idOrNumber, askerEmail);
+      if (data === 'not_found') {
+        return res.status(404).json({ error: `Ticket ${idOrNumber} not found.` });
+      }
+      if (!data) {
+        // null = ownership mismatch or service error — treat as 403 so the
+        // Slack bot can post the "that ticket isn't yours" message.
         return res.status(403).json({ error: 'This ticket does not belong to you.' });
       }
-    } else {
-      // Regular authenticated session — compare IDs the same way the attachment endpoint does.
-      if (data.requester_id != null && String(data.requester_id) !== String(req.user.id) &&
-          String(data.submitter_id ?? '') !== String(req.user.id)) {
-        return res.status(403).json({ error: 'This ticket belongs to someone else.' });
-      }
+      return res.json({
+        ticket_number:  data.ticket_number,
+        id:             data.id,
+        status:         data.status,
+        subject:        data.subject,
+        priority:       data.priority,
+        type:           data.type,
+        requester_name: data.requester_name,
+        created_at:     data.created_at,
+        updated_at:     data.updated_at,
+      });
     }
 
-    // Return only safe, status-summary fields.
+    // Session-authenticated web users — keep the original ticketModuleFetch
+    // path so the portal's ticket-detail page continues to work.
+    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(idOrNumber)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    if (data.requester_id != null && String(data.requester_id) !== String(req.user.id) &&
+        String(data.submitter_id ?? '') !== String(req.user.id)) {
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
+    }
     res.json({
-      ticket_number: data.ticket_number,
-      id:            data.id,
-      status:        data.status,
-      subject:       data.subject,
-      priority:      data.priority,
-      type:          data.type,
+      ticket_number:  data.ticket_number,
+      id:             data.id,
+      status:         data.status,
+      subject:        data.subject,
+      priority:       data.priority,
+      type:           data.type,
       requester_name: data.requester_name,
-      created_at:    data.created_at,
-      updated_at:    data.updated_at,
+      created_at:     data.created_at,
+      updated_at:     data.updated_at,
     });
   } catch (err) {
     ticketProxyError(res, err, 'bot.ticket');
@@ -611,27 +625,24 @@ app.get('/api/bot/tickets', requireBotOrUser, async (req, res) => {
       if (!askerEmail) return res.status(400).json({ error: 'Could not determine your email address.' });
     }
 
-    const p = new URLSearchParams({ requester_email: askerEmail, per_page: '50' });
-    const { ok, status, data } = await ticketModuleFetch('GET', `/tickets?${p}`);
-    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    // Fetch via the SliceDesk itbot proxy which queries the ticket_system
+    // Aurora DB directly — avoids the broken module-proxy chain (module 101).
+    const raw = await fetchUserTickets(askerEmail);
+    if (!raw) {
+      return res.status(503).json({ error: 'Ticket service unavailable. Please try again in a moment.' });
+    }
 
-    const raw = Array.isArray(data.tickets) ? data.tickets : [];
-    // Safety filter: discard any tickets the service returned that don't belong
-    // to this email (guards against a loose module-side filter).
-    const tickets = raw
-      .filter((t) => (t.requester_email || '').trim().toLowerCase() === askerEmail)
-      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-      .map((t) => ({
-        ticket_number:  t.ticket_number,
-        id:             t.id,
-        status:         t.status,
-        subject:        t.subject,
-        priority:       t.priority,
-        type:           t.type,
-        requester_name: t.requester_name,
-        created_at:     t.created_at,
-        updated_at:     t.updated_at,
-      }));
+    const tickets = raw.map((t) => ({
+      ticket_number:  t.ticket_number,
+      id:             t.id,
+      status:         t.status,
+      subject:        t.subject,
+      priority:       t.priority,
+      type:           t.type,
+      requester_name: t.requester_name,
+      created_at:     t.created_at,
+      updated_at:     t.updated_at,
+    }));
 
     res.json({ tickets, total: tickets.length });
   } catch (err) {
