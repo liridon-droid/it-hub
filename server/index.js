@@ -274,19 +274,19 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
 // IT agents see it on the ticket. Gated to the ticket’s requester — same rule as
 // GET, with no role bypass — so you can’t reply on a ticket that isn’t yours by
 // guessing its id. We re-read the ticket first to enforce that ownership server-side.
-app.post(‘/api/tickets/:id/comments’, requireSliceUser, async (req, res) => {
+app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
   const u = req.user;
   const body = req.body && req.body.body;
   if (!body || !String(body).trim()) {
-    return res.status(400).json({ error: ‘A reply can’t be empty.’ });
+    return res.status(400).json({ error: 'A reply can’t be empty.' });
   }
   try {
-    const look = await ticketModuleFetch(‘GET’, `/tickets/${encodeURIComponent(req.params.id)}`);
+    const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    const userEmailC      = (u.email || ‘’).trim().toLowerCase();
-    const requesterEmailC = (look.data.requester_email || ‘’).trim().toLowerCase();
+    const userEmailC      = (u.email || '').trim().toLowerCase();
+    const requesterEmailC = (look.data.requester_email || '').trim().toLowerCase();
     if (!userEmailC || !requesterEmailC || userEmailC !== requesterEmailC) {
-      return res.status(403).json({ error: ‘This ticket belongs to someone else.’ });
+      return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
       body: String(body).slice(0, 8000),
