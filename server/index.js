@@ -222,23 +222,38 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
 });
 
 // List the signed-in user's own tickets (newest first; optional status filter).
-// Queries the ticket module by email rather than numeric ID — the two systems
-// use different ID namespaces, so an ID-based query returns nothing.
-// The secondary dedup filter is also email-based for the same reason.
 app.get('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const userEmail = (u.email || '').trim().toLowerCase();
+  const uid = String(u.id);
   const status = req.query.status ? String(req.query.status) : null;
-  try {
-    const p = new URLSearchParams({ requester_email: userEmail, per_page: '50' });
+  // Two filters: tickets you're the requester of, AND tickets you opened on
+  // someone's behalf. Issued explicitly (rather than the module's involving_id OR)
+  // so this stays correct against an OLDER module that doesn't know the submitter
+  // filter yet: requester_id is always honored, so you never lose your own tickets;
+  // the submitter call yields nothing extra until the module is deployed. No
+  // regression in either deploy order.
+  // NOTE: do NOT switch this to a requester_email query — the ticket module's
+  // /tickets list endpoint has no such filter and silently ignores unknown params,
+  // returning the newest tickets company-wide (so the ownership filter below
+  // empties the list once your tickets fall off that first page).
+  const fetchBy = async (key) => {
+    const p = new URLSearchParams({ [key]: u.id, per_page: '50' });
     if (status) p.set('status', status);
-    const { ok, status: httpStatus, data } = await ticketModuleFetch('GET', `/tickets?${p}`);
-    if (!ok) return res.status(httpStatus).json({ error: data.error || `Ticket service returned ${httpStatus}` });
-    const raw = Array.isArray(data.tickets) ? data.tickets : [];
-    // Safety filter: only keep tickets that genuinely belong to this user.
-    const tickets = raw
-      .filter((t) => (t.requester_email || '').trim().toLowerCase() === userEmail)
-      .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+    const r = await ticketModuleFetch('GET', `/tickets?${p}`);
+    return r.ok && r.data && Array.isArray(r.data.tickets) ? r.data.tickets : [];
+  };
+  try {
+    const [mine, onBehalf] = await Promise.all([fetchBy('requester_id'), fetchBy('submitter_id')]);
+    // Merge + dedup, and defensively keep only tickets the caller is actually
+    // party to — so an ignored submitter filter on an old module (which would
+    // return everyone's tickets) can never leak someone else's into your list.
+    const byId = new Map();
+    for (const t of [...mine, ...onBehalf]) {
+      if (String(t.requester_id) === uid || String(t.submitter_id ?? '') === uid) byId.set(t.id, t);
+    }
+    const tickets = [...byId.values()].sort(
+      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+    );
     res.json({ tickets, total: tickets.length });
   } catch (err) {
     ticketProxyError(res, err, 'tickets.list');
