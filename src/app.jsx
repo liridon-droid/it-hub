@@ -8852,11 +8852,12 @@ function ticketTypeMeta(type) {
 }
 
 // Group the many raw statuses into the buckets a user actually thinks in:
-// open (anything still active), resolved, closed.
+// open (anything still active), resolved, closed. Rejected requests are done —
+// nothing further happens to them — so they land in the closed bucket too.
 function ticketBucket(status) {
   const s = String(status || '').toLowerCase();
   if (s === 'resolved') return 'resolved';
-  if (s === 'closed' || s === 'cancelled') return 'closed';
+  if (s === 'closed' || s === 'cancelled' || s === 'rejected') return 'closed';
   return 'open';
 }
 
@@ -9258,6 +9259,10 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
   const [selTicket, setSelTicket] = React.useState(null);
   const [page, setPage] = React.useState(0);
+  // Which slice of the list you're looking at. Defaults to the tickets that
+  // still need attention (open / pending approval); "closed" holds the
+  // resolved/closed/cancelled/rejected history so it doesn't crowd the list.
+  const [view, setView] = React.useState('open');
   const icons = useCatalogIcons();
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
@@ -9305,14 +9310,23 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     return () => { off = true; clearInterval(iv); };
   }, [refreshKey]);
 
-  // Search-only filter (status chips removed). Computed before the detail return
-  // so we can hand the detail view the ordered list for prev/next navigation.
+  // Search filters everything first, then the open/closed split happens on the
+  // searched set — so the toggle's counts double as "your search also matches N
+  // in the other view". Computed before the detail return so we can hand the
+  // detail view the ordered list for prev/next navigation.
   const q = (query || '').trim().toLowerCase();
-  const shown = st.tickets.filter((t) => {
+  const searched = st.tickets.filter((t) => {
     if (!q) return true;
     const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
     return hay.includes(q);
   });
+  // Most-recently-active first. The server already orders by updated_at, but we
+  // sort again here so a just-reopened ticket tops the list even against a
+  // not-yet-redeployed server that still orders by created_at.
+  const byActivity = (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+  const openList = searched.filter((t) => ticketBucket(t.status) === 'open').sort(byActivity);
+  const closedList = searched.filter((t) => ticketBucket(t.status) !== 'open').sort(byActivity);
+  const shown = view === 'open' ? openList : closedList;
 
   // Paginate the (search-filtered) list — 25 rows per page, matching the full
   // ticketing platform. Prev/next controls sit at the bottom of the list. The
@@ -9321,8 +9335,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const PAGE_SIZE = 25;
   const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(page, 0), pageCount - 1);
-  // A new search resets to the first page (the result set changed underneath us).
-  React.useEffect(() => { setPage(0); }, [q]);
+  // A new search or an open↔closed switch resets to the first page (the result
+  // set changed underneath us).
+  React.useEffect(() => { setPage(0); }, [q, view]);
   const pageStart = safePage * PAGE_SIZE;
   const pageItems = shown.slice(pageStart, pageStart + PAGE_SIZE);
   const goToPage = (p) => { setPage(Math.min(Math.max(p, 0), pageCount - 1)); scrollAppToTop(); };
@@ -9361,9 +9376,33 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
 
   return (
     <div>
+      {/* Open ↔ Closed toggle. Open (incl. pending approval) is the default so
+          active work isn't interleaved with history; counts reflect the current
+          search, so they also flag matches sitting in the other view. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        {[['open', 'Open', openList.length], ['closed', 'Closed', closedList.length]].map(([key, label, n]) => {
+          const active = view === key;
+          return (
+            <button key={key} type="button" onClick={() => setView(key)} aria-pressed={active} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 15px', cursor: 'pointer',
+              background: active ? '#211E1E' : '#FFFFFF', color: active ? '#FDC831' : '#55503F',
+              border: '1px solid #211E1E', borderRadius: 999,
+              fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: '0.04em', textTransform: 'uppercase',
+              transition: 'background .16s ease, color .16s ease',
+            }}>
+              {label}
+              <span style={{ fontWeight: 700, opacity: active ? 0.85 : 0.6 }}>{n}</span>
+            </button>
+          );
+        })}
+      </div>
       {shown.length === 0 ? (
         <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
-          {`No tickets match “${query}”.`}
+          {q
+            ? `No ${view} tickets match “${query}”.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed ticket${closedList.length === 1 ? '' : 's'} match${closedList.length === 1 ? 'es' : ''} — check the Closed view.` : '')
+            : view === 'open'
+              ? 'Nothing open right now — you’re all caught up. Your past tickets live under Closed.'
+              : 'No closed tickets yet. Resolved and closed tickets will show up here.'}
         </div>
       ) : (
       <>

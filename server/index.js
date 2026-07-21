@@ -251,8 +251,11 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
     for (const t of [...mine, ...onBehalf]) {
       if (String(t.requester_id) === uid || String(t.submitter_id ?? '') === uid) byId.set(t.id, t);
     }
+    // Most-recently-active first, not most-recently-created: a comment or a
+    // re-open bumps updated_at, so the ticket you just touched surfaces at the
+    // top instead of staying buried at its original creation-date position.
     const tickets = [...byId.values()].sort(
-      (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0),
+      (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0),
     );
     res.json({ tickets, total: tickets.length });
   } catch (err) {
