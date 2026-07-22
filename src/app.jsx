@@ -9227,20 +9227,27 @@ function OnBehalfTag({ ticket, size = 11 }) {
   const reqId = ticket.requester_id != null ? String(ticket.requester_id) : '';
   const subId = ticket.submitter_id != null ? String(ticket.submitter_id) : '';
   if (!subId || subId === reqId) return null; // self-request → no tag
-  let label = null;
-  if (me && subId === me && reqId !== me)      label = `For ${ticket.requester_name || 'someone'}`;
-  else if (me && reqId === me && subId !== me) label = `Opened by ${ticket.submitter_name || 'someone'}`;
-  else if (ticket.requester_name)              label = `For ${ticket.requester_name}`; // viewer is neither
-  if (!label) return null;
+  let prefix = null, name = null;
+  if (me && subId === me && reqId !== me)      { prefix = 'For';       name = ticket.requester_name || 'someone'; }
+  else if (me && reqId === me && subId !== me) { prefix = 'Opened by'; name = ticket.submitter_name || 'someone'; }
+  else if (ticket.requester_name)              { prefix = 'For';       name = ticket.requester_name; } // viewer is neither
+  if (!prefix) return null;
+  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
+  const label = `${prefix} ${name}`;
   return (
     <span title={label} style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4, padding: '1px 8px',
-      background: '#EFE8D6', color: '#6B5B36', border: '1px solid #D9CDB0',
-      borderRadius: 999, fontSize: size, fontWeight: 700, whiteSpace: 'nowrap',
-      maxWidth: 200, overflow: 'hidden',
+      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 10px 2px 3px',
+      background: '#FFFFFF', border: '1px solid #211E1E', borderRadius: 999,
+      boxShadow: '1px 1px 0 #211E1E', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden',
     }}>
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      {/* Initials avatar — the person this ticket is for, at a glance. */}
+      <span aria-hidden="true" style={{
+        width: 17, height: 17, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
+        background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
+        fontFamily: "'Archivo', sans-serif", fontSize: 7.5, fontWeight: 900, color: '#211E1E', lineHeight: 1,
+      }}>{initials}</span>
+      <span style={{ fontSize: size, fontWeight: 600, color: '#7A6E58', flexShrink: 0 }}>{prefix}</span>
+      <span style={{ fontSize: size, fontWeight: 800, color: '#211E1E', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</span>
     </span>
   );
 }
@@ -9254,6 +9261,60 @@ function ticketBlurb(t) {
   return raw || (t && t.category_name) || 'No description added.';
 }
 
+// Per-ticket unseen state for the list rows. A ticket is "unseen" when IT has
+// touched it (updated_at) since you last opened its detail view — same rule as
+// the tab badge (countTabUnseen), but per row and with a count. The count is
+// the number of visible replies newer than your baseline when the list payload
+// carries `comments`; otherwise (prod list endpoints omit them) a status change
+// still counts as one update. Baseline for a never-opened ticket is its
+// created_at, so your own fresh submission doesn't flag itself.
+function ticketUnseenInfo(t, seenMap) {
+  if (!t || t.id == null) return { unseen: false, count: 0 };
+  const upd = t.updated_at || t.created_at;
+  if (!upd) return { unseen: false, count: 0 };
+  const baseline = seenMap[String(t.id)] !== undefined ? seenMap[String(t.id)] : t.created_at;
+  if (!baseline || new Date(upd).getTime() <= new Date(baseline).getTime()) return { unseen: false, count: 0 };
+  const base = new Date(baseline).getTime();
+  const newReplies = Array.isArray(t.comments)
+    ? t.comments.filter((c) => c && !c.is_internal && c.created_at && new Date(c.created_at).getTime() > base).length
+    : 0;
+  return { unseen: true, count: Math.max(1, newReplies) };
+}
+
+// Red "+N" bubble pinned to a ticket row's top-right corner — the at-a-glance
+// "this ticket has updates you haven't read" signal. Ring + soft pulse so it
+// pops on both the white card and the cheese page behind it.
+function TicketUnseenBadge({ count }) {
+  const label = `${count} new update${count === 1 ? '' : 's'} since you last opened this ticket`;
+  return (
+    <span className="tkt-unseen-badge" title={label} aria-label={label}>
+      +{count > 9 ? '9+' : count}
+    </span>
+  );
+}
+
+// "Requested for others" — a single on/off switch between two disjoint lists:
+// your own tickets (default) and the ones you opened on someone else's behalf
+// (who each is for is on the row via the "For ‹name›" chip). Only rendered when
+// at least one such ticket exists, so everyone else never sees a control that
+// can't do anything.
+function RequestedForToggle({ on, onToggle, count, unseen }) {
+  return (
+    <button type="button" onClick={onToggle} aria-pressed={on}
+      className={'tkt-facet' + (on ? ' is-on' : '')}
+      title={on ? 'Showing tickets you requested for others — click to go back to your own' : 'Show the tickets you requested for others'}
+      style={{ marginLeft: 'auto' }}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Requested for others
+      <span className="tkt-facet-n">{count}</span>
+      {on && <span className="tkt-facet-x" aria-hidden="true">✕</span>}
+      {/* These tickets are hidden while the switch is off — surface their unread
+          updates here so a reply to an on-behalf request still catches the eye. */}
+      {!on && unseen > 0 && <span className="tkt-facet-dot" aria-label={`${unseen} with unread updates`} title={`${unseen} with unread updates`} />}
+    </button>
+  );
+}
+
 // ── My Tickets — list of the signed-in user's tickets + inline detail ────────
 function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query, onViewingChange }) {
   const [st, setSt] = React.useState({ loading: true, tickets: [], error: null });
@@ -9263,7 +9324,20 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   // still need attention (open / pending approval); "closed" holds the
   // resolved/closed/cancelled/rejected history so it doesn't crowd the list.
   const [view, setView] = React.useState('open');
+  // "Requested for others" toggle: on → only tickets you opened on someone
+  // else's behalf. Only offered when such tickets exist (see RequestedForToggle).
+  const [forOthers, setForOthers] = React.useState(false);
   const icons = useCatalogIcons();
+  // Per-row unseen badges read the tab-seen store (localStorage); opening a
+  // detail writes to it and fires NOTIF_EVT, so listen and re-render to clear
+  // a row's badge the moment you come back from the ticket.
+  const [, setSeenTick] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => setSeenTick((n) => n + 1);
+    window.addEventListener(NOTIF_EVT, bump);
+    return () => window.removeEventListener(NOTIF_EVT, bump);
+  }, []);
+  const seenMap = loadTabSeen().tickets;
   // Tell the page whether a detail is open (so it can hide its header chrome).
   React.useEffect(() => { onViewingChange && onViewingChange(selTicket != null); }, [selTicket, onViewingChange]);
   React.useEffect(() => () => { onViewingChange && onViewingChange(false); }, [onViewingChange]);
@@ -9320,13 +9394,35 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
     const hay = [t.ticket_number, t.subject, t.type, t.status, ticketTypeMeta(t.type).label].filter(Boolean).join(' ').toLowerCase();
     return hay.includes(q);
   });
+  // "Requested for others" toggle — a hard split, not an additive filter: OFF
+  // (default) shows only your own tickets, ON shows only the ones you submitted
+  // with someone else as the requester. Applied on the searched set so its count
+  // reflects the current search, same as the Open/Closed counts. The toggle only
+  // renders when at least one on-behalf ticket exists, so it never appears for
+  // people who've only ever filed their own tickets.
+  const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_ID != null) ? String(window.PORTAL_CURRENT_ID) : '';
+  const isOnBehalf = (t) => {
+    const reqId = t.requester_id != null ? String(t.requester_id) : '';
+    const subId = t.submitter_id != null ? String(t.submitter_id) : '';
+    return !!subId && !!reqId && subId !== reqId && (!me || subId === me);
+  };
+  const hasOnBehalf = st.tickets.some(isOnBehalf);
+  const onBehalfList = searched.filter(isOnBehalf);
+  const forOthersCount = onBehalfList.length;
+  const faceted = searched.filter((t) => isOnBehalf(t) === forOthers);
+
   // Most-recently-active first. The server already orders by updated_at, but we
   // sort again here so a just-reopened ticket tops the list even against a
   // not-yet-redeployed server that still orders by created_at.
   const byActivity = (a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
-  const openList = searched.filter((t) => ticketBucket(t.status) === 'open').sort(byActivity);
-  const closedList = searched.filter((t) => ticketBucket(t.status) !== 'open').sort(byActivity);
+  const openList = faceted.filter((t) => ticketBucket(t.status) === 'open').sort(byActivity);
+  const closedList = faceted.filter((t) => ticketBucket(t.status) !== 'open').sort(byActivity);
   const shown = view === 'open' ? openList : closedList;
+  // Unseen counts per bucket, so the Open/Closed control itself can hint where
+  // the unread updates are sitting.
+  const unseenIn = (list) => list.reduce((n, t) => n + (ticketUnseenInfo(t, seenMap).unseen ? 1 : 0), 0);
+  const unseenOpen = unseenIn(openList);
+  const unseenClosed = unseenIn(closedList);
 
   // Paginate the (search-filtered) list — 25 rows per page, matching the full
   // ticketing platform. Prev/next controls sit at the bottom of the list. The
@@ -9335,9 +9431,9 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const PAGE_SIZE = 25;
   const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(page, 0), pageCount - 1);
-  // A new search or an open↔closed switch resets to the first page (the result
-  // set changed underneath us).
-  React.useEffect(() => { setPage(0); }, [q, view]);
+  // A new search, an open↔closed switch, or a requested-for change resets to
+  // the first page (the result set changed underneath us).
+  React.useEffect(() => { setPage(0); }, [q, view, forOthers]);
   const pageStart = safePage * PAGE_SIZE;
   const pageItems = shown.slice(pageStart, pageStart + PAGE_SIZE);
   const goToPage = (p) => { setPage(Math.min(Math.max(p, 0), pageCount - 1)); scrollAppToTop(); };
@@ -9376,43 +9472,114 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
 
   return (
     <div>
-      {/* Open ↔ Closed toggle. Open (incl. pending approval) is the default so
-          active work isn't interleaved with history; counts reflect the current
-          search, so they also flag matches sitting in the other view. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        {[['open', 'Open', openList.length], ['closed', 'Closed', closedList.length]].map(([key, label, n]) => {
-          const active = view === key;
-          return (
-            <button key={key} type="button" onClick={() => setView(key)} aria-pressed={active} style={{
-              display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 15px', cursor: 'pointer',
-              background: active ? '#211E1E' : '#FFFFFF', color: active ? '#FDC831' : '#55503F',
-              border: '1px solid #211E1E', borderRadius: 999,
-              fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 12, letterSpacing: '0.04em', textTransform: 'uppercase',
-              transition: 'background .16s ease, color .16s ease',
-            }}>
-              {label}
-              <span style={{ fontWeight: 700, opacity: active ? 0.85 : 0.6 }}>{n}</span>
-            </button>
-          );
-        })}
+      {/* Filter bar — Open ↔ Closed segmented switch on the left (with per-view
+          unseen-update dots), "Requested for" facet on the right (only when you
+          have on-behalf tickets). Counts reflect the current search + facet, so
+          they also flag matches sitting in the other view. */}
+      <style>{`
+        /* Same track-and-pill language as the page's My tickets/Approvals switch,
+           one size down — the two controls read as siblings. */
+        .tkt-seg { display:inline-flex; gap:3px; padding:3px; background:#FFFFFF;
+          border:1px solid #211E1E; border-radius:11px; box-shadow:2px 2px 0 #211E1E; }
+        .tkt-seg-btn { position:relative; display:inline-flex; align-items:center; gap:7px;
+          padding:7px 16px; border-radius:8px; cursor:pointer; border:none; background:transparent;
+          color:#7A6E58; font-family:'Archivo',sans-serif; font-weight:800; font-size:12px;
+          letter-spacing:0.04em; text-transform:uppercase;
+          transition: background .16s ease, color .16s ease, box-shadow .16s ease; }
+        .tkt-seg-btn:hover { background:rgba(33,30,30,.07); color:#211E1E; }
+        .tkt-seg-btn.is-active { background:#211E1E; color:#FDC831; box-shadow:0 1px 2px rgba(0,0,0,.22); }
+        .tkt-seg-n { display:inline-flex; align-items:center; justify-content:center;
+          min-width:20px; height:18px; padding:0 6px; box-sizing:border-box; border-radius:999px;
+          font-size:10.5px; font-weight:800; line-height:1;
+          background:rgba(33,30,30,.08); color:inherit; transition: background .16s ease; }
+        .tkt-seg-btn.is-active .tkt-seg-n { background:rgba(253,200,49,.18); }
+        /* Unseen-updates dot on a segment: "there's unread activity in this view". */
+        .tkt-seg-dot { position:absolute; top:3px; right:4px; width:7px; height:7px;
+          border-radius:999px; background:#DA3327; box-shadow:0 0 0 2px #FFFFFF; }
+        .tkt-seg-btn.is-active .tkt-seg-dot { box-shadow:0 0 0 2px #211E1E; }
+
+        /* "Requested for others" toggle pill — white when off, cheese when on,
+           with a small ✕ hinting the second click clears it. */
+        .tkt-facet { display:inline-flex; align-items:center; gap:8px; padding:9px 14px; cursor:pointer;
+          background:#FFFFFF; color:#211E1E; border:1px solid #211E1E; border-radius:999px;
+          box-shadow:2px 2px 0 #211E1E; font-family:'Archivo',sans-serif; font-weight:800;
+          font-size:12px; letter-spacing:0.03em; text-transform:uppercase;
+          transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease, background .16s ease; }
+        .tkt-facet:hover { transform:translate(-1px,-1px); box-shadow:3px 3px 0 #211E1E; }
+        .tkt-facet:active { transform:translate(1px,1px); box-shadow:1px 1px 0 #211E1E; }
+        .tkt-facet.is-on { background:#FDC831; box-shadow:3px 3px 0 #211E1E; }
+        .tkt-facet-n { flex-shrink:0; min-width:22px; padding:2px 7px; box-sizing:border-box;
+          border-radius:999px; background:rgba(33,30,30,.08); color:#55503F;
+          font-family:'Archivo',sans-serif; font-size:11px; font-weight:800; text-align:center; }
+        .tkt-facet.is-on .tkt-facet-n { background:rgba(33,30,30,.14); color:#211E1E; }
+        .tkt-facet-x { display:grid; place-items:center; width:17px; height:17px; margin-left:2px;
+          background:#211E1E; color:#FDC831; border-radius:999px;
+          font-size:9.5px; font-weight:900; line-height:1; }
+        .tkt-facet { position:relative; }
+        .tkt-facet-dot { position:absolute; top:-4px; right:-3px; width:10px; height:10px;
+          border-radius:999px; background:#DA3327; box-shadow:0 0 0 2px #FFFFFF; }
+
+        /* Lead icon — top-aligned so its top edge lines up with the row's first
+           text line (the type/number badges), instead of floating mid-card. */
+        .tkt-row .tkt-app-icon { align-self: start; margin-top: 1px; }
+
+        /* Per-row unseen badge — red "+N" pinned over the card's top-right corner. */
+        .tkt-unseen-badge { position:absolute; top:-8px; right:-8px; z-index:2;
+          display:grid; place-items:center; min-width:22px; height:22px; padding:0 6px; box-sizing:border-box;
+          background:#DA3327; color:#FFFFFF; border-radius:999px;
+          font-family:'Archivo',sans-serif; font-size:11px; font-weight:900; line-height:1;
+          box-shadow:0 0 0 2px #FFFFFF, 0 3px 8px rgba(33,30,30,.25);
+          animation: tktBadgePulse 2.4s ease-in-out infinite; }
+        @keyframes tktBadgePulse {
+          0%, 100% { transform:scale(1); }
+          50% { transform:scale(1.12); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .tkt-unseen-badge { animation:none; }
+          .tkt-facet-menu { animation:none; }
+        }
+      `}</style>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <div className="tkt-seg" role="tablist" aria-label="Ticket state">
+          {[['open', 'Open', openList.length, unseenOpen], ['closed', 'Closed', closedList.length, unseenClosed]].map(([key, label, n, dot]) => {
+            const active = view === key;
+            return (
+              <button key={key} type="button" role="tab" aria-selected={active} onClick={() => setView(key)}
+                className={'tkt-seg-btn' + (active ? ' is-active' : '')}>
+                {label}
+                <span className="tkt-seg-n">{n}</span>
+                {dot > 0 && <span className="tkt-seg-dot" aria-label={`${dot} ticket${dot === 1 ? '' : 's'} with unread updates`} title={`${dot} with unread updates`} />}
+              </button>
+            );
+          })}
+        </div>
+        {hasOnBehalf && (
+          <RequestedForToggle on={forOthers} onToggle={() => setForOthers((v) => !v)} count={forOthersCount} unseen={unseenIn(onBehalfList)} />
+        )}
       </div>
       {shown.length === 0 ? (
         <div style={{ ...TK.card, padding: '26px 24px', textAlign: 'center', fontSize: 13.5, color: '#78684C' }}>
           {q
             ? `No ${view} tickets match “${query}”.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed ticket${closedList.length === 1 ? '' : 's'} match${closedList.length === 1 ? 'es' : ''} — check the Closed view.` : '')
-            : view === 'open'
-              ? 'Nothing open right now — you’re all caught up. Your past tickets live under Closed.'
-              : 'No closed tickets yet. Resolved and closed tickets will show up here.'}
+            : forOthers
+              ? `No ${view} tickets requested for others.` + (view === 'open' && closedList.length ? ` ${closedList.length} closed one${closedList.length === 1 ? '' : 's'} — check the Closed view.` : '')
+              : view === 'open'
+                ? 'Nothing open right now — you’re all caught up. Your past tickets live under Closed.'
+                : 'No closed tickets yet. Resolved and closed tickets will show up here.'}
         </div>
       ) : (
       <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {pageItems.map((t) => (
+        {pageItems.map((t) => {
+          const unseen = ticketUnseenInfo(t, seenMap);
+          return (
           <button key={t.id} onClick={() => setSelTicket(t)} {...ROW_HOVER} className="tkt-row" style={{
             ...TK.card, transition: TK.rowTransition, textAlign: 'left', cursor: 'pointer', padding: '15px 18px',
             display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'center', width: '100%',
+            position: 'relative',
           }}>
-            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={34} />; })()}
+            {unseen.unseen && <TicketUnseenBadge count={unseen.count} />}
+            {(() => { const c = t.catalog_item_id != null ? icons[String(t.catalog_item_id)] : null; return <TicketLeadIcon className="tkt-app-icon" ticket={t} app={c} size={44} />; })()}
             <div style={{ minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' }}>
                 <TicketTypeBadge type={t.type} />
@@ -9437,7 +9604,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
               <span style={{ color: '#9A8E78', fontSize: 12, width: 64, textAlign: 'right', flexShrink: 0 }}>{relativeTime(t.updated_at || t.created_at)}</span>
             </div>
           </button>
-        ))}
+          );
+        })}
       </div>
       {shown.length > PAGE_SIZE && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginTop: 18, flexWrap: 'wrap' }}>
