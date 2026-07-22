@@ -59,6 +59,40 @@ const tickets = [
     created_at: ago(1500), updated_at: ago(1500),
     comments: [],
   },
+  // Two tickets the dev user opened ON BEHALF OF someone else (submitter = dev,
+  // requester = the beneficiary) — exercises the "Requested for" facet, the
+  // "For ‹name›" chip, and (IT-90010, replied-to) the per-row unseen badge.
+  {
+    id: 90010,
+    ticket_number: 'IT-90010',
+    type: 'service_request',
+    status: 'open',
+    priority: 'medium',
+    subject: 'New starter laptop: MacBook Pro 14" for Arben',
+    description: 'Arben joins the Payments team on Monday — needs the standard engineering MacBook Pro 14" build with the Jamf baseline.',
+    requester_id: 'u-arben', requester_name: 'Arben Krasniqi', requester_email: 'arben@local',
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(400), updated_at: ago(25),
+    comments: [
+      { id: 'c1-90010', author_name: 'IT Team', body: 'Laptop is imaged and ready — it\'ll be on Arben\'s desk Monday 9am. Can you confirm which desk he\'s sitting at?', is_internal: false, created_at: ago(60) },
+      { id: 'c2-90010', author_name: 'IT Team', body: 'Also added him to the standard engineering 1Password groups while we were at it.', is_internal: false, created_at: ago(25) },
+    ],
+  },
+  {
+    id: 90006,
+    ticket_number: 'IT-90006',
+    type: 'service_request',
+    status: 'resolved',
+    priority: 'low',
+    subject: 'Figma seat for Elira',
+    description: 'Elira is picking up the design reviews for the portal work and needs a full Figma seat instead of a viewer one.',
+    requester_id: 'u-elira', requester_name: 'Elira Hoxha', requester_email: 'elira@local',
+    submitter_id: DEV_USER.id, submitter_name: DEV_USER.name, submitter_email: DEV_USER.email,
+    created_at: ago(4300), updated_at: ago(4100),
+    comments: [
+      { id: 'c1-90006', author_name: 'IT Team', body: 'Seat upgraded — Elira has full editor access now.', is_internal: false, created_at: ago(4100) },
+    ],
+  },
   {
     id: 90001,
     ticket_number: 'IT-90001',

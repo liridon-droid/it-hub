@@ -278,7 +278,11 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
     const userEmail       = (u.email || '').trim().toLowerCase();
     const requesterEmail  = (data.requester_email || '').trim().toLowerCase();
-    if (!userEmail || !requesterEmail || userEmail !== requesterEmail) {
+    const submitterEmail  = (data.submitter_email || '').trim().toLowerCase();
+    // Requester OR submitter: whoever the ticket is for, and whoever opened it
+    // on their behalf, can both read it — same party rule as the list and the
+    // status/priority routes. Still fails closed when emails are absent.
+    if (!userEmail || !requesterEmail || (userEmail !== requesterEmail && userEmail !== submitterEmail)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json(data);
@@ -303,7 +307,10 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
     const userEmailC      = (u.email || '').trim().toLowerCase();
     const requesterEmailC = (look.data.requester_email || '').trim().toLowerCase();
-    if (!userEmailC || !requesterEmailC || userEmailC !== requesterEmailC) {
+    const submitterEmailC = (look.data.submitter_email || '').trim().toLowerCase();
+    // Same party rule as GET /api/tickets/:id — the on-behalf submitter can
+    // reply on the ticket they opened (attributed to them, as themselves).
+    if (!userEmailC || !requesterEmailC || (userEmailC !== requesterEmailC && userEmailC !== submitterEmailC)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
