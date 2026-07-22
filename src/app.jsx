@@ -9438,6 +9438,14 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const pageItems = shown.slice(pageStart, pageStart + PAGE_SIZE);
   const goToPage = (p) => { setPage(Math.min(Math.max(p, 0), pageCount - 1)); scrollAppToTop(); };
 
+  // Patch one ticket in place (after a close/reopen from the detail view) so
+  // the list is already correct the moment you land back on it — no stale row
+  // sitting in the wrong bucket while the next poll catches up.
+  const mergeTicket = (t) => {
+    if (!t || t.id == null) return;
+    setSt((s) => ({ ...s, tickets: s.tickets.map((x) => (String(x.id) === String(t.id) ? { ...x, ...t } : x)) }));
+  };
+
   if (selTicket) return (
     <TicketDetailView
       key={selTicket.id}
@@ -9445,6 +9453,8 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
       initial={selTicket}
       list={shown}
       onNavigate={setSelTicket}
+      onTicketChanged={mergeTicket}
+      onClosed={(t) => { mergeTicket(t); setSelTicket(null); }}
       onBack={() => setSelTicket(null)} />
   );
 
@@ -9733,7 +9743,7 @@ function ApprovalsButton({ approval, ticket }) {
   );
 }
 
-function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
+function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onTicketChanged }) {
   const [st, setSt] = React.useState({ loading: !initial, ticket: initial || null, error: null });
   const [reply, setReply] = React.useState('');
   const [replyFiles, setReplyFiles] = React.useState([]);
@@ -9774,10 +9784,11 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
         // Mark seen so the bell stops flagging this ticket as having new activity.
         markTicketSeen(j.id != null ? j.id : id, j.updated_at || j.created_at);
         markTabSeen('tickets', j.id != null ? j.id : id, j.updated_at || j.created_at);
+        return j; // so callers (status changes) can hand the fresh ticket to the list
       })
       // Keep whatever we already have (the list row we opened with) on failure,
       // so the header stays visible instead of dropping to an error screen.
-      .catch((e) => setSt((s) => ({ loading: false, ticket: s.ticket, error: e.message })));
+      .catch((e) => { setSt((s) => ({ loading: false, ticket: s.ticket, error: e.message })); return null; });
   }, [id]);
 
   // Don't blank the instant-rendered `initial` — just hydrate with the full
@@ -9862,8 +9873,21 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate }) {
   const changeStatus = async (action) => {
     setStatusBusy(action); setStatusErr('');
     try {
-      await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action });
-      await load();
+      const j = await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action });
+      // Closing (or cancelling a request) ends the visit: hand the updated
+      // ticket up so the list moves it to Closed in place, mark it seen (you
+      // made the change — it isn't an "unread update"), and go back to My
+      // Tickets instead of leaving the user parked on a closed detail page.
+      if (action === 'close' && onClosed) {
+        const fresh = (j && j.id != null) ? j
+          : { ...(st.ticket || {}), id: (st.ticket && st.ticket.id) != null ? st.ticket.id : id, status: 'closed' };
+        markTicketSeen(fresh.id, fresh.updated_at || fresh.created_at);
+        markTabSeen('tickets', fresh.id, fresh.updated_at || fresh.created_at);
+        onClosed(fresh);
+        return true;
+      }
+      const fresh = await load(); // reopen (and anything else) stays on the detail
+      if (fresh && onTicketChanged) onTicketChanged(fresh);
       return true;
     } catch (e) {
       setStatusErr(e.message || 'Couldn’t update the ticket.');
