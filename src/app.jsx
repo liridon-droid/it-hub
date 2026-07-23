@@ -10488,6 +10488,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
 
   const fields = (item && Array.isArray(item.request_form_fields)) ? item.request_form_fields : [];
 
+  // Conditional fields (show_if) — a field is visible iff it has no show_if, or
+  // the controlling answer matches its value (both sides string-coerced, so
+  // numeric/boolean answers compare correctly). Hidden fields are not rendered,
+  // not validated, and not submitted — see the catalog form rendering spec.
+  const fieldVisible = (f, r) => !f.show_if || String(r[f.show_if.field] ?? '') === String(f.show_if.value);
+  const visibleFields = fields.filter((f) => fieldVisible(f, responses));
+
   // Fan-out: create one request per chosen recipient (or a single self-request
   // when none were picked). makeOne(target) posts one request for `target` — a
   // { id, name, email } person, or null to request for yourself. Any attachments
@@ -10529,7 +10536,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   };
 
   const submitCatalog = async () => {
-    for (const f of fields) {
+    // Only visible fields are validated (a hidden required field must never
+    // block submit) and only their answers are sent; static_text is copy, not
+    // an input, so it's skipped on both counts.
+    const submittable = visibleFields.filter((f) => String(f.type || '').toLowerCase() !== 'static_text');
+    for (const f of submittable) {
       const v = responses[f.key];
       // multiselect (and any future array field) is empty when it has no
       // entries; everything else is empty when blank/whitespace.
@@ -10538,6 +10549,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         setErr('Please fill in “' + (f.label || f.key) + '”.');
         return;
       }
+    }
+    const formResponses = {};
+    for (const f of submittable) {
+      if (responses[f.key] !== undefined) formResponses[f.key] = responses[f.key];
     }
     // Justification is mandatory only when the catalog item asks for it.
     if (item.justify_required && !justification.trim()) {
@@ -10549,7 +10564,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       const just = justification.trim();
       const { created, attachWarned } = await fanOut((target) =>
         ticketsApiJson('POST', '/api/catalog/' + encodeURIComponent(item.id) + '/request', {
-          urgency, form_responses: responses,
+          urgency, form_responses: formResponses,
           ...(just ? { justification: just } : {}),
           ...(target ? { requested_for: target } : {}),
         }));
@@ -10577,7 +10592,20 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
     }
   };
 
-  const setResp = (key, val) => setResponses((r) => ({ ...r, [key]: val }));
+  // Every answer change cascade-clears the values of fields that are no longer
+  // visible (a dependent's dependents too, hence the loop), so a hidden field
+  // can never hold stale data that would be validated or submitted.
+  const setResp = (key, val) => setResponses((r) => {
+    const next = { ...r, [key]: val };
+    for (let guard = 0; guard < fields.length + 1; guard++) {
+      let changed = false;
+      for (const f of fields) {
+        if (next[f.key] !== undefined && !fieldVisible(f, next)) { delete next[f.key]; changed = true; }
+      }
+      if (!changed) break;
+    }
+    return next;
+  });
 
   // Submit-button label reflects the fan-out count: "Submit N requests" when
   // several people are chosen, otherwise the plain "Submit request".
@@ -10660,12 +10688,19 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           </div>
         )}
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
-        {fields.map((f) => (
-          <div key={f.key}>
-            <label style={TK.label}>{f.label || f.key}{f.required ? ' *' : ''}</label>
-            <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)} />
-          </div>
-        ))}
+        {visibleFields.map((f) => {
+          // static_text is rendered copy, not an input — no label, no asterisk.
+          if (String(f.type || '').toLowerCase() === 'static_text') {
+            return <p key={f.key} style={{ fontSize: 13, color: '#78684C', margin: '14px 0 0', lineHeight: 1.5 }}>{f.label || f.text || ''}</p>;
+          }
+          return (
+            <div key={f.key}>
+              <label style={TK.label}>{f.label || f.key}{f.required ? ' *' : ''}</label>
+              <CatalogField field={f} value={responses[f.key]} onChange={(v) => setResp(f.key, v)}
+                beneficiary={(requestedFor && requestedFor[0]) || self} />
+            </div>
+          );
+        })}
         <label style={TK.label}>Justification{item.justify_required ? ' *' : ' (optional)'}</label>
         <textarea style={{ ...TK.field, minHeight: 70, resize: 'vertical' }} value={justification} onChange={(e) => setJustification(e.target.value)} placeholder={item.justify_required ? 'Let us know why you need this…' : 'Why you need this… (optional)'} />
         <label style={TK.label}>Urgency</label>
@@ -10823,8 +10858,12 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
 }
 
 // One catalog form field → the right input for its declared type.
-function CatalogField({ field, value, onChange }) {
+function CatalogField({ field, value, onChange, beneficiary }) {
   const type = String(field.type || 'text').toLowerCase();
+  if (type === 'office_location') {
+    return <OfficeLocationField value={value} onChange={onChange} beneficiary={beneficiary} />;
+  }
+  if (type === 'static_text') return null; // copy only — the form renders it, never an input
   if (type === 'select') {
     return (
       <select style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)}>
@@ -10884,6 +10923,59 @@ function CatalogField({ field, value, onChange }) {
   }
   const inputType = type === 'datetime' ? 'datetime-local' : type === 'date' ? 'date' : type === 'number' ? 'number' : type === 'email' ? 'email' : 'text';
   return <input type={inputType} style={TK.field} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={field.placeholder || ''} />;
+}
+
+// `office_location` — a dropdown of active offices (GET /api/locations),
+// defaulted to the beneficiary's own office (GET /api/locations/office-for/:id).
+// The default re-resolves when the beneficiary changes — overwriting a previous
+// auto-fill — but a manually chosen office is never overwritten. The value is
+// the resolved { id, name, code } object (the shape the SliceDesk-native form
+// submits), so the ticket keeps the office name even if it's later renamed.
+function OfficeLocationField({ value, onChange, beneficiary }) {
+  const [locs, setLocs] = React.useState(null); // null = loading; [] = failed / none
+  const [err, setErr] = React.useState('');
+  const manualRef = React.useRef(false);
+  const benId = beneficiary && beneficiary.id != null ? String(beneficiary.id) : '';
+
+  React.useEffect(() => {
+    let off = false;
+    ticketsApiJson('GET', '/api/locations')
+      .then((j) => { if (!off) setLocs(Array.isArray(j) ? j : (j && Array.isArray(j.locations) ? j.locations : [])); })
+      .catch((e) => { if (!off) { setLocs([]); setErr('Couldn’t load the office list (' + (e.message || 'error') + ') — you can still submit without it.'); } });
+    return () => { off = true; };
+  }, []);
+
+  React.useEffect(() => {
+    if (!benId || manualRef.current) return;
+    let off = false;
+    ticketsApiJson('GET', '/api/locations/office-for/' + encodeURIComponent(benId))
+      .then((j) => {
+        if (off || manualRef.current) return;
+        if (j && j.id != null) onChange({ id: j.id, name: j.name, code: j.code });
+      })
+      .catch(() => {}); // null / unknown office → leave unset, the user picks
+    return () => { off = true; };
+  }, [benId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selId = value && value.id != null ? String(value.id) : '';
+  const pick = (idStr) => {
+    manualRef.current = true; // a person picked this — auto-fill must never override it
+    const l = (locs || []).find((x) => String(x.id) === idStr);
+    onChange(l ? { id: l.id, name: l.name, code: l.code } : null);
+  };
+  return (
+    <>
+      <select style={TK.field} value={selId} onChange={(e) => pick(e.target.value)} disabled={locs === null}>
+        <option value="">{locs === null ? 'Loading offices…' : 'Choose an office…'}</option>
+        {(locs || []).map((l) => <option key={String(l.id)} value={String(l.id)}>{l.name}</option>)}
+        {/* An auto-filled office that's no longer in the active list stays selectable. */}
+        {selId && locs && !locs.some((l) => String(l.id) === selId) && (
+          <option value={selId}>{(value && value.name) || 'Office #' + selId}</option>
+        )}
+      </select>
+      {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+    </>
+  );
 }
 
 // "Requesting for" — defaults to yourself; lets anyone raise a request on behalf
