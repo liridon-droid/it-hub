@@ -712,6 +712,29 @@ app.get('/api/users', requireSliceUser, async (req, res) => {
   }
 });
 
+// Office locations, for the catalog form's `office_location` field type: the
+// dropdown options (active offices) and the office a given hub user belongs to
+// (used to pre-select the beneficiary's office; null when unknown). Read-only,
+// same module auth as everything else. See the catalog form rendering spec.
+app.get('/api/locations', requireSliceUser, async (req, res) => {
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', '/locations');
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'locations.list');
+  }
+});
+app.get('/api/locations/office-for/:userId', requireSliceUser, async (req, res) => {
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', `/locations/office-for/${encodeURIComponent(req.params.userId)}`);
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'locations.officeFor');
+  }
+});
+
 // Submit a catalog request → creates a service_request (starts pending if the
 // item needs approval). Raised for the signed-in user, or — when requested_for
 // is set — on behalf of that person, with the signed-in user as the submitter.

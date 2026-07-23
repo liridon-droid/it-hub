@@ -127,6 +127,49 @@ const approvals = [
   },
 ];
 
+// Offices + per-user office membership, backing GET /locations and
+// GET /locations/office-for/:userId (the office_location field type).
+const locations = [
+  { id: 12, name: 'New York Office', code: 'NY', country: 'United States' },
+  { id: 14, name: 'London Office', code: 'LDN', country: 'United Kingdom' },
+  { id: 17, name: 'Prishtina Office', code: 'PRN', country: 'Kosovo' },
+];
+const userOffice = { [DEV_USER.id]: 12, 'u-arben': 14, 'u-elira': 17 };
+
+// Catalog items incl. the spec's conditional-fields example (Headset): the
+// Delivery answer decides whether the office picker or the address fields show,
+// and Office location is the office_location field type (dropdown + pre-select).
+const catalogItems = [
+  {
+    id: 501,
+    name: 'Headset',
+    description: 'A Jabra Evolve2 headset, delivered to your office or home.',
+    category_name: 'Hardware',
+    approval_required: false,
+    justify_required: false,
+    request_form_fields: [
+      { key: 'model', label: 'Model', type: 'select', required: true, options: ['Jabra Evolve2 40 (wired)', 'Jabra Evolve2 65 (wireless)'] },
+      { key: 'delivery', label: 'Delivery', type: 'select', required: true, options: ['Office', 'Home / Remote'] },
+      { key: 'office_location', label: 'Office location', type: 'office_location', required: true, show_if: { field: 'delivery', value: 'Office' } },
+      { key: 'address_note', label: 'We only ship to addresses in countries where Slice has an entity.', type: 'static_text', show_if: { field: 'delivery', value: 'Home / Remote' } },
+      { key: 'street', label: 'Street address', type: 'text', required: true, show_if: { field: 'delivery', value: 'Home / Remote' } },
+      { key: 'city', label: 'City', type: 'text', required: true, show_if: { field: 'delivery', value: 'Home / Remote' } },
+      { key: 'postcode', label: 'Postcode', type: 'text', required: true, show_if: { field: 'delivery', value: 'Home / Remote' } },
+    ],
+  },
+  {
+    id: 502,
+    name: '1Password vault access',
+    description: 'Access to a shared 1Password vault.',
+    category_name: 'Access',
+    approval_required: true,
+    justify_required: true,
+    request_form_fields: [
+      { key: 'vault', label: 'Which vault?', type: 'text', required: true },
+    ],
+  },
+];
+
 const findTicket = (idOrNum) => {
   const key = decodeURIComponent(String(idOrNum));
   return tickets.find((t) => String(t.id) === key || String(t.ticket_number) === key);
@@ -199,6 +242,51 @@ export function handleDevTicket(method, subPath, body) {
     t.updated_at = new Date().toISOString();
     return ok({ status: 'updated', ticket: t });
   }
+  // GET /locations  |  GET /locations/office-for/:userId
+  if (method === 'GET' && parts[0] === 'locations' && parts.length === 1) {
+    return ok(locations);
+  }
+  if (method === 'GET' && parts[0] === 'locations' && parts[1] === 'office-for' && parts.length === 3) {
+    const locId = userOffice[decodeURIComponent(parts[2])];
+    return ok(locations.find((l) => l.id === locId) || null);
+  }
+
+  // GET /catalog  |  GET /catalog/:id
+  if (method === 'GET' && parts[0] === 'catalog' && parts.length === 1) {
+    return ok({ items: catalogItems });
+  }
+  if (method === 'GET' && parts[0] === 'catalog' && parts.length === 2) {
+    const it = catalogItems.find((c) => String(c.id) === decodeURIComponent(parts[1]));
+    return it ? ok(it) : notFound();
+  }
+  // POST /catalog/:id/request → a service_request ticket (pending if the item
+  // needs approval), mirroring the module's envelope.
+  if (method === 'POST' && parts[0] === 'catalog' && parts[2] === 'request') {
+    const it = catalogItems.find((c) => String(c.id) === decodeURIComponent(parts[1]));
+    if (!it) return notFound();
+    const id = ++seq;
+    const ts = new Date().toISOString();
+    const responses = (body && body.form_responses) || {};
+    const t = {
+      id,
+      ticket_number: 'IT-' + id,
+      type: 'service_request',
+      status: it.approval_required ? 'pending' : 'open',
+      ...(it.approval_required ? { approval_status: 'pending' } : {}),
+      priority: 'medium',
+      subject: 'Request: ' + it.name,
+      description: Object.entries(responses).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join('\n'),
+      catalog_item_id: it.id,
+      form_responses: responses,
+      requester_id: body.requester_id, requester_name: body.requester_name, requester_email: body.requester_email,
+      submitter_id: body.submitter_id, submitter_name: body.submitter_name, submitter_email: body.submitter_email,
+      created_at: ts, updated_at: ts,
+      comments: [],
+    };
+    tickets.unshift(t);
+    return ok({ status: 'created', ticket: t }, 201);
+  }
+
   // GET /approvals/pending
   if (method === 'GET' && parts[0] === 'approvals' && parts[1] === 'pending') {
     return ok({ pending: approvals });
