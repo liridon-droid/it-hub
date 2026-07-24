@@ -10490,9 +10490,17 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
 
   // Conditional fields (show_if) — a field is visible iff it has no show_if, or
   // the controlling answer matches its value (both sides string-coerced, so
-  // numeric/boolean answers compare correctly). Hidden fields are not rendered,
-  // not validated, and not submitted — see the catalog form rendering spec.
-  const fieldVisible = (f, r) => !f.show_if || String(r[f.show_if.field] ?? '') === String(f.show_if.value);
+  // numeric/boolean answers compare correctly). A multiselect controller's
+  // answer is an array, so there it's an includes-check: the field shows while
+  // the value is among the selections. Hidden fields are not rendered, not
+  // validated, and not submitted — see the catalog form rendering spec.
+  const fieldVisible = (f, r) => {
+    if (!f.show_if) return true;
+    const cur = r[f.show_if.field];
+    return Array.isArray(cur)
+      ? cur.map(String).includes(String(f.show_if.value))
+      : String(cur ?? '') === String(f.show_if.value);
+  };
   const visibleFields = fields.filter((f) => fieldVisible(f, responses));
 
   // Fan-out: create one request per chosen recipient (or a single self-request

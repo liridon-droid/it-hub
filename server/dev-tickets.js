@@ -149,6 +149,10 @@ const catalogItems = [
     justify_required: false,
     request_form_fields: [
       { key: 'model', label: 'Model', type: 'select', required: true, options: ['Jabra Evolve2 40 (wired)', 'Jabra Evolve2 65 (wireless)'] },
+      // Multiselect controller: "Case color" only shows while "Carrying case"
+      // is among the selected accessories (spec addendum — includes-check).
+      { key: 'accessories', label: 'Accessories', type: 'multiselect', options: ['Carrying case', 'Spare ear cushions', 'USB-C dongle'] },
+      { key: 'case_color', label: 'Case color', type: 'select', required: true, options: ['Black', 'Sand'], show_if: { field: 'accessories', value: 'Carrying case' } },
       { key: 'delivery', label: 'Delivery', type: 'select', required: true, options: ['Office', 'Home / Remote'] },
       { key: 'office_location', label: 'Office location', type: 'office_location', required: true, show_if: { field: 'delivery', value: 'Office' } },
       { key: 'address_note', label: 'We only ship to addresses in countries where Slice has an entity.', type: 'static_text', show_if: { field: 'delivery', value: 'Home / Remote' } },
