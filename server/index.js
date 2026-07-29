@@ -1639,6 +1639,10 @@ async function loadBotRules() {
 // Fetch asset context from SliceDesk's AssetM proxy when the asset_manager
 // integration is enabled and the query sounds asset-related.
 const ASSET_KEYWORDS = /\b(laptops?|macbooks?|devices?|computers?|assets?|hardware|serial|models?|assigned (to|laptop)|inventory|equipment|what (do i|have i|is) (have|got|assigned|mine)|under my name)\b/i;
+
+// Detects queries about service / app availability so we can inject live
+// status data from the status platform into the Claude prompt.
+const STATUS_KEYWORDS = /\b(down|outage|outages?|incident|incidents?|degraded|unavailable|not working|not available|issue[s]?|problem[s]?|status|operational|disruption|maintenance|offline|up\?|working\?|affected|error[s]?|slow|latency|is .+ (down|up|working|broken|unavailable)|are .+ (down|up|working|broken)|any (outage|issue|problem|incident)|services? (down|affected))\b/i;
 // Fetch asset context from SliceDesk's AssetM proxy.
 // When userEmail is provided the proxy resolves it to a person id and returns
 // only that person's assigned assets — the right path for "what laptop do I
@@ -1681,6 +1685,117 @@ async function fetchAssetContext(query, userEmail) {
     return header + lines.join('\n');
   } catch (e) {
     console.warn('[chat] fetchAssetContext failed:', e.message);
+    return null;
+  }
+}
+
+// Fetch the current system status from the status platform's own DB so Claude
+// can answer "is Slack down?", "any outages?", etc. with real live data.
+// Returns a formatted text block, or null if the query didn't resolve anything
+// useful (all services operational, no matching service name, or DB error).
+async function fetchStatusContext(query) {
+  try {
+    // Pull every service's current state plus any open/recent incidents.
+    const [svcRows, incRows] = await Promise.all([
+      pool.query(
+        `SELECT s.name, s.vendor, s.domain, s.state, s.state_note, s.last_checked_at,
+                g.label AS group_label
+           FROM status_services s
+           LEFT JOIN status_groups g ON g.id = s.group_id
+          ORDER BY g.position, s.position, s.id`,
+      ),
+      pool.query(
+        `SELECT i.title, i.severity, i.state AS inc_state,
+                i.started_at, i.resolved_at, s.name AS service_name,
+                COALESCE(json_agg(json_build_object(
+                  'label', u.label, 'body', u.body, 'created_at', u.created_at
+                ) ORDER BY u.created_at DESC) FILTER (WHERE u.id IS NOT NULL), '[]'::json) AS updates
+           FROM status_incidents i
+           JOIN status_services s ON s.id = i.service_id
+           LEFT JOIN status_incident_updates u ON u.incident_id = i.id
+          WHERE i.started_at >= NOW() - INTERVAL '10 days'
+            AND (i.resolved_at IS NULL OR i.resolved_at >= NOW() - INTERVAL '3 days')
+          GROUP BY i.id, s.name
+          ORDER BY i.started_at DESC
+          LIMIT 20`,
+      ),
+    ]);
+
+    if (svcRows.rows.length === 0) return null;
+
+    const services = svcRows.rows;
+    const incidents = incRows.rows;
+
+    // If the query mentions a specific service name, only include that service
+    // (plus any incidents touching it). Otherwise include all non-operational
+    // services and a short summary.
+    const q = query.toLowerCase();
+    const matched = services.filter((s) =>
+      (s.name && q.includes(s.name.toLowerCase())) ||
+      (s.vendor && q.includes(s.vendor.toLowerCase())) ||
+      (s.domain && q.includes(s.domain.toLowerCase().replace(/^www\./, '').split('.')[0])),
+    );
+
+    const stateEmoji = { operational: '✅', degraded: '⚠️', down: '🔴', maintenance: '🔧', unknown: '❓' };
+    const fmt = (iso) => iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC', timeZoneName: 'short' }) : null;
+
+    const formatService = (s) => {
+      const emoji = stateEmoji[s.state] || stateEmoji.unknown;
+      let line = `- **${s.name}**: ${emoji} ${(s.state || 'unknown').charAt(0).toUpperCase() + (s.state || 'unknown').slice(1)}`;
+      if (s.state_note) line += ` — ${s.state_note}`;
+      if (s.last_checked_at) line += ` _(checked ${fmt(s.last_checked_at)})_`;
+      return line;
+    };
+
+    const formatIncident = (inc) => {
+      const open = !inc.resolved_at;
+      const lines = [
+        `**${inc.service_name} — ${inc.title}** [${open ? 'OPEN' : 'resolved'}] (${inc.severity || 'unknown'} severity)`,
+        `  Started: ${fmt(inc.started_at)}`,
+        inc.resolved_at ? `  Resolved: ${fmt(inc.resolved_at)}` : null,
+      ].filter(Boolean);
+      if (Array.isArray(inc.updates) && inc.updates.length > 0) {
+        const latest = inc.updates[0];
+        lines.push(`  Latest update: ${latest.label || ''} — ${latest.body || ''}`);
+      }
+      return lines.join('\n');
+    };
+
+    let block;
+
+    if (matched.length > 0) {
+      // Specific service(s) mentioned — show their full status.
+      const svcLines = matched.map(formatService).join('\n');
+      const relatedInc = incidents.filter((i) =>
+        matched.some((s) => s.name === i.service_name),
+      );
+      block = `Current status for queried service(s):\n${svcLines}`;
+      if (relatedInc.length > 0) {
+        block += `\n\nRelated incidents:\n${relatedInc.map(formatIncident).join('\n\n')}`;
+      }
+    } else {
+      // No specific service — summarise overall health.
+      const nonOp = services.filter((s) => s.state && s.state !== 'operational');
+      const openInc = incidents.filter((i) => !i.resolved_at);
+      const totalServices = services.length;
+      const totalNonOp = nonOp.length;
+
+      if (totalNonOp === 0 && openInc.length === 0) {
+        block = `All ${totalServices} monitored services are currently **operational**. No open incidents.`;
+      } else {
+        block = `System status summary: ${totalServices - totalNonOp}/${totalServices} services operational.\n`;
+        if (nonOp.length > 0) {
+          block += `\nServices with issues:\n${nonOp.map(formatService).join('\n')}`;
+        }
+        if (openInc.length > 0) {
+          block += `\n\nOpen incidents:\n${openInc.map(formatIncident).join('\n\n')}`;
+        }
+      }
+    }
+
+    return block;
+  } catch (e) {
+    console.warn('[chat] fetchStatusContext failed:', e.message);
     return null;
   }
 }
@@ -1917,6 +2032,14 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
       assetContext = await fetchAssetContext(query, assetEmail);
     }
 
+    // System status context — fetch live service states when the query is about
+    // outages, downtime, or availability. Injected so Claude can answer "is Slack
+    // down?" or "any outages right now?" with real data from the status platform.
+    let statusContext = null;
+    if (STATUS_KEYWORDS.test(query)) {
+      statusContext = await fetchStatusContext(query);
+    }
+
     // Claude calls go through slicedesk's /api/ext/ai/proxy — that endpoint
     // owns the Anthropic API key, billing, and audit logs. We just POST
     // the messages payload and forward the user's session cookie so
@@ -1967,7 +2090,8 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               "Closing line — REQUIRED on every answer, on its own paragraph at the end (no bullet, no quote, no heading), using EXACTLY this text:\n" +
               "Still stuck? Use the **Submit a ticket** button below and we'll send it to the IT Team." +
               (adminRulesBlock ? `\n\n${adminRulesBlock}` : '') +
-              (assetContext ? `\n\n**Asset Manager data is available.** When the user asks about hardware, devices, or assets, use the <asset_manager> block in the user message to answer with real inventory data. Cite it as "[Asset Manager]".` : ''),
+              (assetContext ? `\n\n**Asset Manager data is available.** When the user asks about hardware, devices, or assets, use the <asset_manager> block in the user message to answer with real inventory data. Cite it as "[Asset Manager]".` : '') +
+              (statusContext ? `\n\n**Live system status data is available.** When the user asks whether a service is down, experiencing issues, or about outages, use the <system_status> block in the user message to answer directly from real-time data. Cite it as "[System Status]". If a service is operational, say so clearly. If it's down or degraded, explain what's known and suggest filing a ticket if it's affecting their work.` : ''),
             messages: [
               ...priorTurns,
               {
@@ -1975,6 +2099,7 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
                 content:
                   `<knowledge_base>\n${context}\n</knowledge_base>\n\n` +
                   (assetContext ? `<asset_manager>\n${assetContext}\n</asset_manager>\n\n` : '') +
+                  (statusContext ? `<system_status>\n${statusContext}\n</system_status>\n\n` : '') +
                   `<question>\n${query}\n</question>`,
               },
             ],
@@ -2007,9 +2132,9 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
     // Behavioral rules on the no-match path. The KB-answer block above only
     // runs when a guide matched, so greeting / catch-all rules (e.g. "any IT?"
     // → ask them to describe the issue) never fired there. When we have no
-    // KB-grounded answer yet and admin rules exist, make a rules-only turn so
-    // those rules can drive the reply — without inventing IT facts.
-    if (!answer && !throttled && SLICEDESK_API_URL && (adminRulesBlock || assetContext)) {
+    // KB-grounded answer yet and admin rules exist, OR we have live status data,
+    // make a rules-only turn so those drive the reply — without inventing IT facts.
+    if (!answer && !throttled && SLICEDESK_API_URL && (adminRulesBlock || assetContext || statusContext)) {
       try {
         const upstream = await aiProxyFetch(req, {
           method: 'POST',
@@ -2024,10 +2149,14 @@ app.post('/api/chat', requireBotOrUser, async (req, res, next) => {
               "If no rule applies and it isn't a help request, reply with the single token NOREPLY and nothing else. " +
               "Never invent IT procedures, steps, URLs, or facts — you have no knowledge base here. Keep it to 1–2 friendly sentences.\n\n" +
               (adminRulesBlock || '') +
-              (assetContext ? `\n\n**Asset Manager data is available.** The user's assigned hardware is in the <asset_manager> block. Use it to answer questions about their devices directly. Cite it as "[Asset Manager]".` : ''),
+              (assetContext ? `\n\n**Asset Manager data is available.** The user's assigned hardware is in the <asset_manager> block. Use it to answer questions about their devices directly. Cite it as "[Asset Manager]".` : '') +
+              (statusContext ? `\n\n**Live system status data is available.** When the user asks whether a service is down, experiencing issues, or about outages, use the <system_status> block to answer directly from real-time data. Cite it as "[System Status]". If a service is operational, say so clearly. If it's down or degraded, explain what's known and suggest the user file a ticket if it's affecting their work.` : ''),
             messages: [...priorTurns, {
               role: 'user',
-              content: (assetContext ? `<asset_manager>\n${assetContext}\n</asset_manager>\n\n` : '') + query,
+              content:
+                (assetContext ? `<asset_manager>\n${assetContext}\n</asset_manager>\n\n` : '') +
+                (statusContext ? `<system_status>\n${statusContext}\n</system_status>\n\n` : '') +
+                query,
             }],
           }),
         });
