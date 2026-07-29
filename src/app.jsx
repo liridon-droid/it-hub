@@ -8691,7 +8691,7 @@ function ConversationMessage({ mine, name, time, body, children }) {
             boxShadow: '2px 2px 0 #211E1E',
             borderBottomRightRadius: mine ? 4 : 14, borderBottomLeftRadius: mine ? 14 : 4,
           }}>{looksLikeHtml(body)
-            ? <div className="rich-body" dangerouslySetInnerHTML={{ __html: sanitizeHtml(body) }} />
+            ? <div className="rich-body" dangerouslySetInnerHTML={{ __html: sanitizeHtml(substituteDateTokens(body)) }} />
             : linkifyText(body, '#B92323')}</div>
         )}
       </div>
@@ -24949,6 +24949,23 @@ window.ScreenshotEntry = ScreenshotEntry;
 //  full-width card below. No step-by-step nav.
 // ====================================================================
 
+// Date/time tokens embedded in content (guides, bot answers): an author writes
+// an absolute instant and every reader sees it in their OWN local timezone —
+// the browser resolves the zone for us, so nothing needs passing through.
+//   {{d:<ISO>}}   → date only        e.g. "July 23, 2026"
+//   {{dt:<ISO>}}  → date + time + tz e.g. "July 23, 2026, 1:00 AM GMT+1"
+// An unparseable instant is left as its literal text rather than throwing.
+function substituteDateTokens(str) {
+  if (!str || str.indexOf('{{') === -1) return str;
+  return String(str).replace(/\{\{(dt|d):\s*([^}]+?)\s*\}\}/g, (whole, kind, iso) => {
+    const dt = new Date(iso);
+    if (Number.isNaN(dt.getTime())) return whole; // not a valid instant — leave as-is
+    return kind === 'dt'
+      ? dt.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })
+      : dt.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+  });
+}
+
 function renderMarkdown(md, opts = {}) {
   const stepStyle = opts.stepStyle === 'cards' ? 'cards' : 'plain';
   // Chat answers reference excerpt cards shown below as [1] [2] [3]. Those
@@ -24956,7 +24973,7 @@ function renderMarkdown(md, opts = {}) {
   // links of the form [Text](url) survive because the regex only matches
   // brackets containing digits.)
   const stripCitations = opts.stripCitations === true || stepStyle === 'cards';
-  let raw = String(md ?? '').replace(/\r\n/g, '\n');
+  let raw = substituteDateTokens(String(md ?? '').replace(/\r\n/g, '\n'));
   if (stripCitations) {
     raw = raw.replace(/\s*\[\d+\](?:\s*\[\d+\])*/g, '');
   }
