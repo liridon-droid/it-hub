@@ -136,6 +136,12 @@ const locations = [
 ];
 const userOffice = { [DEV_USER.id]: 12, 'u-arben': 14, 'u-elira': 17 };
 
+// Backing GET /agents/directory (the "Already talked to an agent?" picker).
+const agentsDirectory = [
+  { user_id: 'agent-dana', display_name: 'Dana Brooks' },
+  { user_id: 'agent-marcus', display_name: 'Marcus Reed' },
+];
+
 // Catalog items incl. the spec's conditional-fields example (Headset): the
 // Delivery answer decides whether the office picker or the address fields show,
 // and Office location is the office_location field type (dropdown + pre-select).
@@ -181,6 +187,15 @@ const findTicket = (idOrNum) => {
 const ok = (data, status = 200) => ({ ok: true, status, data });
 const notFound = () => ({ ok: false, status: 404, data: { error: 'Not found (dev-tickets)' } });
 
+// Mirrors the real ticket module: talked_to_agent_id is validated against the
+// agent directory and silently dropped (never fails the request) if it
+// doesn't match — so a bad id in dev just yields talked_to: [].
+const talkedToFromBody = (body) => {
+  const agentId = body && body.talked_to_agent_id;
+  if (!agentId || !agentsDirectory.some((a) => a.user_id === agentId)) return [];
+  return [{ agent_id: agentId, added_by: (body && body.submitter_id) || DEV_USER.id, added_at: new Date().toISOString() }];
+};
+
 // Stand in for ticketModuleFetch(method, subPath, body) → { ok, status, data }.
 export function handleDevTicket(method, subPath, body) {
   const [pathOnly, qs] = String(subPath).split('?');
@@ -215,6 +230,7 @@ export function handleDevTicket(method, subPath, body) {
       description: body.description || '',
       requester_id: body.requester_id, requester_name: body.requester_name, requester_email: body.requester_email,
       submitter_id: body.submitter_id, submitter_name: body.submitter_name, submitter_email: body.submitter_email,
+      talked_to: talkedToFromBody(body),
       created_at: ts, updated_at: ts,
       comments: [],
     };
@@ -284,11 +300,17 @@ export function handleDevTicket(method, subPath, body) {
       form_responses: responses,
       requester_id: body.requester_id, requester_name: body.requester_name, requester_email: body.requester_email,
       submitter_id: body.submitter_id, submitter_name: body.submitter_name, submitter_email: body.submitter_email,
+      talked_to: talkedToFromBody(body),
       created_at: ts, updated_at: ts,
       comments: [],
     };
     tickets.unshift(t);
     return ok({ status: 'created', ticket: t }, 201);
+  }
+
+  // GET /agents/directory
+  if (method === 'GET' && parts[0] === 'agents' && parts[1] === 'directory') {
+    return ok({ agents: agentsDirectory });
   }
 
   // GET /approvals/pending
