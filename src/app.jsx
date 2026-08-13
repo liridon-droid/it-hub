@@ -8230,6 +8230,7 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
   const [type, setType] = React.useState(draft.type || "incident");
   const [priority, setPriority] = React.useState(draft.priority || "medium");
   const [attachFiles, setAttachFiles] = React.useState([]);
+  const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [busyLabel, setBusyLabel] = React.useState("Submitting…");
   const [result, setResult] = React.useState(null);
@@ -8247,7 +8248,10 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
     try {
       // Create the ticket first, then attach files to it (attachments need the
       // ticket id). A failed upload doesn't lose the ticket — we just warn.
-      const data = await ticketsApiJson("POST", "/api/tickets", { subject: subject.trim(), description: description.trim(), type, priority });
+      const data = await ticketsApiJson("POST", "/api/tickets", {
+        subject: subject.trim(), description: description.trim(), type, priority,
+        ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
+      });
       if (attachFiles.length && (data.id || data.ticket_number)) {
         setBusyLabel("Uploading attachments…");
         try { await uploadAttachments(data.id || data.ticket_number, attachFiles); }
@@ -8319,6 +8323,7 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
           </select>
         </div>
       </div>
+      <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
       <label style={label}>Attachments <span style={{ fontWeight: 500, color: "#9A8E78" }}>(optional)</span></label>
       <div style={hint}>A screenshot or screen recording helps us help you faster.</div>
       <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
@@ -10403,13 +10408,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   // "Already talked to an agent?" — optional; lets someone who was told
   // "just file a ticket, I'll take it" flag who already knows about this,
   // so a different agent picking it up doesn't duplicate the outreach.
+  // TalkedToAgentPicker owns the agent-directory fetch; reset here on every
+  // view change (not just pickItem) so a selection never survives a switch
+  // to freeform, back to the list, or on to a different item.
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
-  const [agentsDirectory, setAgentsDirectory] = React.useState([]);
-  React.useEffect(() => {
-    ticketsApiJson('GET', '/api/agents/directory')
-      .then((j) => setAgentsDirectory(Array.isArray(j.agents) ? j.agents : []))
-      .catch(() => setAgentsDirectory([]));
-  }, []);
+  React.useEffect(() => { setTalkedToAgentId(''); }, [view]);
   // [] = requesting for yourself; otherwise a list of { id, name, email } people.
   // One request is created per person (fan-out) — see RequestedForPicker.
   const [requestedFor, setRequestedFor] = React.useState([]);
@@ -10437,7 +10440,6 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       setResponses({});
       setJustification('');
       setUrgency('medium');
-      setTalkedToAgentId('');
       setView('form');
     } catch (e) {
       setErr(e.message || 'Couldn’t open that item.');
@@ -10686,11 +10688,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
-        <label style={TK.label}>Already talked to an agent?</label>
-        <select style={TK.field} value={talkedToAgentId} onChange={(e) => setTalkedToAgentId(e.target.value)}>
-          <option value="">No one yet</option>
-          {agentsDirectory.map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
-        </select>
+        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
@@ -10735,11 +10733,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           <option value="medium">Medium</option>
           <option value="high">High</option>
         </select>
-        <label style={TK.label}>Already talked to an agent?</label>
-        <select style={TK.field} value={talkedToAgentId} onChange={(e) => setTalkedToAgentId(e.target.value)}>
-          <option value="">No one yet</option>
-          {agentsDirectory.map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
-        </select>
+        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
@@ -11003,6 +10997,35 @@ function OfficeLocationField({ value, onChange, beneficiary }) {
         {selId && locs && !locs.some((l) => String(l.id) === selId) && (
           <option value={selId}>{(value && value.name) || 'Office #' + selId}</option>
         )}
+      </select>
+      {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
+    </>
+  );
+}
+
+// "Already talked to an agent?" — optional; lets someone who was told "just
+// file a ticket, I'll take it" flag who already knows about this, so a
+// different agent picking it up doesn't duplicate the outreach. Self-fetches
+// the agent directory (active agents only, not the full employee directory)
+// so any submission flow can drop this in without wiring up its own fetch.
+function TalkedToAgentPicker({ value, onChange }) {
+  const [agents, setAgents] = React.useState(null); // null = loading; [] = failed / none
+  const [err, setErr] = React.useState('');
+
+  React.useEffect(() => {
+    let off = false;
+    ticketsApiJson('GET', '/api/agents/directory')
+      .then((j) => { if (!off) setAgents(Array.isArray(j.agents) ? j.agents : []); })
+      .catch((e) => { if (!off) { setAgents([]); setErr('Couldn’t load the agent list (' + (e.message || 'error') + ') — you can still submit without it.'); } });
+    return () => { off = true; };
+  }, []);
+
+  return (
+    <>
+      <label style={TK.label}>Already talked to an agent?</label>
+      <select style={TK.field} value={value} onChange={(e) => onChange(e.target.value)} disabled={agents === null}>
+        <option value="">{agents === null ? 'Loading agents…' : 'No one yet'}</option>
+        {(agents || []).map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
       </select>
       {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
     </>

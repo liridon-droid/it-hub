@@ -185,6 +185,16 @@ function resolveRequester(u, requestedFor) {
   return { id: u.id, name: u.name, email: u.email, onBehalf: false };
 }
 
+// "Already talked to an agent?" — optional; the ticket module validates it
+// against its own registered-agent list and silently drops a bad value, so
+// this just sanitizes the shape before passing it through. An empty string
+// (the picker's "No one yet" option) means unset, same as it being absent —
+// without this an explicit "" would get forwarded and only get dropped one
+// layer further down instead of being treated as unset here.
+function asAgentId(v) {
+  return typeof v === 'string' && v ? v : undefined;
+}
+
 // Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
@@ -207,10 +217,7 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
       submitter_id: u.id,
       submitter_name: u.name,
       submitter_email: u.email,
-      // "Already talked to an agent?" — optional; the ticket module validates
-      // it against its own registered-agent list and silently drops a bad
-      // value, so we just pass through whatever the client sent.
-      talked_to_agent_id: typeof talked_to_agent_id === 'string' ? talked_to_agent_id : undefined,
+      talked_to_agent_id: asAgentId(talked_to_agent_id),
     });
     // The ticket module returns an envelope: { status, message, ticket }.
     if (!ok || data.status === 'rejected' || data.status === 'error') {
@@ -771,9 +778,7 @@ app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
       justification: String(justification || '').slice(0, 4000),
       urgency: urgency || 'medium',
       form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},
-      // "Already talked to an agent?" — optional; the ticket module
-      // validates it against its own registered-agent list.
-      talked_to_agent_id: typeof talked_to_agent_id === 'string' ? talked_to_agent_id : undefined,
+      talked_to_agent_id: asAgentId(talked_to_agent_id),
     });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({
