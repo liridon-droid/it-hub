@@ -188,7 +188,7 @@ function resolveRequester(u, requestedFor) {
 // Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { subject, description, type, priority, requested_for } = req.body ?? {};
+  const { subject, description, type, priority, requested_for, talked_to_agent_id } = req.body ?? {};
   if (!subject || !String(subject).trim()) {
     return res.status(400).json({ error: 'A subject is required.' });
   }
@@ -207,6 +207,10 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
       submitter_id: u.id,
       submitter_name: u.name,
       submitter_email: u.email,
+      // "Already talked to an agent?" — optional; the ticket module validates
+      // it against its own registered-agent list and silently drops a bad
+      // value, so we just pass through whatever the client sent.
+      talked_to_agent_id: typeof talked_to_agent_id === 'string' ? talked_to_agent_id : undefined,
     });
     // The ticket module returns an envelope: { status, message, ticket }.
     if (!ok || data.status === 'rejected' || data.status === 'error') {
@@ -712,6 +716,20 @@ app.get('/api/users', requireSliceUser, async (req, res) => {
   }
 });
 
+// Agent directory for the "Already talked to an agent?" picker on the
+// ticket/catalog request forms. Deliberately NOT /api/users (hub-wide
+// employee directory) — proxies the module's ticket_agents-specific list, so
+// only real registered agents show up as options.
+app.get('/api/agents/directory', requireSliceUser, async (req, res) => {
+  try {
+    const { ok, status, data } = await ticketModuleFetch('GET', '/agents/directory');
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'agents.directory');
+  }
+});
+
 // Office locations, for the catalog form's `office_location` field type: the
 // dropdown options (active offices) and the office a given hub user belongs to
 // (used to pre-select the beneficiary's office; null when unknown). Read-only,
@@ -740,7 +758,7 @@ app.get('/api/locations/office-for/:userId', requireSliceUser, async (req, res) 
 // is set — on behalf of that person, with the signed-in user as the submitter.
 app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { justification, urgency, form_responses, requested_for } = req.body ?? {};
+  const { justification, urgency, form_responses, requested_for, talked_to_agent_id } = req.body ?? {};
   const requester = resolveRequester(u, requested_for);
   try {
     const { ok, status, data } = await ticketModuleFetch('POST', `/catalog/${encodeURIComponent(req.params.id)}/request`, {
@@ -753,6 +771,9 @@ app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
       justification: String(justification || '').slice(0, 4000),
       urgency: urgency || 'medium',
       form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},
+      // "Already talked to an agent?" — optional; the ticket module
+      // validates it against its own registered-agent list.
+      talked_to_agent_id: typeof talked_to_agent_id === 'string' ? talked_to_agent_id : undefined,
     });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({

@@ -136,6 +136,12 @@ const locations = [
 ];
 const userOffice = { [DEV_USER.id]: 12, 'u-arben': 14, 'u-elira': 17 };
 
+// Backing GET /agents/directory (the "Already talked to an agent?" picker).
+const agentsDirectory = [
+  { user_id: 'agent-dana', display_name: 'Dana Brooks' },
+  { user_id: 'agent-marcus', display_name: 'Marcus Reed' },
+];
+
 // Catalog items incl. the spec's conditional-fields example (Headset): the
 // Delivery answer decides whether the office picker or the address fields show,
 // and Office location is the office_location field type (dropdown + pre-select).
@@ -289,6 +295,11 @@ export function handleDevTicket(method, subPath, body) {
     };
     tickets.unshift(t);
     return ok({ status: 'created', ticket: t }, 201);
+  }
+
+  // GET /agents/directory
+  if (method === 'GET' && parts[0] === 'agents' && parts[1] === 'directory') {
+    return ok({ agents: agentsDirectory });
   }
 
   // GET /approvals/pending

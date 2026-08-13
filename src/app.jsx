@@ -10400,6 +10400,16 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   const [responses, setResponses] = React.useState({});
   const [justification, setJustification] = React.useState('');
   const [urgency, setUrgency] = React.useState('medium');
+  // "Already talked to an agent?" — optional; lets someone who was told
+  // "just file a ticket, I'll take it" flag who already knows about this,
+  // so a different agent picking it up doesn't duplicate the outreach.
+  const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
+  const [agentsDirectory, setAgentsDirectory] = React.useState([]);
+  React.useEffect(() => {
+    ticketsApiJson('GET', '/api/agents/directory')
+      .then((j) => setAgentsDirectory(Array.isArray(j.agents) ? j.agents : []))
+      .catch(() => setAgentsDirectory([]));
+  }, []);
   // [] = requesting for yourself; otherwise a list of { id, name, email } people.
   // One request is created per person (fan-out) — see RequestedForPicker.
   const [requestedFor, setRequestedFor] = React.useState([]);
@@ -10427,6 +10437,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       setResponses({});
       setJustification('');
       setUrgency('medium');
+      setTalkedToAgentId('');
       setView('form');
     } catch (e) {
       setErr(e.message || 'Couldn’t open that item.');
@@ -10575,6 +10586,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           urgency, form_responses: formResponses,
           ...(just ? { justification: just } : {}),
           ...(target ? { requested_for: target } : {}),
+          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
         }));
       if (attachWarned) setAttachWarn(attachWarned);
       setResults(created); setView('done');
@@ -10591,6 +10603,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         ticketsApiJson('POST', '/api/tickets', {
           subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
           ...(target ? { requested_for: target } : {}),
+          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
         }));
       if (attachWarned) setAttachWarn(attachWarned);
       setResults(created); setView('done');
@@ -10673,6 +10686,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
+        <label style={TK.label}>Already talked to an agent?</label>
+        <select style={TK.field} value={talkedToAgentId} onChange={(e) => setTalkedToAgentId(e.target.value)}>
+          <option value="">No one yet</option>
+          {agentsDirectory.map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
+        </select>
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
@@ -10716,6 +10734,11 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
+        </select>
+        <label style={TK.label}>Already talked to an agent?</label>
+        <select style={TK.field} value={talkedToAgentId} onChange={(e) => setTalkedToAgentId(e.target.value)}>
+          <option value="">No one yet</option>
+          {agentsDirectory.map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
         </select>
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
