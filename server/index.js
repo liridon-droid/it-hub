@@ -247,11 +247,35 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
   // /tickets list endpoint has no such filter and silently ignores unknown params,
   // returning the newest tickets company-wide (so the ownership filter below
   // empties the list once your tickets fall off that first page).
+  // ⚠️ Paginate. This used to request a single page of per_page=50 and stop, so
+  // "My tickets" silently topped out at ~50 rows: the requester_id and
+  // submitter_id calls each capped at 50, and for an ordinary self-raised request
+  // both return the SAME ticket, so the dedup collapsed them to one page's worth.
+  // Anyone with more than 50 tickets simply could not see the rest — with no
+  // "load more", no count, and no clue anything was missing.
+  //
+  // per_page is 100 because that is the module's own ceiling
+  // (moduleApi.js: Math.min(parseInt(per_page) || 25, 100)); asking for more is
+  // silently clamped. Loop until a short page comes back, with MAX_PAGES as a
+  // runaway guard so a module that ignores `page` can't spin here forever.
+  const PER_PAGE = 100;
+  const MAX_PAGES = 20;          // 2000 tickets per filter — far beyond any real requester
   const fetchBy = async (key) => {
-    const p = new URLSearchParams({ [key]: u.id, per_page: '50' });
-    if (status) p.set('status', status);
-    const r = await ticketModuleFetch('GET', `/tickets?${p}`);
-    return r.ok && r.data && Array.isArray(r.data.tickets) ? r.data.tickets : [];
+    const out = [];
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const p = new URLSearchParams({ [key]: u.id, per_page: String(PER_PAGE), page: String(page) });
+      if (status) p.set('status', status);
+      const r = await ticketModuleFetch('GET', `/tickets?${p}`);
+      const batch = r.ok && r.data && Array.isArray(r.data.tickets) ? r.data.tickets : [];
+      out.push(...batch);
+      // A short page means we've reached the end. An empty page also ends it,
+      // which covers a module that clamps or ignores `page` rather than looping.
+      if (batch.length < PER_PAGE) break;
+      if (page === MAX_PAGES) {
+        console.warn(`[tickets.list] hit MAX_PAGES for ${key}=${u.id} — list may be truncated`);
+      }
+    }
+    return out;
   };
   try {
     const [mine, onBehalf] = await Promise.all([fetchBy('requester_id'), fetchBy('submitter_id')]);

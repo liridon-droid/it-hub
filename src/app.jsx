@@ -11425,12 +11425,12 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
             style={{ ...TK.field, minHeight: 58, resize: 'vertical', borderColor: reasonError ? '#B92323' : '#211E1E' }}
             value={override.reason || ''}
             onChange={(e) => onOverrideChange({ ...override, reason: e.target.value })}
-            placeholder="e.g. My manager is on leave until 12 September"
+            placeholder="e.g. My manager is on leave until 12 September (min 5 characters)"
           />
           <p style={{ fontSize: 11.5, color: reasonError ? '#B92323' : '#78684C', margin: '6px 0 0', lineHeight: 1.45 }}>
             {reasonError || (override.auto
               ? 'Filled in from what we found. Edit it if you want to add context.'
-              : 'Your usual approver is told about the change, so keep it accurate.')}
+              : 'At least 5 characters. Your usual approver is told about the change, so keep it accurate.')}
           </p>
         </div>
       )}
