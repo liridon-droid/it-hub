@@ -10419,7 +10419,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   // must never survive a switch to another item, the list, or freeform.
   const [approverOverride, setApproverOverride] = React.useState(null);
   const [approverReasonErr, setApproverReasonErr] = React.useState('');
-  React.useEffect(() => { setApproverOverride(null); setApproverReasonErr(''); }, [view]);
+  // Raised by ApprovalRoute when the resolved approver's account is disabled:
+  // the request can't be submitted until someone else is nominated.
+  const [approvalBlocked, setApprovalBlocked] = React.useState(false);
+  React.useEffect(() => { setApproverOverride(null); setApproverReasonErr(''); setApprovalBlocked(false); }, [view]);
   // [] = requesting for yourself; otherwise a list of { id, name, email } people.
   // One request is created per person (fan-out) — see RequestedForPicker.
   const [requestedFor, setRequestedFor] = React.useState([]);
@@ -10590,6 +10593,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
     // Changing the approver always needs a reason. The module rejects a bare
     // override, so catch it here and point at the field rather than surfacing a
     // generic API error after the fact.
+    // Approver's account is disabled and nobody has been nominated. The module
+    // enforces this too; catching it here points at the control to use instead of
+    // surfacing a bare API error.
+    if (approvalBlocked && !approverOverride) {
+      setErr('Your approver’s account isn’t active — choose someone else to approve this.');
+      return;
+    }
     const overrideReason = approverOverride ? String(approverOverride.reason || '').trim() : '';
     if (approverOverride && overrideReason.length < 5) {
       setApproverReasonErr('Please say why you’re changing the approver.');
@@ -10764,6 +10774,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           requestedFor={requestedFor}
           override={approverOverride}
           onOverrideChange={(next) => { setApproverOverride(next); setApproverReasonErr(''); setErr(''); }}
+          onBlockedChange={setApprovalBlocked}
           reasonError={approverReasonErr}
         />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
@@ -11126,7 +11137,7 @@ function changeBtn(label, onClick, { quiet = false } = {}) {
 // it can go into the submit body. Only stages the module marks `overridable`
 // (i.e. "requester's manager") can be changed — a stage IT pinned to a named
 // person or group is a deliberate control and renders read-only.
-function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reasonError }) {
+function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlockedChange, reasonError }) {
   const [preview, setPreview] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [picking, setPicking] = React.useState(false);
@@ -11146,8 +11157,22 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
     setLoading(true);
     const qs = targetKey ? '?requested_for=' + encodeURIComponent(targetKey) : '';
     ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(itemId) + '/approval-preview' + qs)
-      .then((j) => { if (!off) setPreview(j); })
-      .catch(() => { if (!off) setPreview(null); })
+      .then((j) => {
+        if (off) return;
+        setPreview(j);
+        // A disabled approver means they MUST choose someone, so open the
+        // picker rather than making them find the button. Only when nothing is
+        // chosen yet, so a re-fetch can't reopen it over their choice.
+        if (j && j.requires_new_approver && !override) setPicking(true);
+        if (onBlockedChange) onBlockedChange(!!(j && j.requires_new_approver));
+      })
+      .catch(() => {
+        if (off) return;
+        setPreview(null);
+        // A preview that failed to load must never block submitting — the same
+        // fail-open rule the server applies.
+        if (onBlockedChange) onBlockedChange(false);
+      })
       .finally(() => { if (!off) setLoading(false); });
     return () => { off = true; };
   }, [itemId, targetKey]);
@@ -11172,8 +11197,19 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
   // the module routes it exactly as it did before this existed.
   if (!preview || !preview.requires_approval) return null;
 
+  const blocked = !!preview.requires_new_approver && !override;
+
   const pick = (u) => {
-    onOverrideChange({ user_id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '', reason: (override && override.reason) || '' });
+    // When the system found the approver disabled it already knows why, so the
+    // reason is pre-filled from that finding instead of demanding the requester
+    // restate it. Still editable, still recorded.
+    const auto = (preview.requires_new_approver && preview.blocked_reason)
+      ? "Original approver's account is not active — " + preview.blocked_reason
+      : '';
+    onOverrideChange({
+      user_id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '',
+      reason: (override && override.reason) || auto, auto: !!auto,
+    });
     setPicking(false); setQ(''); setResults([]);
   };
 
@@ -11186,13 +11222,29 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
     && !(stages.length === 1 && sameApprovalLabel(workflowName, stages[0].name));
 
   return (
-    <div style={{ ...TK.card, padding: 14, marginTop: 18 }}>
+    <div style={{ ...TK.card, padding: 14, marginTop: 18, borderColor: blocked ? '#B92323' : '#211E1E', background: blocked ? '#FFF6F5' : '#FFFFFF' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
           Approval
         </span>
         {showWorkflowName && <span style={{ fontSize: 11.5, color: '#78684C' }}>{workflowName}</span>}
       </div>
+
+      {/* Lead with the problem and the required action. Above the chain, because
+          the chain below is the thing that's broken — an explanation underneath
+          it gets read second, if at all. */}
+      {blocked && (
+        <div style={{ display: 'flex', gap: 9, marginBottom: 12 }}>
+          <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 1, borderRadius: '50%', background: '#B9232322', color: '#B92323', display: 'grid', placeItems: 'center', fontWeight: 900, fontSize: 12 }}>!</span>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#8E1B1B' }}>Your approver’s account isn’t active</p>
+            <p style={{ margin: '2px 0 0', fontSize: 12, color: '#8E1B1BCC', lineHeight: 1.45 }}>
+              {preview.blocked_reason ? preview.blocked_reason + '. ' : ''}
+              They can’t action this, so choose someone else to approve it. You won’t be able to submit until you do.
+            </p>
+          </div>
+        </div>
+      )}
 
       {preview.unroutable ? (
         <p style={{ fontSize: 13, color: '#9A4A00', margin: 0, lineHeight: 1.5 }}>
@@ -11249,21 +11301,27 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
                         key={a.user_id}
                         style={{
                           display: 'flex', alignItems: 'center', gap: 11,
-                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.unavailable ? '#E4C868' : '#E6DFCF')),
-                          background: a.chosen ? '#FFFDF4' : (a.unavailable ? '#FFFBEB' : '#FFFFFF'),
+                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.account_disabled ? '#E39C9C' : (a.unavailable ? '#E4C868' : '#E6DFCF'))),
+                          background: a.chosen ? '#FFFDF4' : (a.account_disabled ? '#FFFFFF' : (a.unavailable ? '#FFFBEB' : '#FFFFFF')),
                           borderRadius: 10, padding: '10px 11px',
                         }}
                       >
                         <span style={{
                           flexShrink: 0, width: 34, height: 34, borderRadius: '50%',
-                          background: '#211E1E', color: '#FDC831',
+                          background: a.account_disabled ? '#F3D6D6' : '#211E1E',
+                          color: a.account_disabled ? '#B92323' : '#FDC831',
                           display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900,
                         }}>
                           {approverInitials(a.name)}
                         </span>
 
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <p style={{ fontSize: 14, color: '#211E1E', margin: 0, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <p style={{
+                            fontSize: 14, margin: 0, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            color: a.account_disabled ? '#78684C' : '#211E1E',
+                            textDecoration: a.account_disabled ? 'line-through' : 'none',
+                            textDecorationColor: '#78684C80',
+                          }}>
                             {a.name}
                           </p>
                           {subEmail && (
@@ -11276,7 +11334,12 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
                               You picked this
                             </span>
                           )}
-                          {a.unavailable && (
+                          {a.account_disabled && (
+                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FBE3E3', border: '1px solid #D98B8B', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#8E1B1B' }}>
+                              {a.account_reason || 'Account not active'}
+                            </span>
+                          )}
+                          {!a.account_disabled && a.unavailable && (
                             <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FFF1C9', border: '1px solid #C9A227', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#7A5A00' }}>
                               {AVAILABILITY_LABEL[a.status] || a.status}
                               {a.status_until ? ' until ' + new Date(a.status_until).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}
@@ -11291,7 +11354,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
                         {changeable && !picking && (
                           a.chosen
                             ? changeBtn('Undo', () => onOverrideChange(null), { quiet: true })
-                            : changeBtn('Change', () => setPicking(true))
+                            : changeBtn(a.account_disabled ? 'Pick approver' : 'Change', () => setPicking(true))
                         )}
                       </div>
                     );
@@ -11347,7 +11410,9 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
           would otherwise have been asked. */}
       {override && (
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
-          <label style={{ ...TK.label, marginTop: 0 }}>Why are you changing the approver? <span style={{ color: '#B92323' }}>*</span></label>
+          <label style={{ ...TK.label, marginTop: 0 }}>
+            {override.auto ? 'Reason recorded on the ticket' : 'Why are you changing the approver?'} <span style={{ color: '#B92323' }}>*</span>
+          </label>
           <textarea
             style={{ ...TK.field, minHeight: 58, resize: 'vertical', borderColor: reasonError ? '#B92323' : '#211E1E' }}
             value={override.reason || ''}
@@ -11355,7 +11420,9 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
             placeholder="e.g. My manager is on leave until 12 September"
           />
           <p style={{ fontSize: 11.5, color: reasonError ? '#B92323' : '#78684C', margin: '6px 0 0', lineHeight: 1.45 }}>
-            {reasonError || 'Your usual approver is told about the change, so keep it accurate.'}
+            {reasonError || (override.auto
+              ? 'Filled in from what we found. Edit it if you want to add context.'
+              : 'Your usual approver is told about the change, so keep it accurate.')}
           </p>
         </div>
       )}
