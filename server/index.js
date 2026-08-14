@@ -372,13 +372,25 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
 });
 
 // Change a ticket's lifecycle from the portal. The only transitions a requester
-// gets are Close and Reopen — agent states (in_progress, priority, assignment)
-// aren't user-settable. Both are reversible. Gated to the requester (no bypass).
+// gets are Close, Cancel and Reopen — agent states (in_progress, priority,
+// assignment) aren't user-settable. All are reversible. Gated to the requester
+// (no bypass).
+//
+// `cancel` is a separate action from `close` on purpose. Withdrawing a request
+// that's still waiting for approval is not the same event as closing a finished
+// ticket, and the ticket module distinguishes them: `cancelled` means the
+// request will not be fulfilled, which is also what stops the pending approval
+// escalating to approvers. Sending `close` for a withdrawal — which is what
+// this did — filed it as an ordinary closure and left the approval running.
 app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
   const u = req.user;
   const action = req.body && req.body.action;
-  const target = action === 'close' ? 'closed' : action === 'reopen' ? 'open' : action === 'resolve' ? 'resolved' : null;
-  if (!target) return res.status(400).json({ error: 'action must be "close", "reopen", or "resolve".' });
+  const target = action === 'close' ? 'closed'
+    : action === 'cancel' ? 'cancelled'
+    : action === 'reopen' ? 'open'
+    : action === 'resolve' ? 'resolved'
+    : null;
+  if (!target) return res.status(400).json({ error: 'action must be "close", "cancel", "reopen", or "resolve".' });
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });

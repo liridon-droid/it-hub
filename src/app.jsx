@@ -8841,22 +8841,24 @@ function ticketStatusMeta(status) {
     resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
     closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
     approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
-    // "Declined" for BOTH, deliberately. A declined request writes two values
-    // for one event — approval_requests.status becomes 'rejected' while
-    // tickets.status becomes 'cancelled' — and this portal shows the approval
-    // status in the slot where the ticket status normally goes. Two different
-    // words for the same outcome, side by side with the agent app saying a third
-    // thing, is what made this read as a bug.
-    //
-    // The stored status is deliberately NOT renamed: 'cancelled' is load-bearing
-    // in automation rules and saved views in the ticket module, so renaming it
-    // would silently break automations people wrote. Relabel here instead.
-    //
-    // 'cancelled' only ever reaches this portal via an approval rejection — the
-    // "Cancel request" button sends `close`, which yields 'closed' — so mapping it
-    // to Declined cannot mislabel a withdrawal.
+    // An approval status rendered in the ticket-status slot. The module stores
+    // 'rejected' on the approval while the ticket becomes 'cancelled'; both are
+    // shown as "Declined" so the portal and the agent app don't use two words
+    // for one outcome. The stored status is deliberately NOT renamed —
+    // 'cancelled' is load-bearing in user-authored automation rules and saved
+    // views in the ticket module. Relabel the display instead.
     rejected:    { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
-    cancelled:   { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
+    // 'cancelled' is NOT "Declined". It is the ticket status for BOTH outcomes
+    // — an approver declining and the requester withdrawing — so on its own it
+    // can't tell you which happened. The approval status is what separates
+    // them, and a decline is already labelled by ApprovalPill, which renders in
+    // this badge's place whenever the approval was rejected. So anything
+    // reaching this entry is a cancellation that nobody declined: a withdrawal,
+    // an agent cancelling, or a bundle child cascaded from a cancelled parent.
+    // "Cancelled", in the neutral dark, is the honest word for all three —
+    // calling them "Declined" would tell a user IT rejected them when nobody
+    // did.
+    cancelled:   { label: 'Cancelled',   bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
   };
   return map[s] || { label: status || 'Unknown', bg: '#5C564C', fg: '#FFFFFF', bd: '#46413A' };
 }
@@ -9047,7 +9049,14 @@ function ApprovalPill({ state }) {
   const meta = {
     pending:  { label: 'Pending approval', color: '#9A4A00', dot: '#E08A1E' },
     approved: { label: 'Approved',         color: '#0A6E31', dot: '#0A8A3E' },
-    rejected: { label: 'Rejected',         color: '#8E1A1A', dot: '#B92323' },
+    // "Declined", matching ticketStatusMeta. This pill REPLACES the status
+    // badge whenever the approval is pending or rejected, so it — not the
+    // badge — is what a user actually sees on a declined request. Relabelling
+    // only the badge left the portal still saying "Rejected".
+    rejected: { label: 'Declined',         color: '#8E1A1A', dot: '#B92323' },
+    // No entry for 'cancelled': a withdrawn approval renders nothing here, and
+    // the status badge takes the slot back and says "Cancelled". The outcome
+    // belongs to the ticket, not to an approval nobody ever answered.
   }[String(state || '').toLowerCase()];
   if (!meta) return null;
   return (
@@ -9918,15 +9927,25 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   const [statusErr, setStatusErr] = React.useState('');
   const changeStatus = async (action) => {
     setStatusBusy(action); setStatusErr('');
+    // The button is one control with two meanings: "Close" on an ordinary
+    // ticket, "Cancel request" on one still waiting for approval. Only the
+    // first is a closure. Withdrawing sends `cancel` so the module records it
+    // as cancelled — which is also what withdraws the pending approval, so it
+    // stops escalating to an approver who no longer needs to answer.
+    //
+    // Everything else here stays keyed on 'close': the button labels, the busy
+    // state and the confirm dialog all already read isPendingApproval to word
+    // themselves, so only the wire value and the optimistic status differ.
+    const wire = (action === 'close' && isPendingApproval) ? 'cancel' : action;
     try {
-      const j = await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action });
+      const j = await ticketsApiJson('POST', '/api/tickets/' + encodeURIComponent(id) + '/status', { action: wire });
       // Closing (or cancelling a request) ends the visit: hand the updated
       // ticket up so the list moves it to Closed in place, mark it seen (you
       // made the change — it isn't an "unread update"), and go back to My
       // Tickets instead of leaving the user parked on a closed detail page.
       if (action === 'close' && onClosed) {
         const fresh = (j && j.id != null) ? j
-          : { ...(st.ticket || {}), id: (st.ticket && st.ticket.id) != null ? st.ticket.id : id, status: 'closed' };
+          : { ...(st.ticket || {}), id: (st.ticket && st.ticket.id) != null ? st.ticket.id : id, status: wire === 'cancel' ? 'cancelled' : 'closed' };
         markTicketSeen(fresh.id, fresh.updated_at || fresh.created_at);
         markTabSeen('tickets', fresh.id, fresh.updated_at || fresh.created_at);
         onClosed(fresh);
@@ -9995,6 +10014,12 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
   const statusLc = String((t && t.status) || '').toLowerCase();
   const isResolved = statusLc === 'resolved';
   const isClosed = statusLc === 'closed';
+  // Declined by an approver, or withdrawn by the requester. Neither of these
+  // was accounted for here, so a declined request offered a "Close" button —
+  // which the module now refuses (cancelled → closed is not a legal
+  // transition) and which never meant anything anyway: pressing it on a
+  // request IT had declined just relabelled the decline.
+  const isCancelled = statusLc === 'cancelled';
   const isPendingApproval = !!t && ticketTypeMeta(t.type).kind === 'request' && statusLc === 'pending';
   // Approval lifecycle state — separate axis from the work status. Use the
   // fetched approval object when present, else infer 'pending' for a request
@@ -10037,12 +10062,19 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
 
   // Close / Reopen buttons — compact, with fixed min-widths so swapping the
   // label to "Closing…"/"Reopening…" while busy never resizes the button (which
-  // would reflow the whole sticky bar). isClosed → Reopen; isResolved → both;
-  // otherwise just Close.
+  // would reflow the whole sticky bar). isCancelled → nothing; isClosed →
+  // Reopen; isResolved → both; otherwise just Close.
   const closeReopenButtons = () => {
     const base = { padding: '5px 11px', fontSize: 11, textAlign: 'center' };
     const reopenBtn = <button key="r" className="btn btn-primary" style={{ ...base, minWidth: 84 }} disabled={!!statusBusy} onClick={() => setConfirmAction('reopen')}>{statusBusy === 'reopen' ? 'Reopening…' : 'Reopen'}</button>;
     const closeBtn = <button key="c" className="btn btn-outline" style={{ ...base, minWidth: isPendingApproval ? 104 : 62 }} disabled={!!statusBusy} onClick={() => setConfirmAction('close')}>{statusBusy === 'close' ? (isPendingApproval ? 'Cancelling…' : 'Closing…') : (isPendingApproval ? 'Cancel request' : 'Close')}</button>;
+    // A cancelled request is done, in both directions, and offers nothing.
+    // Reopen is deliberately NOT offered: on a declined request it would let a
+    // requester walk back IT's decision, and it would leave an open ticket
+    // hanging off a rejected approval. Withdrawals get the same treatment for
+    // consistency — the confirm prompt already tells you to submit a new
+    // request if you change your mind, which is the clean path.
+    if (isCancelled) return null;
     if (isClosed) return reopenBtn;
     if (isResolved) return [reopenBtn, closeBtn];
     return closeBtn;
