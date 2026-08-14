@@ -9658,10 +9658,37 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
 // role-based stage the module returns the role, not the resolved person, so we
 // show the role there; surfacing the literal name needs a module-side change.
 const APPROVER_ROLE_LABEL = { requester_manager: 'Your manager', department_head: 'Department head', it_director: 'IT director', queue_lead: 'Queue lead' };
+
+// Which approval_actions rows are an actual DECISION by a person, versus
+// bookkeeping the engine writes about itself.
+//
+// ⚠️ This distinction was missing, and it broke the block in two ways at once.
+// Bookkeeping rows are written with approver_id='system' / approver_name='System'
+// — which is truthy, so they passed the old `a.approver_name` filter, and then:
+//   1. the label fell through to the raw slug, rendering the meaningless
+//      "approver_overridden by System" to a requester, and
+//   2. because `acted.length` was suddenly non-zero, the function RETURNED EARLY
+//      and never showed the person the stage is actually waiting on — the one
+//      thing this line exists to tell them.
+// So a requester who redirected their own approval saw engine internals instead
+// of the approver they had just chosen.
+//
+// Bookkeeping deliberately excluded: approver_overridden, escalated_unavailable,
+// escalated, rerouted_manager_changed, stage_skipped, blocked_no_approvers, and
+// reminded (a nudge is not a decision — counting it would have hidden the
+// approver the moment anyone pressed Remind).
+const DECISION_ACTION_LABEL = {
+  approved: 'Approved by ',
+  rejected: 'Rejected by ',
+  delegated: 'Delegated by ',
+  auto_approved: 'Auto-approved by ',
+};
 function approverLine(stage, actions, currentApprovers, isCurrent) {
-  const acted = (actions || []).filter((a) => a && a.stage_order === stage.order && a.approver_name);
+  const acted = (actions || []).filter(
+    (a) => a && a.stage_order === stage.order && a.approver_name && DECISION_ACTION_LABEL[a.action]
+  );
   if (acted.length) {
-    return acted.map((a) => (a.action === 'rejected' ? 'Rejected by ' : a.action === 'approved' ? 'Approved by ' : ((a.action || 'Acted') + ' by ')) + a.approver_name).join(' · ');
+    return acted.map((a) => DECISION_ACTION_LABEL[a.action] + a.approver_name).join(' · ');
   }
   // Current pending stage: show the actual approver(s) the module resolved —
   // just the email (or name), no "Waiting on" prefix; styled bold at the call site.
