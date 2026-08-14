@@ -8841,8 +8841,22 @@ function ticketStatusMeta(status) {
     resolved:    { label: 'Resolved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
     closed:      { label: 'Closed',      bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
     approved:    { label: 'Approved',    bg: '#0A8A3E', fg: '#FFFFFF', bd: '#076E31' },
-    rejected:    { label: 'Rejected',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
-    cancelled:   { label: 'Cancelled',   bg: '#211E1E', fg: '#FFFFFF', bd: '#211E1E' },
+    // "Declined" for BOTH, deliberately. A declined request writes two values
+    // for one event — approval_requests.status becomes 'rejected' while
+    // tickets.status becomes 'cancelled' — and this portal shows the approval
+    // status in the slot where the ticket status normally goes. Two different
+    // words for the same outcome, side by side with the agent app saying a third
+    // thing, is what made this read as a bug.
+    //
+    // The stored status is deliberately NOT renamed: 'cancelled' is load-bearing
+    // in automation rules and saved views in the ticket module, so renaming it
+    // would silently break automations people wrote. Relabel here instead.
+    //
+    // 'cancelled' only ever reaches this portal via an approval rejection — the
+    // "Cancel request" button sends `close`, which yields 'closed' — so mapping it
+    // to Declined cannot mislabel a withdrawal.
+    rejected:    { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
+    cancelled:   { label: 'Declined',    bg: '#B92323', fg: '#FFFFFF', bd: '#8E1A1A' },
   };
   return map[s] || { label: status || 'Unknown', bg: '#5C564C', fg: '#FFFFFF', bd: '#46413A' };
 }
