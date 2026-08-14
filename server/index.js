@@ -708,6 +708,37 @@ app.get('/api/catalog/:id', requireSliceUser, async (req, res) => {
   }
 });
 
+// Who will approve this catalog item, for the signed-in user (or the person
+// they're raising it for). Read-only preview — nothing is created.
+//
+// Rendered at the bottom of the request form so the requester can see the
+// approval route BEFORE submitting. Three things used to go wrong silently: the
+// manager on file was out of date, the manager was on multi-week PTO, or the
+// requester had no idea where the request went — each only surfacing after the
+// request sat idle and IT re-pointed the approval by hand.
+//
+// `requested_for` (JSON, same shape as the POST body's) keeps the preview
+// honest on an on-behalf request: approval routes on the BENEFICIARY's manager,
+// not the submitter's.
+app.get('/api/catalog/:id/approval-preview', requireSliceUser, async (req, res) => {
+  let requestedFor = null;
+  if (req.query.requested_for) {
+    try { requestedFor = JSON.parse(String(req.query.requested_for)); } catch { /* preview for self */ }
+  }
+  const requester = resolveRequester(req.user, requestedFor);
+  const params = new URLSearchParams({ requester_id: requester.id });
+  try {
+    const { ok, status, data } = await ticketModuleFetch(
+      'GET',
+      `/catalog/${encodeURIComponent(req.params.id)}/approval-preview?${params}`
+    );
+    if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
+    res.json(data);
+  } catch (err) {
+    ticketProxyError(res, err, 'catalog.approvalPreview');
+  }
+});
+
 // User directory for the "request on behalf of someone" picker. Proxies the
 // module's hub-user search (?q= substring); any signed-in user can look up
 // colleagues to raise a request for.
@@ -765,7 +796,8 @@ app.get('/api/locations/office-for/:userId', requireSliceUser, async (req, res) 
 // is set — on behalf of that person, with the signed-in user as the submitter.
 app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { justification, urgency, form_responses, requested_for, talked_to_agent_id } = req.body ?? {};
+  const { justification, urgency, form_responses, requested_for, talked_to_agent_id,
+    approver_override, approver_override_reason } = req.body ?? {};
   const requester = resolveRequester(u, requested_for);
   try {
     const { ok, status, data } = await ticketModuleFetch('POST', `/catalog/${encodeURIComponent(req.params.id)}/request`, {
@@ -779,6 +811,14 @@ app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
       urgency: urgency || 'medium',
       form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},
       talked_to_agent_id: asAgentId(talked_to_agent_id),
+      // Requester-nominated approver — only ever applied to "requester's
+      // manager" stages by the module, and only with a reason (the module
+      // rejects a bare override, so we pass both through untouched rather than
+      // defaulting the reason to something the requester didn't write).
+      ...(approver_override ? {
+        approver_override: String(approver_override).slice(0, 200),
+        approver_override_reason: String(approver_override_reason || '').slice(0, 1000),
+      } : {}),
     });
     if (!ok || data.status === 'rejected' || data.status === 'error') {
       return res.status(ok ? 400 : status).json({
