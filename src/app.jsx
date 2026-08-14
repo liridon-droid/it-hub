@@ -11040,6 +11040,78 @@ function OfficeLocationField({ value, onChange, beneficiary }) {
 // so any submission flow can drop this in without wiring up its own fetch.
 const AVAILABILITY_LABEL = { vacation: 'On vacation', sick: 'Off sick', off_shift: 'Off shift' };
 
+// Workflow names and stage names are written by different admins at different
+// times and routinely say the same thing ("Requester's Manager Approval" as the
+// workflow, "Requester's Manager" as its only stage). Printing both reads like a
+// bug, so compare them with the filler words stripped and show one.
+// Word-wise so a trailing plural ("Requesters" vs "Requester's") doesn't defeat
+// the comparison — admin-typed names drift on exactly that kind of detail.
+const approvalNorm = (s) => String(s || '')
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, ' ')
+  .split(' ')
+  .filter(Boolean)
+  .filter((w) => !/^(approvals?|approvers?|stage|the|of|for|s)$/.test(w))
+  .map((w) => w.replace(/s$/, ''))
+  .join('');
+const sameApprovalLabel = (a, b) => {
+  const x = approvalNorm(a);
+  const y = approvalNorm(b);
+  return !!x && !!y && (x.includes(y) || y.includes(x));
+};
+
+// Initials for the approver avatar. An email-shaped value (what we show when the
+// directory has no real name) splits on its punctuation, so
+// "betim.grazhdani@slice.com" still reads as BG rather than a lone B.
+function approverInitials(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '?';
+  const source = raw.includes('@') ? raw.split('@')[0] : raw;
+  const words = source.split(/[\s._-]+/).filter(Boolean);
+  const letters = words.slice(0, 2).map((w) => w[0]).join('');
+  return (letters || source[0] || '?').toUpperCase();
+}
+
+// The "change the approver" affordance, as a real button.
+//
+// This started life as a bare text link in the danger red the portal uses for
+// errors — so a neutral, useful action rendered as what looked like a warning,
+// and read as decoration rather than a control. It's now the portal's standard
+// pill: ink outline, cream fill, hard shadow, lifting on hover like every other
+// clickable surface here. `quiet` is the de-emphasised variant for Undo, which
+// shouldn't compete with the primary path.
+function changeBtn(label, onClick, { quiet = false } = {}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-1px,-1px)'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = quiet ? 'none' : '2px 2px 0 #211E1E'; }}
+      onMouseDown={(e) => { e.currentTarget.style.transform = 'translate(1px,1px)'; e.currentTarget.style.boxShadow = '1px 1px 0 #211E1E'; }}
+      onMouseUp={(e) => { e.currentTarget.style.transform = 'translate(-1px,-1px)'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; }}
+      style={{
+        flexShrink: 0,
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '6px 11px', borderRadius: 999, cursor: 'pointer',
+        border: '1px solid ' + (quiet ? '#C9C0AB' : '#211E1E'),
+        background: quiet ? 'transparent' : '#FFFDF4',
+        boxShadow: quiet ? 'none' : '2px 2px 0 #211E1E',
+        color: quiet ? '#78684C' : '#211E1E',
+        fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 10.5,
+        letterSpacing: '0.04em', textTransform: 'uppercase',
+        transition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)',
+      }}
+    >
+      {/* Two-arrow swap glyph — says "route this elsewhere" faster than the
+          label alone, and keeps the button legible at this size. */}
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M4 8h13l-3.5-3.5M20 16H7l3.5 3.5" />
+      </svg>
+      {label}
+    </button>
+  );
+}
+
 // "Who approves this" — shown at the bottom of the catalog request form, right
 // above Submit.
 //
@@ -11105,13 +11177,21 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
     setPicking(false); setQ(''); setResults([]);
   };
 
+  const stages = preview.stages || [];
+  // A single-stage chain needs no "1." and no stage label — the card header
+  // already says Approval, and the one row underneath is self-evidently it.
+  const multiStage = stages.length > 1;
+  const workflowName = (preview.workflow && preview.workflow.name) || '';
+  const showWorkflowName = workflowName
+    && !(stages.length === 1 && sameApprovalLabel(workflowName, stages[0].name));
+
   return (
     <div style={{ ...TK.card, padding: 14, marginTop: 18 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
         <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
           Approval
         </span>
-        <span style={{ fontSize: 11.5, color: '#78684C' }}>{(preview.workflow && preview.workflow.name) || 'Needs approval'}</span>
+        {showWorkflowName && <span style={{ fontSize: 11.5, color: '#78684C' }}>{workflowName}</span>}
       </div>
 
       {preview.unroutable ? (
@@ -11120,62 +11200,113 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
         </p>
       ) : (
         <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
-          {(preview.stages || []).map((stage, i) => {
+          {stages.map((stage, i) => {
             const changeable = !!stage.overridable;
             const showOverride = changeable && override;
             const approvers = stage.approvers || [];
             const anyAway = approvers.some((a) => a.unavailable);
+            // What the row actually shows: the nominee if one was chosen, else
+            // the resolved approver(s), else nothing (the empty state below).
+            const rows = showOverride
+              ? [{ user_id: 'override', name: override.name, email: override.email, chosen: true }]
+              : approvers;
             return (
               <li key={stage.order} style={{ display: 'flex', gap: 10 }}>
-                <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 2, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
-                  {i + 1}
-                </span>
+                {multiStage && (
+                  <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 12, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
+                    {i + 1}
+                  </span>
+                )}
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <p style={{ fontSize: 11.5, fontWeight: 700, color: '#55503F', margin: '0 0 2px' }}>{stage.name}</p>
+                  {multiStage && <p style={{ fontSize: 11.5, fontWeight: 700, color: '#55503F', margin: '0 0 5px' }}>{stage.name}</p>}
 
-                  {showOverride ? (
-                    <p style={{ fontSize: 13.5, color: '#211E1E', margin: 0, fontWeight: 700 }}>
-                      {override.name}
-                      <span style={{ fontWeight: 700, fontSize: 11.5, color: '#78684C', marginLeft: 6 }}>· you chose this</span>
-                    </p>
-                  ) : approvers.length === 0 ? (
-                    <p style={{ fontSize: 13, color: '#9A4A00', margin: 0, lineHeight: 1.45 }}>
-                      {changeable
-                        ? 'We don’t have a manager on file for you — choose who should approve this.'
-                        : 'No approver could be worked out; IT will route this manually.'}
-                    </p>
-                  ) : approvers.map((a) => (
-                    <div key={a.user_id}>
-                      <p style={{ fontSize: 13.5, color: '#211E1E', margin: 0, fontWeight: 700 }}>{a.name}</p>
-                      <p style={{ fontSize: 11.5, color: '#78684C', margin: 0 }}>
-                        {a.email}
-                        {a.unavailable && (
-                          <span style={{ color: '#9A4A00', fontWeight: 700 }}>
-                            {a.email ? ' · ' : ''}
-                            {AVAILABILITY_LABEL[a.status] || a.status}
-                            {a.status_until ? ' until ' + new Date(a.status_until).toLocaleDateString() : ''}
-                          </span>
-                        )}
+                  {rows.length === 0 ? (
+                    // Nobody resolved. On a changeable stage this is the whole
+                    // reason the feature exists, so lead with the action instead
+                    // of hiding it behind a link.
+                    <div style={{ border: '1px dashed #C9A227', borderRadius: 10, background: '#FFFBEB', padding: 12 }}>
+                      <p style={{ fontSize: 13, color: '#7A5A00', margin: 0, lineHeight: 1.45, fontWeight: 700 }}>
+                        {changeable
+                          ? 'We don’t have a manager on file for you.'
+                          : 'No approver could be worked out.'}
                       </p>
+                      <p style={{ fontSize: 12, color: '#8A7040', margin: '3px 0 0', lineHeight: 1.45 }}>
+                        {changeable
+                          ? 'Choose who should approve this so it doesn’t sit waiting.'
+                          : 'IT will route this manually.'}
+                      </p>
+                      {changeable && !picking && (
+                        <div style={{ marginTop: 10 }}>{changeBtn('Choose an approver', () => setPicking(true))}</div>
+                      )}
                     </div>
-                  ))}
+                  ) : rows.map((a) => {
+                    // When the directory has no real name we already fall back
+                    // to the email, so printing it again underneath just shows
+                    // the same address twice.
+                    const subEmail = a.email && a.email !== a.name ? a.email : '';
+                    return (
+                      <div
+                        key={a.user_id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 11,
+                          border: '1px solid ' + (a.chosen ? '#211E1E' : (a.unavailable ? '#E4C868' : '#E6DFCF')),
+                          background: a.chosen ? '#FFFDF4' : (a.unavailable ? '#FFFBEB' : '#FFFFFF'),
+                          borderRadius: 10, padding: '10px 11px',
+                        }}
+                      >
+                        <span style={{
+                          flexShrink: 0, width: 34, height: 34, borderRadius: '50%',
+                          background: '#211E1E', color: '#FDC831',
+                          display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 900,
+                        }}>
+                          {approverInitials(a.name)}
+                        </span>
+
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <p style={{ fontSize: 14, color: '#211E1E', margin: 0, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {a.name}
+                          </p>
+                          {subEmail && (
+                            <p style={{ fontSize: 11.5, color: '#78684C', margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {subEmail}
+                            </p>
+                          )}
+                          {a.chosen && (
+                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
+                              You picked this
+                            </span>
+                          )}
+                          {a.unavailable && (
+                            <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 7px', borderRadius: 999, background: '#FFF1C9', border: '1px solid #C9A227', fontFamily: "'Archivo', sans-serif", fontSize: 9.5, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#7A5A00' }}>
+                              {AVAILABILITY_LABEL[a.status] || a.status}
+                              {a.status_until ? ' until ' + new Date(a.status_until).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : ''}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* The action lives ON the row it changes, as a real
+                            button — it used to be a bare red text link, which
+                            read as an error message rather than something you
+                            could click. */}
+                        {changeable && !picking && (
+                          a.chosen
+                            ? changeBtn('Undo', () => onOverrideChange(null), { quiet: true })
+                            : changeBtn('Change', () => setPicking(true))
+                        )}
+                      </div>
+                    );
+                  })}
 
                   {/* The PTO case, said plainly, at the only moment the
                       requester can still do something about it. */}
-                  {!showOverride && changeable && anyAway && (
-                    <p style={{ fontSize: 11.5, color: '#9A4A00', margin: '4px 0 0', lineHeight: 1.45 }}>
+                  {!showOverride && changeable && anyAway && !picking && (
+                    <p style={{ fontSize: 11.5, color: '#8A7040', margin: '6px 0 0', lineHeight: 1.45 }}>
                       They may not get to this for a while — you can send it to someone else.
                     </p>
                   )}
 
-                  {changeable && !picking && (
-                    <button type="button" onClick={() => (override ? onOverrideChange(null) : setPicking(true))} style={{ ...textActionBtn, marginTop: 5 }}>
-                      {override ? 'Use my usual approver' : 'Send to someone else'}
-                    </button>
-                  )}
-
                   {changeable && picking && (
-                    <div style={{ position: 'relative', marginTop: 6 }}>
+                    <div style={{ position: 'relative', marginTop: 8 }}>
                       <input
                         autoFocus
                         value={q}
@@ -11187,15 +11318,20 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reaso
                         <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 210, overflowY: 'auto' }}>
                           {searching && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
                           {!searching && results.map((u) => (
-                            <button key={u.id} type="button" onClick={() => pick(u)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
-                              <span style={{ fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
-                              {(u.email || u.title) && <span style={{ fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+                            <button key={u.id} type="button" onClick={() => pick(u)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
+                              <span style={{ flexShrink: 0, width: 26, height: 26, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
+                                {approverInitials(u.name || u.email)}
+                              </span>
+                              <span style={{ minWidth: 0 }}>
+                                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
+                                {(u.email || u.title) && <span style={{ display: 'block', fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+                              </span>
                             </button>
                           ))}
                           {!searching && results.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
                         </div>
                       )}
-                      <button type="button" onClick={() => { setPicking(false); setQ(''); }} style={{ ...textActionBtn, marginTop: 5 }}>Cancel</button>
+                      <button type="button" onClick={() => { setPicking(false); setQ(''); }} style={{ ...textActionBtn, color: '#78684C', marginTop: 7 }}>Cancel</button>
                     </div>
                   )}
                 </div>
