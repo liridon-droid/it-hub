@@ -10413,6 +10413,13 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   // to freeform, back to the list, or on to a different item.
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
   React.useEffect(() => { setTalkedToAgentId(''); }, [view]);
+  // Requester-nominated approver: null, or { user_id, name, email, reason }.
+  // Only applies to "requester's manager" approval stages — see ApprovalRoute.
+  // Cleared on every view change for the same reason talkedToAgentId is: a pick
+  // must never survive a switch to another item, the list, or freeform.
+  const [approverOverride, setApproverOverride] = React.useState(null);
+  const [approverReasonErr, setApproverReasonErr] = React.useState('');
+  React.useEffect(() => { setApproverOverride(null); setApproverReasonErr(''); }, [view]);
   // [] = requesting for yourself; otherwise a list of { id, name, email } people.
   // One request is created per person (fan-out) — see RequestedForPicker.
   const [requestedFor, setRequestedFor] = React.useState([]);
@@ -10580,6 +10587,16 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
       setErr('Please add a justification for this request.');
       return;
     }
+    // Changing the approver always needs a reason. The module rejects a bare
+    // override, so catch it here and point at the field rather than surfacing a
+    // generic API error after the fact.
+    const overrideReason = approverOverride ? String(approverOverride.reason || '').trim() : '';
+    if (approverOverride && overrideReason.length < 5) {
+      setApproverReasonErr('Please say why you’re changing the approver.');
+      setErr('Please say why you’re changing the approver.');
+      return;
+    }
+    setApproverReasonErr('');
     setBusy(true); setErr(''); setAttachWarn('');
     try {
       const just = justification.trim();
@@ -10589,6 +10606,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           ...(just ? { justification: just } : {}),
           ...(target ? { requested_for: target } : {}),
           ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
+          ...(approverOverride ? {
+            approver_override: approverOverride.user_id,
+            approver_override_reason: overrideReason,
+          } : {}),
         }));
       if (attachWarned) setAttachWarn(attachWarned);
       setResults(created); setView('done');
@@ -10736,6 +10757,15 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
+        {/* Who approves this — last block before the buttons, so it's what the
+            requester reads just as they commit. */}
+        <ApprovalRoute
+          itemId={item.id}
+          requestedFor={requestedFor}
+          override={approverOverride}
+          onOverrideChange={(next) => { setApproverOverride(next); setApproverReasonErr(''); setErr(''); }}
+          reasonError={approverReasonErr}
+        />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
         <div style={{ display: 'flex', gap: 12, marginTop: 22, justifyContent: 'flex-end' }}>
           <button className="btn btn-outline" onClick={onClose} disabled={busy}>Cancel</button>
@@ -11008,6 +11038,195 @@ function OfficeLocationField({ value, onChange, beneficiary }) {
 // different agent picking it up doesn't duplicate the outreach. Self-fetches
 // the agent directory (active agents only, not the full employee directory)
 // so any submission flow can drop this in without wiring up its own fetch.
+const AVAILABILITY_LABEL = { vacation: 'On vacation', sick: 'Off sick', off_shift: 'Off shift' };
+
+// "Who approves this" — shown at the bottom of the catalog request form, right
+// above Submit.
+//
+// Requesters used to submit blind, and three things went wrong often enough to
+// build this: the manager on file was stale, the manager was on multi-week PTO,
+// or the requester simply didn't know where the request went. Each only surfaced
+// after the request sat idle and IT re-pointed the approval by hand. Showing the
+// route (with availability) turns all three into something the requester fixes
+// in the ten seconds before they submit.
+//
+// `override` is null or { user_id, name, email, reason }, owned by the caller so
+// it can go into the submit body. Only stages the module marks `overridable`
+// (i.e. "requester's manager") can be changed — a stage IT pinned to a named
+// person or group is a deliberate control and renders read-only.
+function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, reasonError }) {
+  const [preview, setPreview] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [picking, setPicking] = React.useState(false);
+  const [q, setQ] = React.useState('');
+  const [results, setResults] = React.useState([]);
+  const [searching, setSearching] = React.useState(false);
+
+  // Approval routes on the BENEFICIARY's manager, so an on-behalf request must
+  // preview against them, not the submitter. Serialised the same way the submit
+  // body sends it. Fan-out to several people previews the first — one nomination
+  // covers the whole submission anyway.
+  const target = (Array.isArray(requestedFor) && requestedFor.length > 0) ? requestedFor[0] : null;
+  const targetKey = target ? JSON.stringify({ id: target.id, name: target.name, email: target.email }) : '';
+
+  React.useEffect(() => {
+    let off = false;
+    setLoading(true);
+    const qs = targetKey ? '?requested_for=' + encodeURIComponent(targetKey) : '';
+    ticketsApiJson('GET', '/api/catalog/' + encodeURIComponent(itemId) + '/approval-preview' + qs)
+      .then((j) => { if (!off) setPreview(j); })
+      .catch(() => { if (!off) setPreview(null); })
+      .finally(() => { if (!off) setLoading(false); });
+    return () => { off = true; };
+  }, [itemId, targetKey]);
+
+  React.useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) { setResults([]); setSearching(false); return; }
+    let off = false; setSearching(true);
+    const h = setTimeout(() => {
+      ticketsApiJson('GET', '/api/users?q=' + encodeURIComponent(term))
+        .then((j) => { if (!off) setResults(Array.isArray(j.users) ? j.users.slice(0, 6) : []); })
+        .catch(() => { if (!off) setResults([]); })
+        .finally(() => { if (!off) setSearching(false); });
+    }, 250);
+    return () => { off = true; clearTimeout(h); };
+  }, [q]);
+
+  if (loading) {
+    return <p style={{ fontSize: 12.5, color: '#78684C', margin: '18px 0 0' }}>Checking who needs to approve this…</p>;
+  }
+  // A failed preview must never block the request — submitting still works and
+  // the module routes it exactly as it did before this existed.
+  if (!preview || !preview.requires_approval) return null;
+
+  const pick = (u) => {
+    onOverrideChange({ user_id: String(u.id), name: u.name || u.email || String(u.id), email: u.email || '', reason: (override && override.reason) || '' });
+    setPicking(false); setQ(''); setResults([]);
+  };
+
+  return (
+    <div style={{ ...TK.card, padding: 14, marginTop: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+        <span style={{ fontFamily: "'Archivo', sans-serif", fontWeight: 800, fontSize: 11, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#211E1E' }}>
+          Approval
+        </span>
+        <span style={{ fontSize: 11.5, color: '#78684C' }}>{(preview.workflow && preview.workflow.name) || 'Needs approval'}</span>
+      </div>
+
+      {preview.unroutable ? (
+        <p style={{ fontSize: 13, color: '#9A4A00', margin: 0, lineHeight: 1.5 }}>
+          This needs approval, but no approval route is set up for it yet — IT will sort out who signs off.
+        </p>
+      ) : (
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 12 }}>
+          {(preview.stages || []).map((stage, i) => {
+            const changeable = !!stage.overridable;
+            const showOverride = changeable && override;
+            const approvers = stage.approvers || [];
+            const anyAway = approvers.some((a) => a.unavailable);
+            return (
+              <li key={stage.order} style={{ display: 'flex', gap: 10 }}>
+                <span style={{ flexShrink: 0, width: 20, height: 20, marginTop: 2, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 10.5, fontWeight: 900 }}>
+                  {i + 1}
+                </span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ fontSize: 11.5, fontWeight: 700, color: '#55503F', margin: '0 0 2px' }}>{stage.name}</p>
+
+                  {showOverride ? (
+                    <p style={{ fontSize: 13.5, color: '#211E1E', margin: 0, fontWeight: 700 }}>
+                      {override.name}
+                      <span style={{ fontWeight: 700, fontSize: 11.5, color: '#78684C', marginLeft: 6 }}>· you chose this</span>
+                    </p>
+                  ) : approvers.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#9A4A00', margin: 0, lineHeight: 1.45 }}>
+                      {changeable
+                        ? 'We don’t have a manager on file for you — choose who should approve this.'
+                        : 'No approver could be worked out; IT will route this manually.'}
+                    </p>
+                  ) : approvers.map((a) => (
+                    <div key={a.user_id}>
+                      <p style={{ fontSize: 13.5, color: '#211E1E', margin: 0, fontWeight: 700 }}>{a.name}</p>
+                      <p style={{ fontSize: 11.5, color: '#78684C', margin: 0 }}>
+                        {a.email}
+                        {a.unavailable && (
+                          <span style={{ color: '#9A4A00', fontWeight: 700 }}>
+                            {a.email ? ' · ' : ''}
+                            {AVAILABILITY_LABEL[a.status] || a.status}
+                            {a.status_until ? ' until ' + new Date(a.status_until).toLocaleDateString() : ''}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  ))}
+
+                  {/* The PTO case, said plainly, at the only moment the
+                      requester can still do something about it. */}
+                  {!showOverride && changeable && anyAway && (
+                    <p style={{ fontSize: 11.5, color: '#9A4A00', margin: '4px 0 0', lineHeight: 1.45 }}>
+                      They may not get to this for a while — you can send it to someone else.
+                    </p>
+                  )}
+
+                  {changeable && !picking && (
+                    <button type="button" onClick={() => (override ? onOverrideChange(null) : setPicking(true))} style={{ ...textActionBtn, marginTop: 5 }}>
+                      {override ? 'Use my usual approver' : 'Send to someone else'}
+                    </button>
+                  )}
+
+                  {changeable && picking && (
+                    <div style={{ position: 'relative', marginTop: 6 }}>
+                      <input
+                        autoFocus
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Who should approve this? Name or email…"
+                        style={TK.field}
+                      />
+                      {q.trim().length >= 2 && (
+                        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 210, overflowY: 'auto' }}>
+                          {searching && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
+                          {!searching && results.map((u) => (
+                            <button key={u.id} type="button" onClick={() => pick(u)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
+                              <span style={{ fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
+                              {(u.email || u.title) && <span style={{ fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+                            </button>
+                          ))}
+                          {!searching && results.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
+                        </div>
+                      )}
+                      <button type="button" onClick={() => { setPicking(false); setQ(''); }} style={{ ...textActionBtn, marginTop: 5 }}>Cancel</button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+
+      {/* Reason is REQUIRED, not optional. A requester influencing their own
+          approval route is only acceptable on the record: this text goes into
+          the approval audit trail AND into the notice sent to the manager who
+          would otherwise have been asked. */}
+      {override && (
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #F0EBE0' }}>
+          <label style={{ ...TK.label, marginTop: 0 }}>Why are you changing the approver? <span style={{ color: '#B92323' }}>*</span></label>
+          <textarea
+            style={{ ...TK.field, minHeight: 58, resize: 'vertical', borderColor: reasonError ? '#B92323' : '#211E1E' }}
+            value={override.reason || ''}
+            onChange={(e) => onOverrideChange({ ...override, reason: e.target.value })}
+            placeholder="e.g. My manager is on leave until 12 September"
+          />
+          <p style={{ fontSize: 11.5, color: reasonError ? '#B92323' : '#78684C', margin: '6px 0 0', lineHeight: 1.45 }}>
+            {reasonError || 'Your usual approver is told about the change, so keep it accurate.'}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TalkedToAgentPicker({ value, onChange }) {
   const [agents, setAgents] = React.useState(null); // null = loading; [] = failed / none
   const [err, setErr] = React.useState('');
