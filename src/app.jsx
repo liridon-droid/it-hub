@@ -10426,6 +10426,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   // [] = requesting for yourself; otherwise a list of { id, name, email } people.
   // One request is created per person (fan-out) — see RequestedForPicker.
   const [requestedFor, setRequestedFor] = React.useState([]);
+  // True while "for someone else" is chosen but nobody has been named yet —
+  // submitting then would raise it for the requester, which is not what they said.
+  const [recipientMissing, setRecipientMissing] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState('');
   const [results, setResults] = React.useState([]); // created ticket(s) shown on the done view
@@ -10593,6 +10596,10 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
     // Changing the approver always needs a reason. The module rejects a bare
     // override, so catch it here and point at the field rather than surfacing a
     // generic API error after the fact.
+    if (recipientMissing) {
+      setErr('Choose who this request is for, or switch it back to yourself.');
+      return;
+    }
     // Approver's account is disabled and nobody has been nominated. The module
     // enforces this too; catching it here points at the control to use instead of
     // surfacing a bare API error.
@@ -10630,6 +10637,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
 
   const submitFreeform = async () => {
     if (!ffSubject.trim()) { setErr('Please add a short summary of what you need.'); return; }
+    if (recipientMissing) { setErr('Choose who this request is for, or switch it back to yourself.'); return; }
     setBusy(true); setErr(''); setAttachWarn('');
     try {
       const { created, attachWarned } = await fanOut((target) =>
@@ -10718,7 +10726,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <input style={TK.field} value={ffSubject} onChange={(e) => setFfSubject(e.target.value)} placeholder="e.g. Access to Figma" autoFocus />
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
-        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
+        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
         <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
@@ -10742,7 +10750,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
             Needs approval
           </div>
         )}
-        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} />
+        <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
         {visibleFields.map((f) => {
           // static_text is rendered copy, not an input — no label, no asterisk.
           if (String(f.type || '').toLowerCase() === 'static_text') {
@@ -11460,17 +11468,37 @@ function TalkedToAgentPicker({ value, onChange }) {
 // person becomes a separate request (fan-out) at submit time — the caller loops
 // over this list. The server records the signed-in user as the submitter on
 // every one, so on-behalf requests stay auditable.
-function RequestedForPicker({ value, onChange, self }) {
+function RequestedForPicker({ value, onChange, self, onIncompleteChange }) {
   // Tolerate the older single-object/null shape in case a caller isn't updated.
   const people = Array.isArray(value) ? value : (value ? [value] : []);
   const [q, setQ] = React.useState('');
   const [results, setResults] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState('');
+  // Has the requester said "this isn't for me"? Distinct from an empty list:
+  // pressing the button drops them from the list AND opens the search, and we
+  // need to tell that apart from a list that merely happens to be empty.
+  const [forOthers, setForOthers] = React.useState(people.length > 0 && !people.some((p) => self && String(p.id) === String(self.id)));
+  const searchRef = React.useRef(null);
 
   const selfId = self && self.id != null ? String(self.id) : '';
   const has = (id) => people.some((p) => String(p.id) === String(id));
   const selfPicked = selfId && has(selfId);
+
+  // ⚠️ The old version rendered a DASHED CHIP with the requester's own name
+  // whenever the list was empty — while `[]` is precisely what the submit path
+  // reads as "for me". So it looked like you were in the list when you weren't
+  // a member of it at all, and adding a colleague turned the list into
+  // [them], silently dropping you: one ticket for them, none for you, having
+  // just shown you as included. The "+ Add myself" button next to it was a
+  // no-op for the same reason ([] and [you] both create one ticket for you),
+  // which is why it read as nonsense.
+  //
+  // Now the requester is either genuinely in the list or genuinely not, and the
+  // UI only ever describes that. `[]` still means "for me" on the wire, so the
+  // API contract is untouched — the collapsed row below is the honest rendering
+  // of that state rather than a decoration standing in for it.
+  const collapsed = !forOthers && people.length === 0;
 
   React.useEffect(() => {
     const term = q.trim();
@@ -11490,42 +11518,143 @@ function RequestedForPicker({ value, onChange, self }) {
     onChange([...people, { id: u.id, name: u.name, email: u.email }]);
     setQ(''); setResults([]);
   };
-  const remove = (id) => onChange(people.filter((p) => String(p.id) !== String(id)));
-  const addSelf = () => { if (self && self.id != null) add(self); };
+  const remove = (id) => {
+    const next = people.filter((p) => String(p.id) !== String(id));
+    onChange(next);
+    // Emptied it out entirely → fall back to the quiet "for you" default rather
+    // than leaving a bare search box with no stated recipient.
+    if (next.length === 0) { setForOthers(false); setQ(''); setResults([]); }
+  };
+  // ⚠️ "for someone else, nobody picked yet" is an INCOMPLETE state, not "for
+  // me". The wire format uses [] for "for me", so without telling the parent, a
+  // requester who pressed the button and picked nobody would silently submit a
+  // request for themselves — the exact confusion this redesign removes.
+  React.useEffect(() => {
+    if (onIncompleteChange) onIncompleteChange(forOthers && people.length === 0);
+  }, [forOthers, people.length]);
 
-  const chip = (label, id, { removable = true, dashed = false } = {}) => (
-    <span key={id || label} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: removable ? '6px 8px 6px 8px' : '6px 12px 6px 8px', border: '1px solid ' + (dashed ? '#C9C0AB' : '#211E1E'), borderStyle: dashed ? 'dashed' : 'solid', borderRadius: 999, background: '#FFFDF4', fontSize: 13.5, fontWeight: 700, color: dashed ? '#78684C' : '#211E1E' }}>
-      <span style={{ width: 22, height: 22, borderRadius: '50%', background: dashed ? '#C9C0AB' : '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 900 }}>{String(label || '?').charAt(0).toUpperCase()}</span>
-      {label}
-      {removable && <button type="button" onClick={() => remove(id)} aria-label={'Remove ' + label} style={{ marginLeft: 2, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#78684C', fontSize: 16, lineHeight: 1, fontWeight: 700 }}>×</button>}
+  const startForOthers = () => {
+    setForOthers(true);
+    onChange([]);                 // you are out the moment you say it isn't for you
+    setTimeout(() => searchRef.current && searchRef.current.focus(), 0);
+  };
+  const backToMe = () => { setForOthers(false); onChange([]); setQ(''); setResults([]); };
+
+  const ini = (v) => {
+    const raw = String(v || '').trim();
+    if (!raw) return '?';
+    const src = raw.includes('@') ? raw.split('@')[0] : raw;
+    const w = src.split(/[\s._-]+/).filter(Boolean);
+    return (w.slice(0, 2).map((x) => x[0]).join('') || src[0]).toUpperCase();
+  };
+  const avatar = (label, size) => (
+    <span style={{ flexShrink: 0, width: size, height: size, borderRadius: '50%', background: '#211E1E', color: '#FDC831', display: 'grid', placeItems: 'center', fontSize: size <= 26 ? 10.5 : 12.5, fontWeight: 900 }}>
+      {ini(label)}
     </span>
   );
+  const youTag = (
+    <span style={{ display: 'inline-block', marginLeft: 6, padding: '1px 6px', borderRadius: 999, background: '#FDC831', border: '1px solid #211E1E', fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', verticalAlign: 1.5 }}>You</span>
+  );
+  const ell = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
 
-  // Directory hits already in the list are hidden from the dropdown.
+  // ── Default: it's for you. A statement, not a control. ──
+  if (collapsed) {
+    return (
+      <div style={{ marginBottom: 4 }}>
+        <label style={{ ...TK.label, marginBottom: 9 }}>Requesting for</label>
+        {/* flexWrap + the ellipsised middle block keep the button on the row: a
+            long name can never push it off, and under ~380px it drops to its own
+            line at full size instead of being squashed. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {avatar(self && (self.name || self.email), 34)}
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>
+              {(self && self.name) || 'You'}{youTag}
+            </p>
+            {self && self.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{self.email}</p>}
+          </span>
+          <button
+            type="button"
+            onClick={startForOthers}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-1px,-1px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '3px 3px 0 #211E1E'; }}
+            style={{ flexShrink: 0, maxWidth: '100%', display: 'inline-flex', alignItems: 'center', gap: 7, border: '1px solid #211E1E', background: '#FFFDF4', boxShadow: '3px 3px 0 #211E1E', borderRadius: 9, padding: '9px 13px', fontFamily: 'inherit', fontSize: 12, fontWeight: 800, color: '#211E1E', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'transform .14s cubic-bezier(.22,.61,.36,1), box-shadow .14s cubic-bezier(.22,.61,.36,1)' }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" />
+            </svg>
+            Request this for someone else
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Someone else (or several). ──
   const shown = results.filter((u) => !has(u.id));
-
+  const n = people.length;
   return (
     <div style={{ marginBottom: 4 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-        <label style={TK.label}>Requesting for</label>
-        {selfId && !selfPicked && <button type="button" onClick={addSelf} style={textActionBtn}>+ Add myself</button>}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
+        <label style={{ ...TK.label, marginTop: 0, marginBottom: 0 }}>Who is this for?</label>
+        {n > 1 && (
+          <span style={{ fontFamily: "'Archivo', sans-serif", fontSize: 10.5, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#FDC831', border: '1px solid #211E1E', borderRadius: 999, padding: '3px 9px', whiteSpace: 'nowrap' }}>
+            {n} requests
+          </span>
+        )}
+        {n === 0 && <button type="button" onClick={backToMe} style={textActionBtn}>Actually, it’s for me</button>}
+        {/* Only offered once they're down this path — on the default screen it
+            would be meaningless, which is what made "+ Add myself" nonsense. */}
+        {n > 0 && n <= 1 && selfId && !selfPicked && (
+          <button type="button" onClick={() => onChange([{ id: self.id, name: self.name, email: self.email }, ...people])} style={textActionBtn}>＋ Include me too</button>
+        )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-        {people.length === 0
-          ? chip(self && self.name ? self.name + ' (you)' : 'Yourself', selfId || 'self', { removable: false, dashed: true })
-          : people.map((p) => chip(String(p.id) === selfId ? (p.name || 'You') + ' (you)' : (p.name || p.email || p.id), p.id))}
-      </div>
+      {n > 0 && (
+        <div style={{ border: '1px solid #211E1E', borderRadius: 10, overflow: 'hidden' }}>
+          {people.map((p) => {
+            const isSelf = selfId && String(p.id) === selfId;
+            const only = n === 1;
+            return (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '9px 11px', borderTop: '1px solid #F0EBE0' }}>
+                {avatar(p.name || p.email, 30)}
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 13.5, fontWeight: 700, ...ell }}>{p.name || p.email || p.id}{isSelf ? youTag : null}</p>
+                  {p.email && <p style={{ margin: '1px 0 0', fontSize: 11.5, color: '#78684C', ...ell }}>{p.email}</p>}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => remove(p.id)}
+                  disabled={only}
+                  title={only ? 'Remove this and the request goes back to being for you' : 'Remove ' + (p.name || p.email)}
+                  style={{ flexShrink: 0, border: '1px solid #C9C0AB', background: 'transparent', borderRadius: 999, padding: '4px 9px', fontFamily: 'inherit', fontSize: 10, fontWeight: 800, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#78684C', cursor: only ? 'pointer' : 'pointer', opacity: 1 }}
+                >
+                  Remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-      <div style={{ position: 'relative' }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Add a colleague by name or email…" style={TK.field} />
+      <div style={{ position: 'relative', marginTop: n > 0 ? 9 : 0 }}>
+        <input
+          ref={searchRef}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={n > 0 ? 'Add another person…' : 'Search by name or email…'}
+          style={TK.field}
+        />
         {q.trim().length >= 2 && (
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 30, background: '#fff', border: '1px solid #211E1E', borderRadius: 8, boxShadow: '3px 3px 0 #211E1E', overflow: 'hidden', maxHeight: 248, overflowY: 'auto' }}>
             {loading && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>Searching…</div>}
             {!loading && shown.map((u) => (
-              <button key={u.id} type="button" onClick={() => add(u)} style={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
-                <span style={{ fontSize: 13.5, fontWeight: 700, color: '#211E1E' }}>{u.name || u.email || u.id}</span>
-                {(u.email || u.title) && <span style={{ fontSize: 11.5, color: '#78684C' }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+              <button key={u.id} type="button" onClick={() => add(u)} style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', borderTop: '1px solid #F0EBE0', background: '#fff', cursor: 'pointer' }}>
+                {avatar(u.name || u.email, 26)}
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: '#211E1E', ...ell }}>{u.name || u.email || u.id}</span>
+                  {(u.email || u.title) && <span style={{ display: 'block', fontSize: 11.5, color: '#78684C', ...ell }}>{[u.title, u.email].filter(Boolean).join(' · ')}</span>}
+                </span>
               </button>
             ))}
             {!loading && shown.length === 0 && <div style={{ padding: '10px 12px', fontSize: 13, color: '#78684C' }}>No matches.</div>}
@@ -11534,11 +11663,20 @@ function RequestedForPicker({ value, onChange, self }) {
         {err && <p style={{ color: '#B92323', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
       </div>
 
-      <p style={{ fontSize: 12, color: '#78684C', margin: '8px 0 0', lineHeight: 1.45 }}>
-        {people.length <= 1
-          ? 'One request will be created. Add colleagues to raise the same request for each of them.'
-          : people.length + ' separate requests will be created — one per person.'}
-      </p>
+      {n === 0 ? (
+        <div style={{ border: '1px dashed #C9C0AB', borderRadius: 10, padding: 13, textAlign: 'center', background: '#FCFBF7', marginTop: 9 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>Nobody chosen yet</p>
+          <span style={{ display: 'block', marginTop: 2, fontSize: 11.5, color: '#78684C' }}>Start typing a name above to find them.</span>
+        </div>
+      ) : (
+        <p style={{ fontSize: 11.5, margin: '9px 0 0', lineHeight: 1.45, color: selfPicked ? '#78684C' : '#8E5A00', fontWeight: selfPicked ? 400 : 600 }}>
+          {selfPicked
+            ? (n === 1 ? 'One ticket, raised for you.' : n + ' separate tickets, one per person.')
+            : (n === 1
+                ? '1 ticket, for ' + (people[0].name || people[0].email) + '. You won’t get one.'
+                : n + ' tickets, one each. None for you.')}
+        </p>
+      )}
     </div>
   );
 }
