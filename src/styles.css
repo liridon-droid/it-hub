@@ -899,6 +899,25 @@
   .tkt-row .tkt-app-icon { transition: transform .2s var(--ease); }
   .tkt-row:hover .tkt-app-icon { transform: scale(1.14); }
 
+  /* Service catalog tiles — same idea as the ticket rows above, a shade
+     gentler: the tile itself lifts and its shadow deepens (handled inline),
+     so the icon only needs to come with it rather than perform on its own.
+     1.08 next to the row's 1.14 because a 36px logo travels further in
+     pixels than a 24px one at the same ratio. */
+  .cat-tile .cat-tile-icon { transition: transform .2s var(--ease); }
+  .cat-tile:hover .cat-tile-icon,
+  .cat-tile:focus-visible .cat-tile-icon { transform: scale(1.08); }
+
+  /* Nothing here is load-bearing — every hover effect in this file is
+     decoration on top of a state that reads fine without it. */
+  @media (prefers-reduced-motion: reduce) {
+    .cat-tile, .cat-tile .cat-tile-icon,
+    .tkt-row .tkt-app-icon, .chip-flat svg {
+      transition: none !important;
+      transform: none !important;
+    }
+  }
+
   .pill-flat {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 3px 10px;
