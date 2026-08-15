@@ -8231,6 +8231,7 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
   const [priority, setPriority] = React.useState(draft.priority || "medium");
   const [attachFiles, setAttachFiles] = React.useState([]);
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
+  const [talkedToNote, setTalkedToNote] = React.useState('');
   const [busy, setBusy] = React.useState(false);
   const [busyLabel, setBusyLabel] = React.useState("Submitting…");
   const [result, setResult] = React.useState(null);
@@ -8250,7 +8251,7 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
       // ticket id). A failed upload doesn't lose the ticket — we just warn.
       const data = await ticketsApiJson("POST", "/api/tickets", {
         subject: subject.trim(), description: description.trim(), type, priority,
-        ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
+        ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
       });
       if (attachFiles.length && (data.id || data.ticket_number)) {
         setBusyLabel("Uploading attachments…");
@@ -8323,7 +8324,7 @@ function NewTicketModal({ onClose, onCreated, draft = {} }) {
           </select>
         </div>
       </div>
-      <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
+      <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
       <label style={label}>Attachments <span style={{ fontWeight: 500, color: "#9A8E78" }}>(optional)</span></label>
       <div style={hint}>A screenshot or screen recording helps us help you faster.</div>
       <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
@@ -10485,6 +10486,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   // view change (not just pickItem) so a selection never survives a switch
   // to freeform, back to the list, or on to a different item.
   const [talkedToAgentId, setTalkedToAgentId] = React.useState('');
+  const [talkedToNote, setTalkedToNote] = React.useState('');
   React.useEffect(() => { setTalkedToAgentId(''); }, [view]);
   // Requester-nominated approver: null, or { user_id, name, email, reason }.
   // Only applies to "requester's manager" approval stages — see ApprovalRoute.
@@ -10695,7 +10697,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           urgency, form_responses: formResponses,
           ...(just ? { justification: just } : {}),
           ...(target ? { requested_for: target } : {}),
-          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
+          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
           ...(approverOverride ? {
             approver_override: approverOverride.user_id,
             approver_override_reason: overrideReason,
@@ -10717,7 +10719,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         ticketsApiJson('POST', '/api/tickets', {
           subject: ffSubject.trim(), description: ffDesc.trim(), type: 'service_request', priority: 'medium',
           ...(target ? { requested_for: target } : {}),
-          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId } : {}),
+          ...(talkedToAgentId ? { talked_to_agent_id: talkedToAgentId, talked_to_note: talkedToNote } : {}),
         }));
       if (attachWarned) setAttachWarn(attachWarned);
       setResults(created); setView('done');
@@ -10800,7 +10802,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
         <label style={TK.label}>Any details? (optional)</label>
         <textarea style={{ ...TK.field, minHeight: 120, resize: 'vertical' }} value={ffDesc} onChange={(e) => setFfDesc(e.target.value)} placeholder="Why you need it, which team, how soon…" />
         <RequestedForPicker value={requestedFor} onChange={setRequestedFor} self={self} onIncompleteChange={setRecipientMissing} />
-        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
+        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {err && <p style={{ color: '#B92323', fontSize: 13.5, margin: '14px 0 0' }}>{err}</p>}
@@ -10845,7 +10847,7 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           <option value="medium">Medium</option>
           <option value="high">High</option>
         </select>
-        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} />
+        <TalkedToAgentPicker value={talkedToAgentId} onChange={setTalkedToAgentId} note={talkedToNote} onNoteChange={setTalkedToNote} />
         <label style={TK.label}>Attachments (optional)</label>
         <AttachmentPicker files={attachFiles} onChange={setAttachFiles} disabled={busy} />
         {/* Who approves this — last block before the buttons, so it's what the
@@ -11511,7 +11513,7 @@ function ApprovalRoute({ itemId, requestedFor, override, onOverrideChange, onBlo
   );
 }
 
-function TalkedToAgentPicker({ value, onChange }) {
+function TalkedToAgentPicker({ value, onChange, note, onNoteChange }) {
   const [agents, setAgents] = React.useState(null); // null = loading; [] = failed / none
   const [err, setErr] = React.useState('');
 
@@ -11530,6 +11532,30 @@ function TalkedToAgentPicker({ value, onChange }) {
         <option value="">{agents === null ? 'Loading agents…' : 'No one yet'}</option>
         {(agents || []).map((a) => <option key={a.user_id} value={a.user_id}>{a.display_name || a.user_id}</option>)}
       </select>
+      {/* The note only exists once someone is picked — asking what you
+          discussed before you've said who you discussed it with is noise on a
+          form most people leave alone entirely.
+
+          It matters more than the name does: "Ana already knows" still leaves
+          the agent picking this up having to go and ask what the conversation
+          was, which is most of the duplicate outreach this field exists to
+          prevent. 500 to match the server's cap, so the browser stops you
+          rather than the server silently truncating. */}
+      {value && (
+        <div style={{ marginTop: 8 }}>
+          <textarea
+            value={note || ''}
+            onChange={(e) => onNoteChange && onNoteChange(e.target.value)}
+            maxLength={500}
+            rows={2}
+            placeholder="What did you discuss? (optional)"
+            style={{ ...TK.field, resize: 'vertical', minHeight: 56, fontFamily: 'inherit' }}
+          />
+          <p style={{ color: '#78684C', fontSize: 12, margin: '4px 0 0' }}>
+            Saves the IT team asking you to repeat it.
+          </p>
+        </div>
+      )}
       {err && <p style={{ color: '#9A4A00', fontSize: 12.5, margin: '6px 0 0' }}>{err}</p>}
     </>
   );
