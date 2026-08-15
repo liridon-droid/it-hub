@@ -8130,9 +8130,13 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
   // Optional logo/icon in the header (e.g. the catalog app's icon_url). A string
   // is treated as an image URL (hidden if it fails to load); a node renders as-is.
   const logo = !icon ? null : (
-    <span style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 9, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden" }}>
+    // Scaled with PageShell's (60/38). It's the same catalog icon in the modal
+    // presentation of the same header, so leaving one behind would make the
+    // logo change size depending on which shell happened to render. A shade
+    // smaller than the page version, because a modal header band is tighter.
+    <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 12, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden" }}>
       {typeof icon === "string"
-        ? <img src={icon} alt="" width="26" height="26" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ? <img src={icon} alt="" width="34" height="34" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
         : icon}
     </span>
   );
@@ -8174,10 +8178,15 @@ function ModalShell({ title, kicker, onClose, children, maxWidth = 540, icon }) 
 // instead of a modal overlay. Content width is fixed so it never jumps between
 // the flow's steps. `maxWidth` is accepted for API parity but ignored here.
 function PageShell({ title, kicker, onClose, children, icon, backLabel = "Back" }) {
+  // 44 → 60, with the logo inside going 28 → 38. It sits next to a 34px
+  // weight-900 title, and at 44 it read as a bullet point beside the name
+  // rather than the product's own mark. The offset shadow steps 2 → 3 with
+  // it: a hard shadow that doesn't scale with its object starts looking like
+  // a printing error at larger sizes rather than a deliberate edge.
   const logo = !icon ? null : (
-    <span style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 10, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "2px 2px 0 #211E1E" }}>
+    <span style={{ width: 60, height: 60, flexShrink: 0, borderRadius: 13, background: "#FFFFFF", border: "1px solid #211E1E", display: "grid", placeItems: "center", overflow: "hidden", boxShadow: "3px 3px 0 #211E1E" }}>
       {typeof icon === "string"
-        ? <img src={icon} alt="" width="28" height="28" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ? <img src={icon} alt="" width="38" height="38" style={{ objectFit: "contain", display: "block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
         : icon}
     </span>
   );
@@ -8185,7 +8194,7 @@ function PageShell({ title, kicker, onClose, children, icon, backLabel = "Back" 
     <div className="page" style={{ background: "#FDC831", display: "flex", flexDirection: "column" }}>
       <div style={{ background: "#F7F4EF", borderBottom: "1px solid #211E1E", padding: "34px 32px" }}>
         <div style={{ maxWidth: 1120, margin: "0 auto", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, minWidth: 0 }}>
             {logo}
             <div style={{ minWidth: 0 }}>
               {kicker && <div className="eyebrow" style={{ color: "#78684C", fontSize: 10, marginBottom: 8 }}>{kicker}</div>}
@@ -10973,17 +10982,27 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
           ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
             {shown.map((it) => (
-              <button key={it.id} onClick={() => pickItem(it)} disabled={itemBusy}
-                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-2px,-2px)'; e.currentTarget.style.boxShadow = '4px 4px 0 #211E1E'; }}
+              <button key={it.id} className="cat-tile" onClick={() => pickItem(it)} disabled={itemBusy}
+                /* Lift, deepen the shadow, and grow a hair. The lift and the
+                   hard-shadow step are this design's own language; the 1.5%
+                   scale is what makes it read as the card coming toward you
+                   rather than just sliding. Any more and the text visibly
+                   resamples. */
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translate(-2px,-2px) scale(1.015)'; e.currentTarget.style.boxShadow = '5px 5px 0 #211E1E'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '2px 2px 0 #211E1E'; }}
                 style={{
                 ...TK.card, boxShadow: '2px 2px 0 #211E1E', textAlign: 'left', cursor: 'pointer', padding: '14px 16px',
                 display: 'flex', flexDirection: 'column', gap: 6, minHeight: 96, transition: TK.rowTransition,
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                {/* 26 → 36. The logo is how people find the thing they want —
+                    most of them are scanning for the 1Password or Figma mark,
+                    not reading the names — and at 26px a detailed logo was
+                    resolving to a smudge. The fallback initial grows with it
+                    so a catalog with mixed icon coverage stays on one grid. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                   {it.icon_url
-                    ? <img src={it.icon_url} alt="" width="26" height="26" style={{ borderRadius: 6, objectFit: 'contain' }} />
-                    : <span style={{ width: 26, height: 26, borderRadius: 6, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif", fontSize: 13 }}>{String(it.name || '?').charAt(0)}</span>}
+                    ? <img className="cat-tile-icon" src={it.icon_url} alt="" width="36" height="36" style={{ borderRadius: 8, objectFit: 'contain', display: 'block' }} />
+                    : <span className="cat-tile-icon" style={{ width: 36, height: 36, borderRadius: 8, background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center', fontWeight: 900, fontFamily: "'Archivo', sans-serif", fontSize: 17 }}>{String(it.name || '?').charAt(0)}</span>}
                   <span style={{ fontWeight: 800, fontSize: 14, color: '#211E1E', letterSpacing: '-0.01em' }}>{it.name}</span>
                 </div>
                 {it.description && <span style={{ fontSize: 12, color: '#78684C', lineHeight: 1.4, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{it.description}</span>}
