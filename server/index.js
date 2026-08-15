@@ -195,10 +195,21 @@ function asAgentId(v) {
   return typeof v === 'string' && v ? v : undefined;
 }
 
+// Free text the requester typed about what they discussed. Same shape rule as
+// asAgentId — a non-string is dropped rather than coerced, so what's forwarded
+// is byte-for-byte what arrived. Bounded here as well as in the module: the
+// module trims and caps at 500 too, but a proxy shouldn't relay an unbounded
+// string just because something downstream will deal with it.
+function asTalkedToNote(v) {
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim().slice(0, 500);
+  return t || undefined;
+}
+
 // Create a ticket — the "issue" path (incident) or a freeform service request.
 app.post('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { subject, description, type, priority, requested_for, talked_to_agent_id } = req.body ?? {};
+  const { subject, description, type, priority, requested_for, talked_to_agent_id, talked_to_note } = req.body ?? {};
   if (!subject || !String(subject).trim()) {
     return res.status(400).json({ error: 'A subject is required.' });
   }
@@ -218,6 +229,7 @@ app.post('/api/tickets', requireSliceUser, async (req, res) => {
       submitter_name: u.name,
       submitter_email: u.email,
       talked_to_agent_id: asAgentId(talked_to_agent_id),
+      talked_to_note: asTalkedToNote(talked_to_note),
     });
     // The ticket module returns an envelope: { status, message, ticket }.
     if (!ok || data.status === 'rejected' || data.status === 'error') {
@@ -832,7 +844,7 @@ app.get('/api/locations/office-for/:userId', requireSliceUser, async (req, res) 
 // is set — on behalf of that person, with the signed-in user as the submitter.
 app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
   const u = req.user;
-  const { justification, urgency, form_responses, requested_for, talked_to_agent_id,
+  const { justification, urgency, form_responses, requested_for, talked_to_agent_id, talked_to_note,
     approver_override, approver_override_reason } = req.body ?? {};
   const requester = resolveRequester(u, requested_for);
   try {
@@ -847,6 +859,7 @@ app.post('/api/catalog/:id/request', requireSliceUser, async (req, res) => {
       urgency: urgency || 'medium',
       form_responses: (form_responses && typeof form_responses === 'object') ? form_responses : {},
       talked_to_agent_id: asAgentId(talked_to_agent_id),
+      talked_to_note: asTalkedToNote(talked_to_note),
       // Requester-nominated approver — only ever applied to "requester's
       // manager" stages by the module, and only with a reason (the module
       // rejects a bare override, so we pass both through untouched rather than
