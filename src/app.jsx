@@ -26323,11 +26323,27 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           fontFamily: "'Archivo', sans-serif",
           position: 'relative',
         }}>
+          {/* Opaque backdrop behind the whole sticky header band (back arrow
+              + tools row, y 0–62). The back arrow, search, pin, copy-link,
+              and export buttons are each individually opaque, but there's
+              no fill in the gaps between/around them — without this, the
+              article's own scrolling text shows through those gaps once
+              the buttons are pinned in place. Spans edge-to-edge (negative
+              inset cancels the article's own padding) with matching corner
+              radius so it doesn't square off past the card's rounded top. */}
+          <div style={{ position: 'sticky', top: 0, zIndex: 3, height: 0, pointerEvents: 'none' }}>
+            <div style={{
+              position: 'absolute', top: 0, left: -64, right: -64, height: 62,
+              background: '#FFFFFF', borderTopLeftRadius: 13, borderTopRightRadius: 13,
+            }} />
+          </div>
           {/* Tools — icon-only, parked at the article's top-right corner.
-              Absolute (not sticky): they stay at the top of the guide and
-              scroll away with it. Wrapper is click-through; only the cluster
-              captures the pointer. Search expands leftward on hover. */}
-          <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 5, pointerEvents: 'none', display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
+              Sticky zero-height anchor, same trick as the back arrow below:
+              stays pinned at the top of the viewport instead of scrolling
+              away with the article. Wrapper is click-through; only the
+              cluster captures the pointer. Search expands leftward on hover. */}
+          <div style={{ position: 'sticky', top: 16, zIndex: 5, height: 0, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', top: 0, right: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, pointerEvents: 'auto' }}>
         {/* Guide search — a magnifying glass that expands on hover (stays
             open while focused / holding a query). Dropdown of matches below. */}
@@ -26472,6 +26488,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           </div>
           </div>
           </div>
+          </div>
           {/* Back arrow — sticky in the card's white left gutter, so it rides
               down with you as you read. Zero-height wrapper keeps it out of
               the text flow; nudged left of the content into the 64px padding.
@@ -26503,12 +26520,27 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               }}>File a ticket instead</button>
             </div>
           )}
+          {/* Title stays put with the toolbar above while the body scrolls
+              underneath — top:62 matches the spacer above (the toolbar's
+              own reserved height), so it sits exactly where it always has
+              at rest and only starts "sticking" once you scroll past it.
+              The outer element carries the sticky position + solid white
+              background + the 16px gap-after-the-divider as PADDING (not
+              margin — a margin sits outside the background box, so a
+              margin here would leave a thin unmasked strip the scrolling
+              body text stays visible through). The inner span keeps the
+              divider line 14px below the text, exactly as before. */}
           {body && title && (
             <h1 style={{
-              fontSize: 32, fontWeight: 900, letterSpacing: '-0.015em',
-              lineHeight: 1.2, margin: '0 0 16px', paddingBottom: 14,
-              borderBottom: '1px solid #E5E7EB', color: '#211E1E',
-            }}>{title}</h1>
+              margin: 0, padding: '0 0 16px', position: 'sticky', top: 62,
+              zIndex: 4, background: '#FFFFFF',
+            }}>
+              <span style={{
+                display: 'block', fontSize: 32, fontWeight: 900, letterSpacing: '-0.015em',
+                lineHeight: 1.2, paddingBottom: 14,
+                borderBottom: '1px solid #E5E7EB', color: '#211E1E',
+              }}>{title}</span>
+            </h1>
           )}
           {body && renderMarkdown(stripLeadingTitleFromBody(body, title))}
         </article>
