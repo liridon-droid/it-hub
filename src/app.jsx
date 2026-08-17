@@ -2764,9 +2764,19 @@ function stageFromPath(path) {
 function App() {
   const [tweaks, setTweaksState] = useTweaks(TWEAK_DEFAULTS);
   // Initial stage comes from the URL — supports deep links and refreshes.
-  const [stage, setStageRaw] = useState(() =>
-    typeof window !== "undefined" ? stageFromPath(window.location.pathname) : "landing"
-  );
+  // Embedded, the iframe's own pathname is always just the mount point (the
+  // parent never rewrites it — see IS_EMBEDDED below), so the real deep-link
+  // signal is the `path` query param the parent's ModulePage forwards from
+  // its own ?path=; standalone, it's the actual pathname as usual.
+  const [stage, setStageRaw] = useState(() => {
+    if (typeof window === "undefined") return "landing";
+    if (IS_EMBEDDED) {
+      let p = null;
+      try { p = new URLSearchParams(window.location.search).get("path"); } catch {}
+      return p ? stageFromPath(p) : "landing";
+    }
+    return stageFromPath(window.location.pathname);
+  });
   // Wrap setStage so the address bar stays in sync. We only push when the
   // mapped path actually changes — transient sub-stages (questions, search-
   // results, onboarding-filed) share their parent's path, so they don't
@@ -2775,12 +2785,19 @@ function App() {
     setStageRaw((prev) => {
       const prevPath = STAGE_TO_PATH[prev] || "/";
       const nextPath = STAGE_TO_PATH[next] || "/";
-      // Embedded: leave the iframe URL alone (see IS_EMBEDDED). Standalone:
-      // carry the query string across — dropping it used to strip params like
-      // ?guide / ?ticket mid-navigation; the effects that own each param
-      // add/remove theirs via replaceState.
-      if (prevPath !== nextPath && typeof window !== "undefined" && !IS_EMBEDDED) {
-        try { window.history.pushState({ stage: next }, "", withBase(nextPath) + window.location.search); } catch {}
+      if (prevPath !== nextPath && typeof window !== "undefined") {
+        if (IS_EMBEDDED) {
+          // Embedded: leave the iframe URL alone (see IS_EMBEDDED) — tell the
+          // parent shell instead, the same way the guide/item deep-links do,
+          // so /modules/167 picks up ?path=/request instead of sitting on
+          // the generic module URL until a catalog item happens to be opened.
+          try { window.parent.postMessage({ type: "slicedesk:module-query", params: { path: nextPath } }, "*"); } catch {}
+        } else {
+          // Standalone: carry the query string across — dropping it used to
+          // strip params like ?guide / ?ticket mid-navigation; the effects
+          // that own each param add/remove theirs via replaceState.
+          try { window.history.pushState({ stage: next }, "", withBase(nextPath) + window.location.search); } catch {}
+        }
       }
       return next;
     });
