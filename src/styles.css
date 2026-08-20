@@ -895,6 +895,166 @@
   .chip-flat:focus-visible svg { transform: scale(1.45) rotate(-6deg); }
   .chip-flat:active { transform: translate(1px,1px); box-shadow: 1px 1px 0 #211E1E; color: #000000; }
 
+  /* ── Landing: "Request app access" ────────────────────────────────────
+     The page's one inverted surface. Everything else on the landing page is
+     white-on-cheese; this is charcoal, which is what makes it findable
+     directly beneath the (large, white) search shell. Radius 14 not 4 so it
+     reads as a sibling of that shell rather than an oversized chip. */
+  .hero-request-cta {
+    position: relative;
+    /* Centred, not left-aligned: the bar spans the full hero width, so a
+       left-packed label leaves a lake of empty charcoal and reads as a
+       toolbar. Centred it reads as one deliberate action. */
+    /* 26px, not 18: the hover fan slides the last circle ~21px right and it
+       must not run into the title. */
+    display: flex; align-items: center; justify-content: center; gap: 26px;
+    width: 100%; box-sizing: border-box;
+    /* 21 + 46px card row + 21 + the bar's own 1px borders = 90px, matching
+       the height the single-key treatment gives (14 + 60 + 14 + 2). The
+       fallback tile trims its own margin to land on the same number, so
+       swapping between them never moves the page. */
+    padding: 21px 64px;
+    background: #211E1E;
+    border: 1px solid #211E1E;
+    border-radius: 14px;
+    box-shadow: 3px 3px 0 rgba(33,30,30,0.32);
+    cursor: pointer; text-align: left;
+    font-family: 'Archivo', sans-serif;
+    transition: transform .22s var(--ease), box-shadow .22s var(--ease), background-color .22s;
+  }
+  .hero-request-cta:hover,
+  .hero-request-cta:focus-visible {
+    transform: translate(-2px,-2px);
+    box-shadow: 5px 5px 0 rgba(33,30,30,0.32);
+    background: #2A2524;
+  }
+  .hero-request-cta:active { transform: translate(1px,1px); box-shadow: 2px 2px 0 rgba(33,30,30,0.32); }
+
+  /* Cheese tile behind the key — the brand colour still leads, it just sits
+     inside the dark bar instead of being the bar. */
+  .hero-request-cta-icon {
+    display: grid; place-items: center; flex-shrink: 0;
+    width: 60px; height: 60px; border-radius: 13px;
+    /* -7px vertical trims this 60px tile back to the 46px the stack
+       occupies, so swapping between them never changes the bar height. */
+    margin: -7px 0;
+    background: #FDC831; color: #211E1E;
+    transition: transform .24s cubic-bezier(.34,1.56,.64,1);
+  }
+  .hero-request-cta:hover .hero-request-cta-icon,
+  .hero-request-cta:focus-visible .hero-request-cta-icon { transform: scale(1.08) rotate(-6deg); }
+
+  /* ── The app cards ───────────────────────────────────────────────────
+     Three real catalog icons as separate cards rather than an overlapped
+     avatar stack — spaced, so each one reads as its own app. Sized 46px so
+     the bar keeps the same 90px height it has with the single 60px key tile
+     (22 + 46 + 22 vs 14 + 60 + 14). */
+  /* Overlapped, not spaced — a tight stack reads as one object ("a set of
+     apps") and leaves somewhere for the hover to go. The chips' border is
+     the same charcoal as the bar, so each circle cuts a clean edge out of
+     the one behind it. */
+  .hero-request-cta-icons { display: flex; align-items: center; flex-shrink: 0; }
+  .hero-request-cta-chip {
+    position: relative;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: #FFFFFF; border: 1.5px solid #211E1E;
+    display: grid; place-items: center; overflow: hidden;
+    flex-shrink: 0;
+    margin-left: -14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.34);
+    /* Spring easing so the fan overshoots a touch and settles — a linear
+       ease here feels mechanical at this size. */
+    transition: transform .34s cubic-bezier(.34,1.56,.64,1),
+                box-shadow .26s var(--ease);
+  }
+  .hero-request-cta-chip:first-child { margin-left: 0; }
+  /* The logo IS the circle — full bleed, not a small mark floating inside a
+     larger white tile. `cover` because catalog icons are square favicon-style
+     art; the white ground stays behind it only so transparent PNGs don't
+     punch through to the charcoal. */
+  .hero-request-cta-chip img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .hero-request-cta-chip-letter {
+    font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 17px; color: #211E1E;
+  }
+  /* Hover fans the stack open: each circle slides further right than the one
+     before it, lifts, and grows slightly — so the set unpacks left-to-right
+     into its members instead of sliding as a block. Staggered starts make
+     the sequence readable at this speed. */
+  .hero-request-cta:hover .hero-request-cta-chip,
+  .hero-request-cta:focus-visible .hero-request-cta-chip {
+    box-shadow: 0 6px 13px rgba(0,0,0,0.42);
+  }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(1),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(1) { transform: translate(0, -4px) scale(1.06); }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(2),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(2) { transform: translate(7px, -4px) scale(1.06); }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(3),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(3) { transform: translate(14px, -4px) scale(1.06); }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(4),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(4) { transform: translate(21px, -4px) scale(1.06); }
+  .hero-request-cta-chip:nth-child(2) { transition-delay: .03s; }
+  .hero-request-cta-chip:nth-child(3) { transition-delay: .06s; }
+  .hero-request-cta-chip:nth-child(4) { transition-delay: .09s; }
+
+  /* "+N" — the rest of the catalog, as a card in the same row. Cheese rather
+     than white so it reads as a summary of the set instead of a fourth app,
+     and it puts the brand colour back where the key tile used to be. */
+  .hero-request-cta-chip.is-count {
+    background: #FDC831;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900; font-size: 15px; color: #211E1E;
+    letter-spacing: -0.02em;
+  }
+
+  /* flex: 0 1 auto, NOT 1 1 auto — a growing text block would eat the free
+     space and shove the group back to the left edge, undoing the centring. */
+  .hero-request-cta-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 0 1 auto; }
+  .hero-request-cta-title {
+    font-size: 20px; font-weight: 800; letter-spacing: -0.015em;
+    color: #FFFFFF; line-height: 1.2;
+  }
+  /* Cheese-tinted rather than grey: a neutral grey on charcoal reads as
+     disabled, and this line is the part that explains what the button does. */
+  .hero-request-cta-sub {
+    font-size: 14px; font-weight: 600; line-height: 1.3;
+    color: rgba(253,200,49,0.82);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Pinned to the right edge instead of sitting in the flex row, so the
+     icon+text group centres against the BAR rather than against whatever
+     space the arrow leaves over. The 64px right padding above reserves its
+     lane so long labels can't run underneath it. */
+  .hero-request-cta-go {
+    position: absolute; right: 24px; top: 50%;
+    display: grid; place-items: center;
+    color: #FDC831;
+    transform: translateY(-50%);
+    transition: transform .24s var(--ease);
+  }
+  .hero-request-cta:hover .hero-request-cta-go,
+  .hero-request-cta:focus-visible .hero-request-cta-go { transform: translate(4px, -50%); }
+
+  /* Narrow: drop the arrow's reserved lane and the subtitle before the title
+     has to shrink or wrap. */
+  @media (max-width: 640px) {
+    .hero-request-cta { padding: 18px; gap: 14px; }
+    .hero-request-cta-icon { width: 48px; height: 48px; margin: -3px 0; }
+    /* Two app cards on a phone; the "+N" is always last so it survives and
+       still reports the full catalog size. */
+    .hero-request-cta-chip:nth-child(n+3):not(.is-count) { display: none; }
+    .hero-request-cta-chip { width: 42px; height: 42px; }
+    .hero-request-cta-title { font-size: 17.5px; }
+    .hero-request-cta-sub { font-size: 13px; }
+    .hero-request-cta-go { display: none; }
+  }
+  @media (max-width: 460px) {
+    .hero-request-cta-sub { display: none; }
+  }
+
   /* My Tickets rows: the app icon springs up a touch on row hover (modern feel). */
   .tkt-row .tkt-app-icon { transition: transform .2s var(--ease); }
   .tkt-row:hover .tkt-app-icon { transform: scale(1.14); }
@@ -912,7 +1072,9 @@
      decoration on top of a state that reads fine without it. */
   @media (prefers-reduced-motion: reduce) {
     .cat-tile, .cat-tile .cat-tile-icon,
-    .tkt-row .tkt-app-icon, .chip-flat svg {
+    .tkt-row .tkt-app-icon, .chip-flat svg,
+    .hero-request-cta, .hero-request-cta-icon, .hero-request-cta-go,
+    .hero-request-cta-chip {
       transition: none !important;
       transform: none !important;
     }
