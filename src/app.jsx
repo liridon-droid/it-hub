@@ -3074,7 +3074,34 @@ function App() {
 
       {stage === "landing" &&
       <Landing
-        onSubmit={(q) => { setQuery(q); setStage("questions"); }}
+        onSubmit={async (q) => {
+          setQuery(q);
+          // Fast path: if the phrase names a catalog app and reads as a
+          // request rather than a fault, go straight there. The clarifying
+          // questions exist to work out WHAT KIND of problem someone has —
+          // asking "which area does this fall into?" of a person who already
+          // typed "I need Figma" is three screens of friction before the
+          // answer we already had. The slow path is unchanged for everything
+          // else, and a fault ("Figma won't load") still goes through it,
+          // because that is a support issue and not a request.
+          const det = detectAccessRequest(q);
+          if (!det.isProblem) {
+            try {
+              const m = matchCatalogItem(await loadCatalogOnce(), q);
+              if (m.strong) { openCatalog({ itemId: m.best.id }); return; }
+              // Named no single app, but clearly asking for one — land on the
+              // catalog with the shortlist already filtered.
+              if (det.isRequest && m.candidates.length) {
+                openCatalog({ query: m.terms.join(' ') || q.slice(0, 60) });
+                return;
+              }
+            } catch {
+              // Catalog unreachable — fall through to the questions rather
+              // than dead-ending on an unrelated failure.
+            }
+          }
+          setStage("questions");
+        }}
         onOpenStatus={() => setStage("status")}
         onOpenKnowledge={() => setStage("knowledge")}
         onOpenGuide={(g) => setGuide(g)}
