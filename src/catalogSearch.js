@@ -8,10 +8,10 @@
  * depending on which surface you typed it into. If you change a weight or a
  * rule here, change it there in the same PR.
  *
- * Replaces what the portal did before: a substring test over
- * name+description+category with no ordering at all, which meant "excel"
- * found nothing (the alias lives in `tags`), "adobe photoshop" found nothing
- * (no contiguous phrase), and "mail" put Airmail above Gmail.
+ * Two entry points:
+ *   rankItems     — a search box, where the whole input is the query.
+ *   matchFromText — free text (a hero-search phrase, a ticket subject), where
+ *                   the input is a sentence and most of it is noise.
  */
 
 // ── Weights ────────────────────────────────────────────────────────────────
@@ -157,8 +157,14 @@ function descWordsOf(idx) {
   return idx.descWords;
 }
 
-/** Best score any single token achieves against one item. */
-function scoreToken(idx, token) {
+/**
+ * Best score any single token achieves against one item.
+ *
+ * `noFuzzy` asks the CLEAN question only — did this token actually appear
+ * somewhere — which matchFromText uses to tell a misspelling apart from a
+ * real word that merely resembles a product name.
+ */
+function scoreToken(idx, token, noFuzzy) {
   let best = 0;
   const hit = (v) => { if (v > best) best = v; };
 
@@ -191,7 +197,7 @@ function scoreToken(idx, token) {
 
   // Only reach for fuzzy when nothing matched cleanly — a token that already
   // hit a real substring doesn't need us guessing at what else it could be.
-  if (best === 0) {
+  if (best === 0 && !noFuzzy) {
     const budget = fuzzyBudget(token);
     if (budget > 0) {
       let bestDist = budget + 1;
@@ -320,6 +326,158 @@ function confidenceOf(score, runnerUpScore = 0) {
   return 'weak';
 }
 
+// ── Matching a catalog item out of free text ──────────────────────────────
+//
+// `rankItems` is for a SEARCH BOX, where the whole input is the query and
+// treating it as a conjunction is right. A ticket is the opposite: the input
+// is a sentence someone wrote ("Hi, could I please get access to Figma for
+// the new brand work?"), so requiring every token to match returns nothing —
+// the coverage floor in scoreItem would zero out every candidate.
+//
+// So this mode scores an item by its BEST-matching token instead, after
+// throwing away the words that appear in every IT request and say nothing
+// about which app is wanted.
+
+const REQUEST_STOPWORDS = new Set([
+  // politeness and request framing
+  'hi','hello','hey','please','thanks','thank','you','kind','regards','dear','team',
+  'could','can','would','will','shall','may','might','need','needs','needed','want',
+  'wants','wanted','like','get','getting','give','required','require','requires',
+  'request','requesting','requested','asking','ask','raise','raised','ticket','issue',
+  'help','support','urgent','asap','morning','afternoon',
+  // access vocabulary — present in nearly every one of these tickets
+  'access','account','accounts','licence','license','licenses','licences','seat','seats',
+  'permission','permissions','login','log','sign','signin','set','setup','install',
+  'installed','installation','add','added','adding','new','user','users','create',
+  'created','enable','enabled','activate','grant','granted','provision','onboard',
+  // generic glue
+  'a','an','the','to','for','of','on','in','at','and','or','my','me','our','we','us',
+  'is','are','be','been','it','this','that','with','from','into','as','by','so','if',
+  'do','does','did','have','has','had','was','were','am','not','no','yes','also',
+  'work','working','use','using','used','plea','asap','today','tomorrow','week',
+]);
+
+/**
+ * Tokens from free text that could plausibly name a product.
+ *
+ * Single characters and pure numbers go too — "1Password" survives because
+ * `normalise` keeps digits inside a word, but a bare "2" from "2 seats"
+ * is noise that would fuzzy-match its way into something.
+ */
+function extractQueryTerms(text) {
+  const seen = new Set();
+  const out = [];
+  for (const tok of tokenise(text)) {
+    if (tok.length < 2) continue;
+    if (/^\d+$/.test(tok)) continue;
+    if (REQUEST_STOPWORDS.has(tok)) continue;
+    if (seen.has(tok)) continue;
+    seen.add(tok);
+    out.push(tok);
+  }
+  return out;
+}
+
+/**
+ * Find the catalog item a piece of free text is asking for.
+ *
+ * @param {Array}  items  already-authorised candidate rows
+ * @param {string} text   ticket subject + description, or any free text
+ * @param {{limit?: number}} [opts]
+ * @returns {{terms: string[], candidates: Array}} candidates carry `_score`
+ *          and `_confidence` ('strong' | 'likely' | 'weak'), best first.
+ */
+function matchFromText(items, text, opts = {}) {
+  const terms = extractQueryTerms(text);
+  if (!terms.length) return { terms: [], candidates: [] };
+
+  // Adjacent pairs, so a two-word product name ("adobe photoshop", "google
+  // workspace") can score as one unit rather than as two weaker singles.
+  const pairs = [];
+  for (let i = 0; i < terms.length - 1; i++) pairs.push(terms[i] + ' ' + terms[i + 1]);
+
+  const indexed = items.map((item) => item.__idx || (item.__idx = indexItem(item)));
+
+  // Pass 1 — which terms match something CLEANLY anywhere in the catalog?
+  //
+  // This is what separates a typo from an ordinary word. "slak" appears
+  // nowhere, so one edit from "slack" means the person meant Slack and
+  // mistyped it. "password" DOES appear (inside "1Password", and as the tag
+  // "passwords"), so it is a real word that merely resembles a product — and
+  // "please reset my password" must not turn into a 1Password request.
+  const cleanlyMatched = new Set();
+  for (const tok of terms) {
+    for (const idx of indexed) {
+      if (scoreToken(idx, tok, true) > 0) { cleanlyMatched.add(tok); break; }
+    }
+  }
+
+  const scored = [];
+  for (let n = 0; n < items.length; n++) {
+    const item = items[n];
+    const idx = indexed[n];
+
+    let best = 0;
+    for (const tok of terms) {
+      const s = scoreToken(idx, tok);
+      if (s > best) best = s;
+    }
+
+    // A term that matched nothing anywhere, but sits one edit from this
+    // item's own name, is a misspelling of it. Scored as a name hit — the
+    // generic FUZZY_NAME weight has to stay low so it can never outrank a
+    // real substring inside a search box, which puts it under the noise
+    // floor below and would drop these entirely.
+    for (const tok of terms) {
+      if (tok.length < 4 || cleanlyMatched.has(tok)) continue;
+      for (const w of idx.nameWords) {
+        if (w.length < 4) continue;
+        if (editDistanceWithin(tok, w, 1) <= 1) { best = Math.max(best, W.NAME_PREFIX); break; }
+      }
+      if (best >= W.NAME_PREFIX) break;
+    }
+    // A pair that matches the name outright is much stronger evidence than
+    // either half alone.
+    for (const pair of pairs) {
+      if (idx.name === pair) best = Math.max(best, W.NAME_EXACT);
+      else if (idx.name.includes(pair)) best = Math.max(best, W.NAME_PREFIX);
+      else if (idx.tags.includes(pair)) best = Math.max(best, W.TAG_EXACT);
+    }
+
+    // Below a word-prefix hit we're into description and fuzzy noise —
+    // "the design work" should not surface a product called "Work".
+    if (best < W.NAME_WORD_PREFIX) continue;
+
+    // A second distinct term also hitting the same item corroborates it.
+    let hits = 0;
+    for (const tok of terms) if (scoreToken(idx, tok) >= W.NAME_WORD_PREFIX) hits++;
+    if (hits > 1) best += 60 * Math.min(hits - 1, 2);
+
+    scored.push({ item, score: best });
+  }
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const ap = Number(a.item.request_count) || 0;
+    const bp = Number(b.item.request_count) || 0;
+    if (bp !== ap) return bp - ap;
+    return String(a.item.name || '').localeCompare(String(b.item.name || ''));
+  });
+
+  const limited = scored.slice(0, opts.limit || 6);
+  return {
+    terms,
+    candidates: limited.map(({ item, score }, i) => {
+      const { __idx, ...rest } = item;
+      return {
+        ...rest,
+        _score: Math.round(score),
+        _confidence: confidenceOf(score, i === 0 ? (limited[1]?.score || 0) : 0),
+      };
+    }),
+  };
+}
+
 export {
   rankItems,
   scoreItem,
@@ -329,5 +487,7 @@ export {
   toTags,
   editDistanceWithin,
   confidenceOf,
+  matchFromText,
+  extractQueryTerms,
   W as WEIGHTS,
 };
