@@ -939,27 +939,34 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           </div>
         </div>
 
-        {/* Request app access — a full-width bar under the search that reuses the
-            quick prompts' flat chip look (.chip-flat: white → cheese on hover,
-            icon springs), just sized up. Routes to the "Request something"
-            catalog page so finding an app is a first-class action. */}
-        {/* Wrapper carries the entrance animation + width/spacing; the button stays
-            a plain .chip-flat so its :hover lift + icon-spring fire like the other
-            chips (an `animation … both` on the button itself would pin the
-            transform and kill the hover). */}
-        <div style={{ maxWidth: 1120, margin: "32px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
+        {/* Request app access — the second way out of this page, and the one
+            people were missing. It used to be a white .chip-flat, which put it
+            in the same visual class as the little quick-prompt chips AND sat it
+            directly under the much larger white search shell — so it read as a
+            footnote to the search rather than an alternative to it.
+            It is now CHARCOAL (.hero-request-cta): the one inverted surface on
+            the page, so it separates from both the cheese background and the
+            white shell above it. Same hard-shadow/lift language as everything
+            else, just asserting itself. */}
+        {/* Wrapper carries the entrance animation + width/spacing; the transform
+            stays free on the button itself (an `animation … both` on the button
+            would pin it and kill the hover lift). */}
+        <div style={{ maxWidth: 1120, margin: "26px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
           <button
             onClick={() => onRequest && onRequest()}
-            className="chip-flat"
-            style={{
-              width: "100%", boxSizing: "border-box",
-              justifyContent: "flex-start", gap: 13, padding: "15px 22px", fontSize: 15,
-            }}
+            className="hero-request-cta"
           >
-            <IconKey size={19} stroke={2.4} style={{ color: "#000000" }} />
-            <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-              <span style={{ fontWeight: 800, letterSpacing: "-0.01em" }}>Request app access</span>
-              <span style={{ fontSize: 12, fontWeight: 600, opacity: 0.65 }}>Browse the catalog of apps &amp; services you can ask for</span>
+            <span className="hero-request-cta-icon" aria-hidden="true">
+              <IconKey size={25} stroke={2.5} />
+            </span>
+            <span className="hero-request-cta-text">
+              <span className="hero-request-cta-title">Request app access</span>
+              <span className="hero-request-cta-sub">Browse the catalog of apps &amp; services you can ask for</span>
+            </span>
+            {/* Sits at the far end and slides on hover — the "this goes
+                somewhere" cue the flat chip never had. */}
+            <span className="hero-request-cta-go" aria-hidden="true">
+              <IconArrow size={20} stroke={2.6} />
             </span>
           </button>
         </div>
