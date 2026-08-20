@@ -9,6 +9,7 @@
 // the standalone bundle uses.
 import React from 'react';
 import * as ReactDOM from 'react-dom';
+import { rankItems as rankCatalog } from './catalogSearch.js';
 
 // ─── scroll helpers ──────────────────────────────────
 // The app's real scroll container is .page-scroll — html/body have
@@ -11013,12 +11014,16 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
 
       {catalog && catalog.length > 0 && (() => {
         const cats = Array.from(new Set(catalog.map((c) => c.category_name).filter(Boolean)));
-        const q = catQuery.trim().toLowerCase();
-        const shown = catalog.filter((c) => {
-          if (catFilter !== 'all' && c.category_name !== catFilter) return false;
-          if (!q) return true;
-          return [c.name, c.description, c.category_name].filter(Boolean).join(' ').toLowerCase().includes(q);
-        });
+        const q = catQuery.trim();
+        // Category filter first, then rank what's left. The old code did a
+        // single substring test over name+description+category and kept the
+        // catalog's own order, so "excel" found nothing (that alias lives in
+        // `tags`, which was never searched), "adobe photoshop" found nothing
+        // (no contiguous phrase), and "mail" listed Airmail above Gmail.
+        const inCategory = catFilter === 'all'
+          ? catalog
+          : catalog.filter((c) => c.category_name === catFilter);
+        const shown = q ? rankCatalog(inCategory, q) : inCategory;
         // Most popular — top 5 by request volume (request_count from the module).
         // Only on the default view (no search, "All" category), like Freshservice.
         // Empty until the module exposes request_count, so the section self-hides.
