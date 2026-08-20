@@ -951,13 +951,17 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
         {/* Wrapper carries the entrance animation + width/spacing; the transform
             stays free on the button itself (an `animation … both` on the button
             would pin it and kill the hover lift). */}
-        <div style={{ maxWidth: 1120, margin: "26px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
+        {/* 916px, not the 1120 the rest of the hero uses: this lines the bar up
+            with the quick-prompt chip row directly beneath it, which is
+            content-sized and centred (it measures ~915px). If QUICK_PROMPTS
+            changes materially, re-measure. */}
+        <div style={{ maxWidth: 916, margin: "26px auto 0", animation: "fadeUp .7s .2s var(--ease) both" }}>
           <button
             onClick={() => onRequest && onRequest()}
             className="hero-request-cta"
           >
             <span className="hero-request-cta-icon" aria-hidden="true">
-              <IconKey size={25} stroke={2.5} />
+              <IconKey size={31} stroke={2.4} />
             </span>
             <span className="hero-request-cta-text">
               <span className="hero-request-cta-title">Request app access</span>
