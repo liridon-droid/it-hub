@@ -9,7 +9,7 @@
 // the standalone bundle uses.
 import React from 'react';
 import * as ReactDOM from 'react-dom';
-import { rankItems as rankCatalog } from './catalogSearch.js';
+import { rankItems as rankCatalog, matchFromText as matchCatalogText } from './catalogSearch.js';
 
 // ─── scroll helpers ──────────────────────────────────
 // The app's real scroll container is .page-scroll — html/body have
@@ -2989,8 +2989,17 @@ function App() {
     // catalog when we can identify the app, so it follows the proper request +
     // approval flow; otherwise open the review card as a service request.
     if (det.isRequest && !det.isProblem) {
-      const match = matchCatalogItem(await loadCatalogOnce(), fullText);
-      if (match) { openCatalog({ itemId: match.id }); return; }
+      const m = matchCatalogItem(await loadCatalogOnce(), fullText);
+      if (m.strong) { openCatalog({ itemId: m.best.id }); return; }
+      // Not sure which app, but sure it IS an app request: open the catalog
+      // seeded with the distinctive words, so the ranked shortlist is already
+      // on screen. Previously this fell through to a freeform ticket, which
+      // is how a request for an app the catalog *does* carry ended up as an
+      // untagged ticket someone had to reclassify by hand later.
+      if (m.candidates.length) {
+        openCatalog({ query: m.terms.join(' ') || fullText.slice(0, 60) });
+        return;
+      }
       setTicketDraft({
         subject: issue ? ('Access request: ' + issue.slice(0, 120)) : 'Access / service request',
         description: body,
@@ -3003,8 +3012,11 @@ function App() {
     // A named catalog app with a light request verb (e.g. "I need Figma") also
     // routes to the catalog, as long as it isn't phrased as a problem.
     if (!det.isProblem && /\b(need|want|get|use|access|add|request|set up|sign up|new)\b/.test(fullText.toLowerCase())) {
-      const match = matchCatalogItem(await loadCatalogOnce(), fullText);
-      if (match) { openCatalog({ itemId: match.id }); return; }
+      // No phrasing that says "this is a request", so only a confident app
+      // match may hijack the route — otherwise fall through to the normal
+      // support path below rather than guessing.
+      const m = matchCatalogItem(await loadCatalogOnce(), fullText);
+      if (m.strong) { openCatalog({ itemId: m.best.id }); return; }
     }
 
     setTicketDraft({
@@ -3129,6 +3141,7 @@ function App() {
       <CatalogRequestModal
         asPage
         initialItemId={catalogReq && catalogReq.itemId}
+        initialQuery={catalogReq && catalogReq.query}
         onClose={() => setStage(requestReturnRef.current || "landing")}
         onCreated={() => openTickets("mine")} />
       }
@@ -8922,27 +8935,44 @@ function detectAccessRequest(text) {
   return { isProblem, isRequest };
 }
 
-// Find the catalog item whose name appears in the text (longest name first, so
-// "1Password Business" beats "1Password"). Returns the item or null.
+/**
+ * Work out which catalog item a hero-search phrase is asking for.
+ *
+ * This used to be two hand-rolled passes: full item name appears verbatim,
+ * then "a >=4-char token of the name appears", against a hardcoded stopword
+ * list, returning the FIRST hit from a list sorted by name length. It missed
+ * the cases people actually type:
+ *
+ *   "I need excel"        -> nothing. The alias is in `tags`, never read.
+ *   "licence for slak"    -> nothing. No typo tolerance.
+ *   "can I get gcp"       -> nothing. No acronyms.
+ *   first-match-not-best  -> a long item containing a common word won over a
+ *                            better short one, because the only ordering was
+ *                            name length.
+ *
+ * It now defers to the shared scorer (see catalogSearch.js), which handles
+ * all of the above and — the part that changes the UX — returns a RANKED list
+ * with a confidence, so the caller can tell "definitely Figma" apart from
+ * "might be one of these three".
+ *
+ * @returns {{best: object|null, strong: boolean, candidates: object[]}}
+ */
 function matchCatalogItem(catalog, text) {
-  if (!Array.isArray(catalog) || !catalog.length) return null;
-  // Normalise to space-padded, alphanumeric-only so word-boundary checks work.
-  const norm = (x) => ' ' + String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
-  const s = norm(text);
-  const sorted = catalog.slice().sort((a, b) => String(b.name || '').length - String(a.name || '').length);
-  // 1) Full item name appears in the query (most precise).
-  for (const c of sorted) {
-    const n = norm(c.name).trim();
-    if (n.length >= 3 && s.includes(' ' + n + ' ')) return c;
-  }
-  // 2) A distinctive token of the item's name appears (so "1Password Business"
-  //    still matches "i need 1password"). Skip short/generic words.
-  const STOP = new Set(['app','apps','access','account','accounts','license','licence','licenses','pro','plus','business','team','teams','enterprise','cloud','online','service','services','the','for','and','new']);
-  for (const c of sorted) {
-    const tokens = String(c.name || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !STOP.has(w));
-    if (tokens.some((w) => s.includes(' ' + w + ' '))) return c;
-  }
-  return null;
+  if (!Array.isArray(catalog) || !catalog.length) return { best: null, strong: false, candidates: [] };
+  const { candidates, terms } = matchCatalogText(catalog, text, { limit: 5 });
+  const best = candidates[0] || null;
+  return {
+    best,
+    // The stopword-stripped words worth searching on — "figma" out of "hi,
+    // could I please get access to figma for the new brand work?".
+    terms,
+    // Only a `strong` hit earns the right to skip straight into an item's
+    // request form. Dropping someone into the wrong app's form is worse than
+    // showing them a short list, because the form is several fields long
+    // before it becomes obvious it's the wrong thing.
+    strong: !!best && best._confidence === 'strong',
+    candidates,
+  };
 }
 
 function TicketStatusBadge({ status, small, label, type }) {
@@ -10494,7 +10524,7 @@ function ApprovalDetailView({ id, onBack, onActed }) {
 
 // ── Request flow — browse the service catalog, fill the item's form, submit ──
 // Falls back to a freeform service_request when the catalog is empty/unreachable.
-function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage = false }) {
+function CatalogRequestModal({ onClose, onCreated, initialItemId = null, initialQuery = '', asPage = false }) {
   // Render as a full page (PageShell) or a modal (ModalShell) — same prop API,
   // so the views below don't care which chrome wraps them.
   const Shell = asPage ? PageShell : ModalShell;
@@ -10544,7 +10574,9 @@ function CatalogRequestModal({ onClose, onCreated, initialItemId = null, asPage 
   const [attachWarn, setAttachWarn] = React.useState('');
   // Catalog browse: free-text search + a category filter, so a long catalog is
   // easy to scan instead of one big undifferentiated grid.
-  const [catQuery, setCatQuery] = React.useState('');
+  // Seeded when the hero search knew this was an app request but not which
+  // app — the ranked shortlist is then already on screen on arrival.
+  const [catQuery, setCatQuery] = React.useState(initialQuery || '');
   const [catFilter, setCatFilter] = React.useState('all');
 
   const pickItem = React.useCallback(async (it) => {
