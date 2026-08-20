@@ -907,10 +907,11 @@
        toolbar. Centred it reads as one deliberate action. */
     display: flex; align-items: center; justify-content: center; gap: 18px;
     width: 100%; box-sizing: border-box;
-    /* 14 + 60px icon + 14 = the same 88px tall as the 20/48/20 it
-       replaced — the icon and text grew into the padding rather than
-       pushing the bar taller. */
-    padding: 14px 64px;
+    /* 21 + 46px card row + 21 + the bar's own 1px borders = 90px, matching
+       the height the single-key treatment gives (14 + 60 + 14 + 2). The
+       fallback tile trims its own margin to land on the same number, so
+       swapping between them never moves the page. */
+    padding: 21px 64px;
     background: #211E1E;
     border: 1px solid #211E1E;
     border-radius: 14px;
@@ -932,11 +933,61 @@
   .hero-request-cta-icon {
     display: grid; place-items: center; flex-shrink: 0;
     width: 60px; height: 60px; border-radius: 13px;
+    /* -7px vertical trims this 60px tile back to the 46px the stack
+       occupies, so swapping between them never changes the bar height. */
+    margin: -7px 0;
     background: #FDC831; color: #211E1E;
     transition: transform .24s cubic-bezier(.34,1.56,.64,1);
   }
   .hero-request-cta:hover .hero-request-cta-icon,
   .hero-request-cta:focus-visible .hero-request-cta-icon { transform: scale(1.08) rotate(-6deg); }
+
+  /* ── The app cards ───────────────────────────────────────────────────
+     Three real catalog icons as separate cards rather than an overlapped
+     avatar stack — spaced, so each one reads as its own app. Sized 46px so
+     the bar keeps the same 90px height it has with the single 60px key tile
+     (22 + 46 + 22 vs 14 + 60 + 14). */
+  .hero-request-cta-icons { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+  .hero-request-cta-chip {
+    position: relative;
+    width: 46px; height: 46px; border-radius: 50%;
+    background: #FFFFFF; border: 1.5px solid #211E1E;
+    display: grid; place-items: center; overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.34);
+    transition: transform .26s var(--ease), box-shadow .26s var(--ease);
+  }
+  /* The logo IS the circle — full bleed, not a small mark floating inside a
+     larger white tile. `cover` because catalog icons are square favicon-style
+     art; the white ground stays behind it only so transparent PNGs don't
+     punch through to the charcoal. */
+  .hero-request-cta-chip img {
+    width: 100%; height: 100%;
+    object-fit: cover; display: block;
+  }
+  .hero-request-cta-chip-letter {
+    font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 17px; color: #211E1E;
+  }
+  /* Lift on hover, staggered — three objects moving in sequence, where
+     moving together would read as one block. */
+  .hero-request-cta:hover .hero-request-cta-chip,
+  .hero-request-cta:focus-visible .hero-request-cta-chip {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 11px rgba(0,0,0,0.4);
+  }
+  .hero-request-cta-chip:nth-child(2) { transition-delay: .04s; }
+  .hero-request-cta-chip:nth-child(3) { transition-delay: .08s; }
+  .hero-request-cta-chip:nth-child(4) { transition-delay: .12s; }
+
+  /* "+N" — the rest of the catalog, as a card in the same row. Cheese rather
+     than white so it reads as a summary of the set instead of a fourth app,
+     and it puts the brand colour back where the key tile used to be. */
+  .hero-request-cta-chip.is-count {
+    background: #FDC831;
+    font-family: 'Archivo', sans-serif;
+    font-weight: 900; font-size: 15px; color: #211E1E;
+    letter-spacing: -0.02em;
+  }
 
   /* flex: 0 1 auto, NOT 1 1 auto — a growing text block would eat the free
      space and shove the group back to the left edge, undoing the centring. */
@@ -970,8 +1021,12 @@
   /* Narrow: drop the arrow's reserved lane and the subtitle before the title
      has to shrink or wrap. */
   @media (max-width: 640px) {
-    .hero-request-cta { padding: 13px 18px; gap: 14px; }
-    .hero-request-cta-icon { width: 48px; height: 48px; }
+    .hero-request-cta { padding: 18px; gap: 14px; }
+    .hero-request-cta-icon { width: 48px; height: 48px; margin: -3px 0; }
+    /* Two app cards on a phone; the "+N" is always last so it survives and
+       still reports the full catalog size. */
+    .hero-request-cta-chip:nth-child(n+3):not(.is-count) { display: none; }
+    .hero-request-cta-chip { width: 42px; height: 42px; }
     .hero-request-cta-title { font-size: 17.5px; }
     .hero-request-cta-sub { font-size: 13px; }
     .hero-request-cta-go { display: none; }
@@ -998,7 +1053,8 @@
   @media (prefers-reduced-motion: reduce) {
     .cat-tile, .cat-tile .cat-tile-icon,
     .tkt-row .tkt-app-icon, .chip-flat svg,
-    .hero-request-cta, .hero-request-cta-icon, .hero-request-cta-go {
+    .hero-request-cta, .hero-request-cta-icon, .hero-request-cta-go,
+    .hero-request-cta-chip {
       transition: none !important;
       transform: none !important;
     }

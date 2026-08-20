@@ -560,6 +560,9 @@ function useLiveStatus(intervalMs = 30000) {
 
 function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenScreenshot, onOpenTickets, onRequest }) {
   const [q, setQ] = useState("");
+  // Apps shown in the "Request app access" stack. Session-cached and shared
+  // with the ticket list's icon lookup — one /api/catalog fetch between them.
+  const { preview: ctaIcons, total: ctaTotal } = useCatalogStackItems();
   // Staged screenshot for the in-input upload flow. When set, hitting Enter
   // (or Send) jumps straight to the screenshot analyzer with `q` as the note,
   // skipping the clarifying-questions stage entirely — the image gives the AI
@@ -960,12 +963,40 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             onClick={() => onRequest && onRequest()}
             className="hero-request-cta"
           >
-            <span className="hero-request-cta-icon" aria-hidden="true">
-              <IconKey size={31} stroke={2.4} />
-            </span>
+            {/* Real catalog icons, not a generic glyph — three app cards say
+                "this is where the apps are" faster than any symbol, and they
+                lift in sequence on hover. Falls back to the key when the
+                catalog hasn't loaded (or is empty / unreachable), so the bar
+                is never mid-render blank. */}
+            {ctaIcons.length > 0 ? (
+              <span className="hero-request-cta-icons" aria-hidden="true">
+                {ctaIcons.map((it) => (
+                  <span key={it.id} className="hero-request-cta-chip" title={it.name}>
+                    {it.icon_url
+                      ? <img src={it.icon_url} alt="" width="46" height="46" loading="lazy" />
+                      : <span className="hero-request-cta-chip-letter">{it.name.charAt(0).toUpperCase()}</span>}
+                  </span>
+                ))}
+                {ctaTotal > ctaIcons.length && (
+                  <span className="hero-request-cta-chip is-count">+{ctaTotal - ctaIcons.length}</span>
+                )}
+              </span>
+            ) : (
+              <span className="hero-request-cta-icon" aria-hidden="true">
+                <IconKey size={31} stroke={2.4} />
+              </span>
+            )}
             <span className="hero-request-cta-text">
               <span className="hero-request-cta-title">Request app access</span>
-              <span className="hero-request-cta-sub">Browse the catalog of apps &amp; services you can ask for</span>
+              {/* Name the actual number once we know it — "Browse 47 apps"
+                  is a reason to click in a way that "browse the catalog"
+                  never is. Falls back to the generic line before the
+                  catalog resolves, so the text never flashes a wrong count. */}
+              <span className="hero-request-cta-sub">
+                {ctaTotal > 0
+                  ? `Browse ${ctaTotal} app${ctaTotal === 1 ? '' : 's'} & services you can ask for`
+                  : 'Browse the catalog of apps & services you can ask for'}
+              </span>
             </span>
             {/* Sits at the far end and slides on hover — the "this goes
                 somewhere" cue the flat chip never had. */}
@@ -9019,27 +9050,72 @@ function TicketsBackBar({ onBack, label }) {
 // catalog item), so to show the requested app's icon we map that id onto the
 // catalog the portal already serves. Fetched once per session, shared by the
 // list + detail. Returns {} until loaded, then { [id]: { name, icon_url } }.
-let _catIconCache = null;
-let _catIconPromise = null;
-function useCatalogIcons() {
-  const [map, setMap] = React.useState(_catIconCache);
+// One fetch, two consumers: the id->icon map below, and the landing page's
+// icon stack. Both want the same /api/catalog body, so the session cache
+// holds the ITEM ARRAY and each consumer derives its own shape from it —
+// caching the derived map instead (as this did) threw away request_count,
+// which the stack needs to pick which apps to show.
+let _catListCache = null;
+let _catListPromise = null;
+function loadCatalogItemsOnce() {
+  if (_catListCache) return Promise.resolve(_catListCache);
+  if (!_catListPromise) {
+    _catListPromise = ticketsApiJson('GET', '/api/catalog')
+      .then((j) => { _catListCache = catalogItemsFrom(j); return _catListCache; })
+      .catch(() => { _catListCache = []; return _catListCache; });
+  }
+  return _catListPromise;
+}
+
+/** Subscribe to the cached catalog, mapped through `select`. */
+function useCatalogSlice(select, fallback) {
+  const [val, setVal] = React.useState(() => (_catListCache ? select(_catListCache) : fallback));
   React.useEffect(() => {
-    if (_catIconCache) { setMap(_catIconCache); return; }
     let off = false;
-    if (!_catIconPromise) {
-      _catIconPromise = ticketsApiJson('GET', '/api/catalog')
-        .then((j) => {
-          const m = {};
-          for (const it of catalogItemsFrom(j)) m[String(it.id)] = { name: it.name, icon_url: it.icon_url };
-          _catIconCache = m;
-          return m;
-        })
-        .catch(() => { _catIconCache = {}; return _catIconCache; });
-    }
-    _catIconPromise.then((m) => { if (!off) setMap(m); });
+    loadCatalogItemsOnce().then((items) => { if (!off) setVal(select(items)); });
     return () => { off = true; };
+  // `select` is a module-level function at every call site — stable by
+  // construction, and depending on it would re-run this on every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return map || _catIconCache || {};
+  return val;
+}
+
+const _selectIconMap = (items) => {
+  const m = {};
+  for (const it of items) m[String(it.id)] = { name: it.name, icon_url: it.icon_url };
+  return m;
+};
+function useCatalogIcons() {
+  return useCatalogSlice(_selectIconMap, {});
+}
+
+// The landing CTA's icon stack. Most-requested first so the stack shows the
+// apps people actually come here for, and icon-bearing items first so it
+// doesn't degrade into a row of letter tiles.
+const CTA_ICON_COUNT = 3;
+const _selectStackItems = (items) => {
+  const scored = items
+    .filter((it) => it && it.name)
+    .map((it) => ({
+      id: it.id,
+      name: String(it.name),
+      icon_url: it.icon_url || '',
+      pop: Number(it.request_count) || 0,
+    }));
+  scored.sort((a, b) => {
+    if (!!b.icon_url !== !!a.icon_url) return b.icon_url ? 1 : -1;
+    if (b.pop !== a.pop) return b.pop - a.pop;
+    return a.name.localeCompare(b.name);
+  });
+  // `total` drives the "+N" card and the subtitle's count. Three logos are
+  // decoration; a real number is the reason to click — it's the only thing
+  // on the bar that says how much is actually behind it.
+  return { preview: scored.slice(0, CTA_ICON_COUNT), total: scored.length };
+};
+const _EMPTY_STACK = { preview: [], total: 0 };
+function useCatalogStackItems() {
+  return useCatalogSlice(_selectStackItems, _EMPTY_STACK);
 }
 
 // Catalog/app icon with a letter fallback — mirrors the catalog grid's tile.
