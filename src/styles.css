@@ -905,7 +905,9 @@
     /* Centred, not left-aligned: the bar spans the full hero width, so a
        left-packed label leaves a lake of empty charcoal and reads as a
        toolbar. Centred it reads as one deliberate action. */
-    display: flex; align-items: center; justify-content: center; gap: 18px;
+    /* 26px, not 18: the hover fan slides the last circle ~21px right and it
+       must not run into the title. */
+    display: flex; align-items: center; justify-content: center; gap: 26px;
     width: 100%; box-sizing: border-box;
     /* 21 + 46px card row + 21 + the bar's own 1px borders = 90px, matching
        the height the single-key treatment gives (14 + 60 + 14 + 2). The
@@ -947,16 +949,25 @@
      avatar stack — spaced, so each one reads as its own app. Sized 46px so
      the bar keeps the same 90px height it has with the single 60px key tile
      (22 + 46 + 22 vs 14 + 60 + 14). */
-  .hero-request-cta-icons { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+  /* Overlapped, not spaced — a tight stack reads as one object ("a set of
+     apps") and leaves somewhere for the hover to go. The chips' border is
+     the same charcoal as the bar, so each circle cuts a clean edge out of
+     the one behind it. */
+  .hero-request-cta-icons { display: flex; align-items: center; flex-shrink: 0; }
   .hero-request-cta-chip {
     position: relative;
     width: 46px; height: 46px; border-radius: 50%;
     background: #FFFFFF; border: 1.5px solid #211E1E;
     display: grid; place-items: center; overflow: hidden;
     flex-shrink: 0;
+    margin-left: -14px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.34);
-    transition: transform .26s var(--ease), box-shadow .26s var(--ease);
+    /* Spring easing so the fan overshoots a touch and settles — a linear
+       ease here feels mechanical at this size. */
+    transition: transform .34s cubic-bezier(.34,1.56,.64,1),
+                box-shadow .26s var(--ease);
   }
+  .hero-request-cta-chip:first-child { margin-left: 0; }
   /* The logo IS the circle — full bleed, not a small mark floating inside a
      larger white tile. `cover` because catalog icons are square favicon-style
      art; the white ground stays behind it only so transparent PNGs don't
@@ -968,16 +979,25 @@
   .hero-request-cta-chip-letter {
     font-family: 'Archivo', sans-serif; font-weight: 900; font-size: 17px; color: #211E1E;
   }
-  /* Lift on hover, staggered — three objects moving in sequence, where
-     moving together would read as one block. */
+  /* Hover fans the stack open: each circle slides further right than the one
+     before it, lifts, and grows slightly — so the set unpacks left-to-right
+     into its members instead of sliding as a block. Staggered starts make
+     the sequence readable at this speed. */
   .hero-request-cta:hover .hero-request-cta-chip,
   .hero-request-cta:focus-visible .hero-request-cta-chip {
-    transform: translateY(-3px);
-    box-shadow: 0 5px 11px rgba(0,0,0,0.4);
+    box-shadow: 0 6px 13px rgba(0,0,0,0.42);
   }
-  .hero-request-cta-chip:nth-child(2) { transition-delay: .04s; }
-  .hero-request-cta-chip:nth-child(3) { transition-delay: .08s; }
-  .hero-request-cta-chip:nth-child(4) { transition-delay: .12s; }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(1),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(1) { transform: translate(0, -4px) scale(1.06); }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(2),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(2) { transform: translate(7px, -4px) scale(1.06); }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(3),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(3) { transform: translate(14px, -4px) scale(1.06); }
+  .hero-request-cta:hover .hero-request-cta-chip:nth-child(4),
+  .hero-request-cta:focus-visible .hero-request-cta-chip:nth-child(4) { transform: translate(21px, -4px) scale(1.06); }
+  .hero-request-cta-chip:nth-child(2) { transition-delay: .03s; }
+  .hero-request-cta-chip:nth-child(3) { transition-delay: .06s; }
+  .hero-request-cta-chip:nth-child(4) { transition-delay: .09s; }
 
   /* "+N" — the rest of the catalog, as a card in the same row. Cheese rather
      than white so it reads as a summary of the set instead of a fourth app,
