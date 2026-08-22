@@ -1,13 +1,17 @@
 // guides-slicedesk.js
 // ─────────────────────────────────────────────────────────────────────────
-// Repoints the IT Hub's guide READ + FEEDBACK endpoints at SliceDesk Docs
-// (how_to_guides) so SliceDesk is the single source of truth. Guide
-// authoring/management now lives in SliceDesk Docs (/docs); the local
-// portal2.guides CRUD is disabled here.
+// Repoints the IT Hub's guide endpoints at SliceDesk Docs (how_to_guides) so
+// SliceDesk is the single source of truth. Reads, feedback AND writes all proxy
+// there; the local portal2.guides CRUD stays shadowed so the two never diverge.
 //
-// Content: SliceDesk stores Lexical JSON but its portal feed also returns a
-// Markdown `body` (rendered server-side), so the Portal's existing Markdown
-// renderer keeps working unchanged.
+// Writes (create / update / soft-delete / duplicate) forward the signed-in Hub
+// admin's identity, and SliceDesk authorizes THAT PERSON with its own per-doc
+// rules — the module key says which module may write, not who may write what.
+//
+// Content: SliceDesk stores Lexical JSON and its portal feed also renders a
+// Markdown `body`. toGuide() hands the RAW Lexical through when it is available
+// (see the note there) so nothing round-trips through Markdown and loses blocks
+// Markdown cannot express; legacy non-Lexical rows still use the Markdown body.
 //
 // Identity: SliceDesk guides are addressed by `slug`. We surface the slug as
 // the opaque `id` the Portal frontend already passes around — no frontend
@@ -30,26 +34,36 @@
 
 import { moduleConfig } from './module-config.js';
 
-const CRUD_MOVED = {
-  error: 'Guide management moved to SliceDesk Docs. Create/edit guides at <slicedesk>/docs.',
-};
-
-async function hubFetch(path, { method = 'GET', body } = {}) {
+// `actingUser` is the signed-in Hub admin, forwarded to SliceDesk so a WRITE is
+// authorized as that person rather than as the module. SliceDesk re-reads their
+// role from its own tables and ignores anything we assert (its "Contract A"), so
+// this is an identity claim, not a permission claim — we cannot escalate by
+// lying here. Reads pass no identity: they are already gated to public + active
+// + IT-tagged docs on the SliceDesk side.
+async function hubFetch(path, { method = 'GET', body, actingUser } = {}) {
   if (!moduleConfig.hubApiBase || !moduleConfig.apiKey) {
     const e = new Error('module not paired with the hub (hubApiBase/apiKey missing)');
     e.status = 503;
     throw e;
   }
+  const payload = actingUser
+    ? { ...(body || {}), acting_user: { id: String(actingUser.id ?? ''), email: String(actingUser.email ?? '') } }
+    : body;
   const res = await fetch(`${moduleConfig.hubApiBase}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${moduleConfig.apiKey}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
+      ...(payload ? { 'Content-Type': 'application/json' } : {}),
     },
-    ...(body ? { body: JSON.stringify(body) } : {}),
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
   });
   if (!res.ok) {
-    const e = new Error(`hub ${res.status}`);
+    // Carry SliceDesk's own message through. Without this every failure reached
+    // the admin as a bare "hub 403" and the actual reason ("you do not have edit
+    // access to this doc", "acting_user could not be resolved") was discarded.
+    let detail = '';
+    try { detail = (await res.json())?.error || ''; } catch { /* non-JSON body */ }
+    const e = new Error(detail || `hub ${res.status}`);
     e.status = res.status;
     throw e;
   }
@@ -74,6 +88,20 @@ async function slugForId(id) {
   return _idToSlug.get(key) || null;
 }
 
+// Local copy of the client's isLexicalJson (src/guide-editor/lexical/lexicalUtils.js).
+// Deliberately duplicated rather than imported: server/Dockerfile builds from the
+// server/ directory alone, so `../src/...` does not exist in the container and an
+// import would crash the server at boot. Keep the two in sync.
+function isLexicalJson(value) {
+  if (!value || typeof value !== 'string') return false;
+  const trimmed = value.trimStart();
+  if (!trimmed.startsWith('{')) return false;
+  try {
+    const obj = JSON.parse(trimmed);
+    return obj && typeof obj === 'object' && obj.root !== undefined;
+  } catch { return false; }
+}
+
 // SliceDesk portal feed row → IT Hub guide shape.
 function toGuide(g, { withBody = false } = {}) {
   return {
@@ -87,7 +115,19 @@ function toGuide(g, { withBody = false } = {}) {
     created_at: g.created_at,
     updated_at: g.updated_at,
     metadata: {},
-    ...(withBody ? { body: g.body || '' } : {}),
+    // Prefer the RAW Lexical content over SliceDesk's Markdown rendering.
+    //
+    // SliceDesk stores Lexical JSON and also renders a Markdown `body` for
+    // Markdown consumers. Handing the Markdown to the editor made every save a
+    // round trip (Lexical → Markdown → Lexical) which silently flattens exactly
+    // the blocks that Markdown has no syntax for: callouts, toggles, columns and
+    // @mentions. The reader has the same problem — src/app.jsx picks its renderer
+    // with isLexicalJson(body), so a Markdown body never reaches LexicalViewer
+    // and those blocks are invisible to readers.
+    //
+    // Legacy rows whose content is not Lexical still fall back to the Markdown
+    // body, and the editor migrates them on open.
+    ...(withBody ? { body: isLexicalJson(g.content) ? g.content : (g.body || '') } : {}),
   };
 }
 
@@ -195,12 +235,113 @@ export function registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin }
     }
   });
 
-  // Management has moved to SliceDesk Docs — disable local guide CRUD so the
-  // two stores can't diverge. (Hide the corresponding admin buttons in the UI.)
-  const moved = (_req, res) => res.status(409).json(CRUD_MOVED);
-  app.post('/api/guides', requireSliceAdmin, moved);
-  app.put('/api/guides/:id', requireSliceAdmin, moved);
-  app.delete('/api/guides/:id', requireSliceAdmin, moved);
-  app.post('/api/guides/:id/restore', requireSliceAdmin, moved);
-  app.post('/api/guides/:id/duplicate', requireSliceAdmin, moved);
+  // ── WRITES → SliceDesk Docs ────────────────────────────────────────────────
+  // The Hub admin's guide editor saves through here. A guide authored in the Hub
+  // lands in SliceDesk Docs and comes straight back out of the portal feed above,
+  // so there is one copy of it and no sync step.
+  //
+  // Every write forwards the signed-in admin (see hubFetch's `actingUser`), and
+  // SliceDesk applies its own per-doc permissions to that person — so a Hub admin
+  // can only change what they could already change in Docs.
+  //
+  // Errors are returned as JSON on EVERY path, never bare status codes: the admin
+  // console parses the response body before it checks res.ok, so a bodiless error
+  // surfaces to the user as "Unexpected end of JSON input" instead of the reason.
+  const actingUserFor = (req) => ({ id: req.user?.id, email: req.user?.email });
+  const writeFailed = (res, e) => res
+    .status(e?.status && e.status >= 400 && e.status < 600 ? e.status : 502)
+    .json({ error: e?.message || 'Save failed upstream.' });
+
+  // The editor posts { title, category, source_type, body, tags }. SliceDesk's
+  // column is `content`, the Hub's is `body` — the rename happens here and only
+  // here. `body` is Lexical JSON produced by GuideEditor.getValue().
+  const toUpstream = (b) => ({
+    title: b?.title,
+    category: b?.category,
+    source_type: b?.source_type,
+    tags: b?.tags,
+    content: b?.body ?? '',
+  });
+
+  // CREATE
+  app.post('/api/guides', requireSliceAdmin, async (req, res) => {
+    try {
+      const row = await hubFetch('/api/ext/portal/howto', {
+        method: 'POST',
+        actingUser: actingUserFor(req),
+        body: toUpstream(req.body),
+      });
+      if (row?.slug) _idToSlug.set(String(row.id), row.slug);
+      // Number(): the admin console refuses to reopen a guide whose id is not a
+      // JS number (it hard-asserts typeof === 'number').
+      res.status(201).json({ ...toGuide(row, { withBody: true }), id: Number(row.id) });
+    } catch (e) { writeFailed(res, e); }
+  });
+
+  // UPDATE
+  app.put('/api/guides/:id', requireSliceAdmin, async (req, res) => {
+    try {
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: 'Guide not found' });
+      const row = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}`, {
+        method: 'PATCH',
+        actingUser: actingUserFor(req),
+        body: toUpstream(req.body),
+      });
+      res.json({ ...toGuide(row, { withBody: true }), id: Number(row.id) });
+    } catch (e) { writeFailed(res, e); }
+  });
+
+  // DELETE (soft — moves to the Docs trash)
+  app.delete('/api/guides/:id', requireSliceAdmin, async (req, res) => {
+    try {
+      // The admin console's Trash screen still reads the LOCAL guides table, so a
+      // SliceDesk-backed guide never appears there and purging one from the Hub
+      // is not reachable. Say so rather than pretending to permanently delete.
+      if (String(req.query.hard || '') === '1') {
+        return res.status(400).json({
+          error: 'Permanent deletion happens in SliceDesk Docs. This removes it from the Portal only.',
+        });
+      }
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: 'Guide not found' });
+      const u = actingUserFor(req);
+      const qs = `acting_user_id=${encodeURIComponent(String(u.id ?? ''))}`
+        + `&acting_user_email=${encodeURIComponent(String(u.email ?? ''))}`;
+      await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}?${qs}`, { method: 'DELETE' });
+      _idToSlug.delete(String(req.params.id));
+      res.json({ ok: true, soft: true });
+    } catch (e) { writeFailed(res, e); }
+  });
+
+  // DUPLICATE — read the original, then create a copy. Needs no extra SliceDesk
+  // endpoint, and the copy is created as the acting admin like any other new doc.
+  app.post('/api/guides/:id/duplicate', requireSliceAdmin, async (req, res) => {
+    try {
+      const slug = await slugForId(req.params.id);
+      if (!slug) return res.status(404).json({ error: 'Guide not found' });
+      const src = await hubFetch(`/api/ext/portal/howto/${encodeURIComponent(slug)}`);
+      const row = await hubFetch('/api/ext/portal/howto', {
+        method: 'POST',
+        actingUser: actingUserFor(req),
+        body: {
+          title: `${src.title} (copy)`,
+          category: src.category,
+          source_type: src.source_type,
+          tags: parseTags(src.tags),
+          description: src.description,
+          content: src.content ?? '',
+        },
+      });
+      if (row?.slug) _idToSlug.set(String(row.id), row.slug);
+      res.status(201).json({ ...toGuide(row, { withBody: true }), id: Number(row.id) });
+    } catch (e) { writeFailed(res, e); }
+  });
+
+  // RESTORE — unreachable for SliceDesk-backed guides: the Trash screen lists
+  // rows from the local table, which these are not. Kept registered so the route
+  // returns a clear reason instead of falling through to the dead local handler.
+  app.post('/api/guides/:id/restore', requireSliceAdmin, (_req, res) => res.status(400).json({
+    error: 'Restore happens in SliceDesk Docs — open the Docs trash there.',
+  }));
 }

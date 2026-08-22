@@ -1429,45 +1429,13 @@
       width: 100%; height: 100%; border: none; display: block;
     }
 
-    /* ============== MATH BLOCK ============== */
-    .ProseMirror .math-block,
-    .preview-pane .math-block {
-      padding: 14px 18px; margin: 14px 0;
-      background: #FBFAF7; border: 1px solid var(--border);
-      border-radius: 8px; text-align: center;
-      font-family: 'KaTeX_Main', 'Times New Roman', serif;
-      font-size: 16px; line-height: 1.4;
-      cursor: pointer;
-    }
-    .ProseMirror .math-block:hover, .preview-pane .math-block:hover {
-      border-color: var(--border-2);
-    }
-    .ProseMirror .math-block.is-empty,
-    .preview-pane .math-block.is-empty {
-      color: var(--ink-4); font-style: italic;
-    }
-    .ProseMirror .math-inline,
-    .preview-pane .math-inline {
-      padding: 1px 6px; background: #FBFAF7;
-      border: 1px solid var(--border); border-radius: 4px;
-      font-family: 'KaTeX_Main', 'Times New Roman', serif;
-      cursor: pointer;
-    }
-
-    /* ============== MERMAID BLOCK ============== */
-    .ProseMirror .mermaid-block,
-    .preview-pane .mermaid-block {
-      padding: 16px; margin: 14px 0;
-      background: #FBFAF7; border: 1px solid var(--border);
-      border-radius: 8px; text-align: center;
-      cursor: pointer; min-height: 80px;
-      display: grid; place-items: center;
-    }
-    .ProseMirror .mermaid-block svg, .preview-pane .mermaid-block svg { max-width: 100%; height: auto; }
-    .ProseMirror .mermaid-block.is-empty,
-    .preview-pane .mermaid-block.is-empty {
-      color: var(--ink-4); font-style: italic; font-family: var(--mono); font-size: 13px;
-    }
+    /* The MATH BLOCK and MERMAID BLOCK rules that used to sit here are gone.
+       They were keyed to `.ProseMirror` (TipTap's editor class, removed) and to
+       .math-block / .mermaid-block / .math-inline, which nothing emits any more,
+       and they set font-family: 'KaTeX_Main' — a font this page stopped loading
+       when the KaTeX stylesheet was dropped. Diagrams and maths were considered
+       and deliberately skipped: none of the guides in the corpus used either in
+       the TipTap era, and Mermaid alone is a 3.4 MB dependency. */
 
     /* Mention chip styling in editor */
     .ProseMirror .mention,
@@ -2537,26 +2505,25 @@
       <tr><td><strong>Quick filter / search</strong></td><td><span class="kbd">⌘ K</span></td></tr>
       <tr><td><strong>Open this help</strong></td><td><span class="kbd">?</span></td></tr>
       <tr><td colspan="2" style="padding-top:14px;font-weight:700;color:var(--ink-3);font-size:11.5px;text-transform:uppercase;letter-spacing:0.04em;">In the editor</td></tr>
+      <!-- Every row below is a shortcut that is actually implemented, verified by
+           pressing it in the Lexical editor. The previous list was inherited from
+           the TipTap editor and advertised 13 bindings that no longer exist:
+           emoji picker (:), wiki-links ([[), snippet picker (/snip), smart
+           typography including "$x^2$ -> math", and the ⌘E, ⌘⇧X, ⌘⇧L, ⌘⌥1-4,
+           ⌘⇧7/8/9, ⌘⇧B, ⌘⌥C, ⌘\\, ⌘⇧↑/↓, ⌘D and ⌘⇧Backspace bindings. Link was
+           also documented as ⌘⇧K; it is ⌘K. ⌘F, undo/redo and Tab were real but
+           undocumented. If you add or remove a shortcut, update this table. -->
       <tr><td>Slash menu (block picker)</td><td><span class="kbd">/</span></td></tr>
-      <tr><td>Emoji picker</td><td><span class="kbd">:</span></td></tr>
-      <tr><td>Mention guide / user / date</td><td><span class="kbd">@</span></td></tr>
-      <tr><td>Wiki-link a guide</td><td>type <span class="kbd">[[</span></td></tr>
-      <tr><td>Snippet picker</td><td><span class="kbd">/snip</span></td></tr>
-      <tr><td>Ask AI on selection</td><td><span class="kbd">⌘ J</span></td></tr>
+      <tr><td>Mention another guide</td><td><span class="kbd">@</span></td></tr>
+      <tr><td>Ask AI about the selection</td><td><span class="kbd">⌘ J</span></td></tr>
+      <tr><td>Find &amp; replace</td><td><span class="kbd">⌘ F</span></td></tr>
       <tr><td>Bold / Italic / Underline</td><td><span class="kbd">⌘ B</span> · <span class="kbd">⌘ I</span> · <span class="kbd">⌘ U</span></td></tr>
-      <tr><td>Strike-through / Highlight</td><td><span class="kbd">⌘ ⇧ X</span> · <span class="kbd">⌘ ⇧ L</span></td></tr>
-      <tr><td>Inline code</td><td><span class="kbd">⌘ E</span></td></tr>
-      <tr><td>Link</td><td><span class="kbd">⌘ ⇧ K</span></td></tr>
-      <tr><td>Heading 1–4 / Paragraph</td><td><span class="kbd">⌘ ⌥ 1-4</span> · <span class="kbd">⌘ ⌥ 0</span></td></tr>
-      <tr><td>Numbered / Bullet / Task list</td><td><span class="kbd">⌘ ⇧ 7</span> · <span class="kbd">⌘ ⇧ 8</span> · <span class="kbd">⌘ ⇧ 9</span></td></tr>
-      <tr><td>Quote / Code block</td><td><span class="kbd">⌘ ⇧ B</span> · <span class="kbd">⌘ ⌥ C</span></td></tr>
-      <tr><td>Clear formatting</td><td><span class="kbd">⌘ \\</span></td></tr>
-      <tr><td>Move block up / down</td><td><span class="kbd">⌘ ⇧ ↑</span> · <span class="kbd">⌘ ⇧ ↓</span></td></tr>
-      <tr><td>Duplicate block</td><td><span class="kbd">⌘ D</span></td></tr>
-      <tr><td>Delete block</td><td><span class="kbd">⌘ ⇧ Backspace</span></td></tr>
-      <tr><td>Markdown shortcuts</td><td>type <span class="kbd"># </span>, <span class="kbd">- </span>, <span class="kbd">1. </span>, <span class="kbd">[ ] </span>, <span class="kbd">``` </span></td></tr>
-      <tr><td>Smart typography</td><td><span class="kbd">--</span> → —, <span class="kbd">...</span> → …, <span class="kbd">-&gt;</span> → →, <span class="kbd">$x^2$</span> → math</td></tr>
+      <tr><td>Insert link</td><td><span class="kbd">⌘ K</span></td></tr>
+      <tr><td>Undo / Redo</td><td><span class="kbd">⌘ Z</span> · <span class="kbd">⌘ ⇧ Z</span></td></tr>
+      <tr><td>Indent / outdent a list item</td><td><span class="kbd">Tab</span> · <span class="kbd">⇧ Tab</span></td></tr>
+      <tr><td>Markdown shortcuts</td><td>type <span class="kbd"># </span>, <span class="kbd">- </span>, <span class="kbd">1. </span>, <span class="kbd">&gt; </span>, <span class="kbd">- [ ] </span>, <span class="kbd">``` </span></td></tr>
       <tr><td>Insert image</td><td>paste a screenshot, or drop a file</td></tr>
+      <tr><td colspan="2" style="padding-top:10px;color:var(--ink-3);">Everything else — headings, lists, quotes, callouts, columns, tables, code blocks — is on the toolbar and in the <span class="kbd">/</span> menu.</td></tr>
     </table>
     <div class="actions" style="margin-top:16px;">
       <button class="btn primary" id="shortcutOk">Got it</button>
@@ -6089,8 +6056,9 @@ function renderEditor(root) {
   // .mermaid-block / .embed-block nodes in their editors via editor.chain().
   // Lexical emits none of those classes (its embed is .lexical-embed), so the
   // handler could never match — but it would have thrown against the Lexical
-  // handle if it ever did. Math and Mermaid are on the rebuild list; Lexical's
-  // own embed insertion is in its toolbar.
+  // handle if it ever did. Math and Mermaid were NOT rebuilt (deliberately —
+  // nothing in the corpus used them); Lexical's own embed insertion is in its
+  // toolbar.
 
   // Draft persistence (only for new). Each new-guide session lives in its own
   // localStorage slot so multiple drafts can coexist; the modal lets the user
@@ -6367,7 +6335,10 @@ function renderEditor(root) {
       editDirty = false;
       dirty = false;
       await loadData();
-      toast(`Saved · ${j.chunk_count} chunk${j.chunk_count === 1 ? '' : 's'} indexed.`, 'ok');
+      // Guides live in SliceDesk Docs now, so there is no local chunk count to
+      // report — j.chunk_count was undefined here and the toast read
+      // "Saved · undefined chunks indexed." Say what actually happened instead.
+      toast('Saved to SliceDesk Docs.', 'ok');
       navigate('guides');
     } catch (err) {
       toast(`Save failed: ${err.message}`, 'err');
@@ -6388,7 +6359,12 @@ window.addEventListener('keydown', (e) => {
   } else if ((e.metaKey || e.ctrlKey) && k === 'p' && !e.shiftKey) {
     e.preventDefault();
     if (state.section === 'editor') $('previewToggleBtn')?.click();
-  } else if ((e.metaKey || e.ctrlKey) && k === 'k' && !e.shiftKey) {
+  } else if ((e.metaKey || e.ctrlKey) && k === 'k' && !e.shiftKey && !inEditable) {
+    // !inEditable matters: the Lexical editor binds ⌘K to "insert link" on
+    // `document`, and this listener is on `window`. Document listeners run first
+    // and preventDefault() does not stop propagation, so ⌘K inside the editor
+    // used to fire BOTH — the URL prompt and the command palette on top of it.
+    // Inside the editor ⌘K is the link shortcut; everywhere else it is the palette.
     e.preventDefault();
     openCommandPalette();
     return;

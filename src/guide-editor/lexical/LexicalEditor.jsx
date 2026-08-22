@@ -554,12 +554,19 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   };
   const insertCallout = (emoji, variant) => applyCallout(editor, emoji, variant);
 
+  // Headings TOGGLE. The toolbar lights H1/H2/H3 up when the caret sits in one
+  // (see the setH*Active block in the selection listener), so the button claims
+  // to be a two-state control — but it used to only ever apply the heading, and
+  // re-clicking an active H1 re-applied h1 and appeared to do nothing. There was
+  // no way back to body text from the toolbar at all. Clicking the active level
+  // now returns the block to a paragraph, which is what the lit state implies.
   const insertCalloutHeading = (level) => {
     editor.update(() => {
       const sel = $getSelection();
-      if ($isRangeSelection(sel)) {
-        $setBlocksType(sel, () => $createHeadingNode(level));
-      }
+      if (!$isRangeSelection(sel)) return;
+      const current = $findMatchingParent(sel.anchor.getNode(), (n) => $isHeadingNode(n));
+      const alreadyThisLevel = $isHeadingNode(current) && current.getTag() === level;
+      $setBlocksType(sel, () => (alreadyThisLevel ? $createParagraphNode() : $createHeadingNode(level)));
     });
   };
 
