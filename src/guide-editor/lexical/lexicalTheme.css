@@ -1,0 +1,978 @@
+/* ── Lexical theme classes — Premium ─────────────────── */
+
+.lexical-content-editable {
+  cursor: text;
+  scroll-behavior: smooth;
+}
+
+.lexical-content-editable ::selection {
+  background-color: rgb(var(--color-primary-rgb, 0 82 204) / 0.25);
+  color: inherit;
+}
+
+html[data-theme='dark'] .lexical-content-editable ::selection {
+  background-color: rgb(var(--color-primary-rgb, 0 82 204) / 0.35);
+}
+
+.lexical-placeholder {
+  opacity: 0.35;
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+/* Paragraph */
+.lexical-paragraph {
+  margin: 0 0 0.6em;
+  line-height: 1.7;
+}
+.lexical-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* Inline formatting */
+.lexical-bold {
+  font-weight: 650;
+}
+.lexical-italic {
+  font-style: italic;
+}
+.lexical-underline {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+}
+.lexical-strikethrough {
+  text-decoration: line-through;
+  text-decoration-color: rgba(var(--color-text-muted-rgb, 151 160 175), 0.7);
+}
+.lexical-code-inline {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82em;
+  padding: 0.18em 0.45em;
+  border-radius: 5px;
+  background: rgb(var(--color-surface-subtle-rgb, 243 244 246));
+  border: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  color: var(--color-text-primary);
+  transition: all 150ms ease;
+}
+.lexical-code-inline:hover {
+  background: rgb(var(--color-surface-raised-rgb, 249 250 252));
+  border-color: rgb(var(--color-primary-rgb, 0 82 204));
+}
+
+/* Headings */
+.lexical-h1 {
+  font-size: 1.65em;
+  font-weight: 750;
+  margin: 1em 0 0.4em;
+  line-height: 1.2;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+.lexical-h1:first-child {
+  margin-top: 0;
+}
+.lexical-h2 {
+  font-size: 1.3em;
+  font-weight: 700;
+  margin: 0.85em 0 0.35em;
+  line-height: 1.25;
+  color: var(--color-text-primary);
+  letter-spacing: -0.01em;
+}
+.lexical-h2:first-child {
+  margin-top: 0;
+}
+.lexical-h3 {
+  font-size: 1.08em;
+  font-weight: 650;
+  margin: 0.7em 0 0.3em;
+  line-height: 1.35;
+  color: var(--color-text-primary);
+}
+.lexical-h3:first-child {
+  margin-top: 0;
+}
+
+/* Lists */
+.lexical-ul {
+  list-style-type: disc;
+  padding-left: 1.6em;
+  margin: 0.5em 0;
+}
+.lexical-ol {
+  list-style-type: decimal;
+  padding-left: 1.6em;
+  margin: 0.5em 0;
+}
+.lexical-li {
+  margin: 0.25em 0;
+  line-height: 1.65;
+}
+.lexical-nested-li {
+  list-style-type: none; /* wrapper li — inner ul handles its own bullets */
+}
+
+/* nested list levels — browser-standard cycling */
+.lexical-ul .lexical-ul {
+  list-style-type: circle;
+}
+.lexical-ul .lexical-ul .lexical-ul {
+  list-style-type: square;
+}
+.lexical-ol .lexical-ol {
+  list-style-type: lower-alpha;
+}
+.lexical-ol .lexical-ol .lexical-ol {
+  list-style-type: lower-roman;
+}
+
+/* Links */
+.lexical-link {
+  color: var(--color-primary, #0052CC);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(var(--color-primary-rgb, 0 82 204), 0.35);
+  cursor: pointer;
+  transition: text-decoration-color 150ms ease;
+}
+.lexical-link:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Block quote — Notion-style with animated gradient border */
+.lexical-quote {
+  border-left: 4px solid transparent;
+  background: linear-gradient(to right, rgba(var(--color-primary-rgb), 0.04), transparent);
+  padding: 0.75em 1.1em;
+  margin: 0.75em 0;
+  color: var(--color-text-secondary, #6b778c);
+  font-style: italic;
+  border-radius: 0 8px 8px 0;
+  transition: all 200ms ease;
+  position: relative;
+}
+.lexical-quote::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg,
+    var(--color-primary, #0052cc) 0%,
+    var(--color-primary, #0052cc) 50%,
+    rgba(var(--color-primary-rgb, 0 82 204), 0.5) 100%);
+  border-radius: 0 0 0 0;
+}
+.lexical-quote:hover {
+  background: linear-gradient(to right, rgba(var(--color-primary-rgb), 0.08), transparent);
+}
+
+/* Text highlight */
+.lexical-highlight {
+  background-color: #fff3b0;
+  border-radius: 3px;
+  padding: 0.05em 3px;
+  box-decoration-break: clone;
+  transition: background-color 150ms ease;
+}
+.lexical-highlight:hover {
+  background-color: #ffe680;
+}
+html[data-theme='dark'] .lexical-highlight {
+  background-color: rgba(255, 214, 0, 0.25);
+  color: #ffd600;
+}
+html[data-theme='dark'] .lexical-highlight:hover {
+  background-color: rgba(255, 214, 0, 0.35);
+}
+
+/* Subscript / Superscript */
+.lexical-subscript {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+.lexical-superscript {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+/* Horizontal rule */
+.lexical-hr {
+  border: none;
+  border-top: 2px solid var(--color-border, #dfe1e6);
+  margin: 1.25em 0;
+  transition: border-color 200ms ease;
+}
+.lexical-hr:hover {
+  border-color: rgba(var(--color-primary-rgb, 0 82 204), 0.3);
+}
+
+/* Code block — premium mono with line numbers */
+.lexical-code-block {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82em;
+  display: block;
+  padding: 1em 1.2em;
+  margin: 0.75em 0;
+  border-radius: 10px;
+  background: rgb(var(--color-surface-subtle-rgb, 243 244 246));
+  border: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  overflow-x: auto;
+  white-space: pre;
+  line-height: 1.6;
+  tab-size: 2;
+  counter-reset: lines;
+  transition: all 150ms ease;
+  position: relative;
+}
+.lexical-code-block:hover {
+  border-color: rgba(var(--color-primary-rgb, 0 82 204), 0.3);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.05);
+}
+.lexical-code-block::before {
+  content: 'Copy';
+  position: absolute;
+  top: 0.5em;
+  right: 0.5em;
+  padding: 0.35em 0.7em;
+  font-size: 0.7em;
+  background: rgba(var(--color-primary-rgb, 0 82 204), 0.8);
+  color: white;
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+.lexical-code-block:hover::before {
+  opacity: 1;
+}
+
+/* Syntax token colors */
+.lexical-token-comment { color: #6a737d; font-style: italic; }
+.lexical-token-keyword { color: #d73a49; }
+.lexical-token-string  { color: #032f62; }
+.lexical-token-number  { color: #005cc5; }
+.lexical-token-boolean { color: #005cc5; }
+.lexical-token-function { color: #6f42c1; }
+.lexical-token-class-name { color: #6f42c1; }
+.lexical-token-operator { color: #d73a49; }
+.lexical-token-punctuation { color: #24292e; }
+.lexical-token-tag { color: #22863a; }
+.lexical-token-attr { color: #005cc5; }
+.lexical-token-atrule { color: #e36209; }
+.lexical-token-regex { color: #032f62; }
+.lexical-token-variable { color: #e36209; }
+.lexical-token-url { color: #032f62; text-decoration: underline; }
+html[data-theme='dark'] .lexical-token-comment { color: #8b949e; }
+html[data-theme='dark'] .lexical-token-keyword { color: #ff7b72; }
+html[data-theme='dark'] .lexical-token-string  { color: #a5d6ff; }
+html[data-theme='dark'] .lexical-token-number  { color: #79c0ff; }
+html[data-theme='dark'] .lexical-token-boolean { color: #79c0ff; }
+html[data-theme='dark'] .lexical-token-function { color: #d2a8ff; }
+html[data-theme='dark'] .lexical-token-class-name { color: #d2a8ff; }
+html[data-theme='dark'] .lexical-token-operator { color: #ff7b72; }
+html[data-theme='dark'] .lexical-token-tag { color: #7ee787; }
+html[data-theme='dark'] .lexical-token-attr { color: #79c0ff; }
+html[data-theme='dark'] .lexical-code-block {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #e8edf4;
+}
+html[data-theme='dark'] .lexical-code-block:hover {
+  border-color: rgba(var(--color-primary-rgb, 0 82 204), 0.4);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.1);
+}
+
+/* ── Tables — Notion-style with enhanced hover effects ─────────────────────────── */
+.lexical-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.75em 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  font-size: 0.9em;
+  transition: border-color 150ms ease;
+}
+.lexical-table:hover {
+  border-color: rgba(var(--color-primary-rgb, 0 82 204), 0.2);
+}
+.lexical-table-row {
+  border-bottom: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  transition: background-color 150ms ease;
+}
+.lexical-table-row:hover {
+  background-color: rgba(var(--color-primary-rgb, 0 82 204), 0.04);
+}
+.lexical-table-row:last-child {
+  border-bottom: none;
+}
+.lexical-table-cell {
+  padding: 0.55em 0.8em;
+  border-right: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  min-width: 60px;
+  vertical-align: top;
+  line-height: 1.5;
+  transition: all 150ms ease;
+}
+.lexical-table-cell:focus-within {
+  background-color: rgba(var(--color-primary-rgb, 0 82 204), 0.08);
+  box-shadow: inset 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.2);
+}
+.lexical-table-cell:last-child {
+  border-right: none;
+}
+.lexical-table-cell-header {
+  padding: 0.6em 0.8em;
+  border-right: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  background: rgb(var(--color-surface-subtle-rgb, 245 247 250));
+  font-weight: 600;
+  font-size: 0.88em;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  min-width: 60px;
+  vertical-align: top;
+  line-height: 1.5;
+  transition: all 150ms ease;
+}
+.lexical-table-cell-header:focus-within {
+  background: rgb(var(--color-surface-raised-rgb, 249 250 252));
+  box-shadow: inset 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.2);
+}
+.lexical-table-cell-header:last-child {
+  border-right: none;
+}
+html[data-theme='dark'] .lexical-table {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+html[data-theme='dark'] .lexical-table:hover {
+  border-color: rgba(var(--color-primary-rgb, 0 82 204), 0.3);
+}
+html[data-theme='dark'] .lexical-table-row {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+html[data-theme='dark'] .lexical-table-row:hover {
+  background-color: rgba(var(--color-primary-rgb, 0 82 204), 0.08);
+}
+html[data-theme='dark'] .lexical-table-cell {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+html[data-theme='dark'] .lexical-table-cell:focus-within {
+  background-color: rgba(var(--color-primary-rgb, 0 82 204), 0.12);
+  box-shadow: inset 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.3);
+}
+html[data-theme='dark'] .lexical-table-cell-header {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.6);
+}
+html[data-theme='dark'] .lexical-table-cell-header:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.3);
+}
+
+/* ── Callout blocks — colored left borders with background tints ─────────── */
+.lexical-callout {
+  padding: 0.75em 1em;
+  margin: 0.75em 0;
+  border-radius: 8px;
+  border-left: 4px solid transparent;
+  transition: all 150ms ease;
+}
+.lexical-callout:hover {
+  transform: translateX(2px);
+}
+
+.lexical-callout-info {
+  border-left-color: #0052cc;
+  background: rgba(0, 82, 204, 0.08);
+}
+html[data-theme='dark'] .lexical-callout-info {
+  background: rgba(0, 82, 204, 0.15);
+}
+
+.lexical-callout-tip {
+  border-left-color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+}
+html[data-theme='dark'] .lexical-callout-tip {
+  background: rgba(22, 163, 74, 0.15);
+}
+
+.lexical-callout-warning {
+  border-left-color: #ea8c1b;
+  background: rgba(234, 140, 27, 0.08);
+}
+html[data-theme='dark'] .lexical-callout-warning {
+  background: rgba(234, 140, 27, 0.15);
+}
+
+.lexical-callout-error {
+  border-left-color: #d10000;
+  background: rgba(209, 0, 0, 0.08);
+}
+html[data-theme='dark'] .lexical-callout-error {
+  background: rgba(209, 0, 0, 0.15);
+}
+
+.lexical-callout-success {
+  border-left-color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+}
+html[data-theme='dark'] .lexical-callout-success {
+  background: rgba(22, 163, 74, 0.15);
+}
+
+/* Orphaned SliceDesk toggle styles removed.
+ *
+ * They styled `.lexical-toggle` / `.lexical-toggle-content` for a collapsible
+ * node that was never implemented — slicedesk's insertToggle() only ever made a
+ * QuoteNode with the literal text "▸ Click to expand...", so no element with
+ * these classes was ever emitted. The real ToggleNode (<details>/<summary>) is
+ * styled further down; keeping both meant the old ::before painted a second,
+ * stray disclosure triangle above every toggle. */
+
+/* Checklist items — premium toggle style */
+.lexical-li-unchecked {
+  list-style: none;
+  margin-left: -1.4em;
+  padding-left: 0.1em;
+  position: relative;
+  transition: all 150ms ease;
+}
+.lexical-li-unchecked::before {
+  content: '';
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-border, #dfe1e6);
+  border-radius: 4px;
+  margin-right: 0.5em;
+  vertical-align: -0.2em;
+  background: var(--color-surface, white);
+  transition: all 150ms ease;
+}
+.lexical-li-unchecked:hover::before {
+  border-color: var(--color-primary, #0052cc);
+  box-shadow: 0 0 0 2px rgba(var(--color-primary-rgb, 0 82 204), 0.1);
+  transform: scale(1.05);
+}
+.lexical-li-checked {
+  list-style: none;
+  margin-left: -1.4em;
+  padding-left: 0.1em;
+  position: relative;
+  text-decoration: line-through;
+  color: var(--color-text-muted, #97a0af);
+  transition: all 150ms ease;
+}
+.lexical-li-checked::before {
+  content: '✓';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid var(--color-primary, #0052cc);
+  border-radius: 4px;
+  margin-right: 0.5em;
+  vertical-align: -0.2em;
+  background: var(--color-primary, #0052cc);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  transition: all 150ms ease;
+  animation: checkmark-pop 200ms ease;
+}
+@keyframes checkmark-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  75% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Inline text styles ──────────────────────────── */
+.lexical-content-editable [style*="color:"],
+.lexical-viewer [style*="color:"] {
+  /* ensure inline color styles are respected */
+}
+.lexical-content-editable [style*="background-color:"],
+.lexical-viewer [style*="background-color:"] {
+  border-radius: 3px;
+  padding: 0.05em 3px;
+  box-decoration-break: clone;
+  transition: all 150ms ease;
+}
+
+/* ── Read-only viewer ─────────────────────────────── */
+.lexical-viewer .lexical-paragraph {
+  margin: 0 0 0.5em;
+}
+.lexical-viewer .lexical-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Animate-in helper for dropdowns ─────────────── */
+@keyframes lexical-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in {
+  animation: lexical-fade-in 150ms ease forwards;
+}
+
+/* ── Animation keyframes for smooth transitions ───── */
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-out-down {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+/* ── Print styles for better formatting ─────────── */
+@media print {
+  .lexical-content-editable {
+    color: #000;
+  }
+  .lexical-code-block {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+  }
+  .lexical-quote {
+    border-left: 4px solid #999;
+    background: #f9f9f9;
+  }
+  .lexical-table {
+    border-collapse: collapse;
+  }
+  .lexical-table-cell,
+  .lexical-table-cell-header {
+    border: 1px solid #ddd;
+    padding: 0.5em 0.75em;
+  }
+  .lexical-table-cell-header {
+    background: #e8e8e8;
+    font-weight: bold;
+  }
+  .lexical-callout,
+  .lexical-toggle {
+    background: #f5f5f5;
+    border: 1px solid #ddd;
+  }
+  a.lexical-link {
+    text-decoration: underline;
+    color: #0052cc;
+  }
+}
+
+
+
+
+/* ══════════════════════════════════════════════════════════════════
+
+/* =====================================================================
+   Dark-mode overrides — Lexical Toolbar & Editor
+   Targets the exact Tailwind classes used in LexicalEditor.jsx
+   ===================================================================== */
+
+/* ── Toolbar wrapper ──────────────────────────────────────────────────
+   Class in JSX: border-b border-border bg-surface-subtle/50
+   Problem: bg-surface-subtle/50 = #181818 @ 50% = #0C0C0C on dark bg
+   Fix: force a visible distinct background                            */
+[data-theme="dark"] .lexical-editor-wrapper > div:first-child {
+  background-color: #1e1e1e !important;
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ── Keyboard hints row ───────────────────────────────────────────────
+   Class in JSX: bg-bg/30  → near-invisible on dark bg
+   Fix: give it a subtle lifted background                             */
+[data-theme="dark"] .lexical-editor-wrapper .lexical-keyboard-hints,
+[data-theme="dark"] .lexical-editor-wrapper > div:first-child > div:last-child {
+  background-color: #171717 !important;
+  border-top-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* ── kbd chips in hints row ───────────────────────────────────────────
+   Class in JSX: bg-surface-raised → #2C2C2C barely visible
+   Fix: add a border and slightly lighter bg                           */
+[data-theme="dark"] .lexical-editor-wrapper kbd {
+  background-color: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+/* ── Hint row text & spans ────────────────────────────────────────────*/
+[data-theme="dark"] .lexical-editor-wrapper > div:first-child span {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ── Toolbar buttons (ToolbarBtn) ─────────────────────────────────────
+   Class in JSX: text-text-secondary hover:bg-surface-raised
+   Problem: hover state #2C2C2C on #1e1e1e — low contrast
+   Fix: brighter icon color + more visible hover                       */
+[data-theme="dark"] .lexical-editor-wrapper button[class*="rounded-lg"]:not([class*="border-2"]):not([class*="px-3"]) {
+  color: rgba(255, 255, 255, 0.6);
+}
+[data-theme="dark"] .lexical-editor-wrapper button[class*="rounded-lg"]:not([class*="border-2"]):not([class*="px-3"]):hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+/* ── Active toolbar button ────────────────────────────────────────────*/
+[data-theme="dark"] .lexical-editor-wrapper button[class*="bg-primary\/15"] {
+  background-color: rgba(253, 200, 49, 0.18) !important;
+  color: #fdc831 !important;
+}
+
+/* ── Toolbar divider lines ────────────────────────────────────────────*/
+[data-theme="dark"] .lexical-editor-wrapper div[class*="w-px"],
+[data-theme="dark"] .lexical-editor-wrapper div[class*="h-5 w-px"] {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ── Slash command / dropdown menus ──────────────────────────────────*/
+[data-theme="dark"] .lexical-editor-wrapper > div[class*="absolute"][class*="bg-surface"] {
+  background-color: #272727 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255,255,255,0.06) !important;
+}
+
+/* ── Editor content area ──────────────────────────────────────────────
+   Ensure content text is readable                                     */
+[data-theme="dark"] .lexical-editor-wrapper .lexical-content-editable {
+  color: #f0f0f0;
+}
+[data-theme="dark"] .lexical-editor-wrapper .lexical-placeholder {
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* ── Editor outer border on focus ────────────────────────────────────*/
+[data-theme="dark"] .lexical-editor-wrapper:focus-within {
+  border-color: rgba(253, 200, 49, 0.6) !important;
+  box-shadow: 0 0 0 3px rgba(253, 200, 49, 0.1) !important;
+}
+
+/* ── Inline code ──────────────────────────────────────────────────────*/
+[data-theme="dark"] .PlaygroundEditorTheme__textCode,
+[data-theme="dark"] code.PlaygroundEditorTheme__textCode {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fdc831 !important;
+}
+
+/* ── Code blocks ──────────────────────────────────────────────────────*/
+[data-theme="dark"] .PlaygroundEditorTheme__code {
+  background: #161616 !important;
+  border-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* ── Block quote ──────────────────────────────────────────────────────*/
+[data-theme="dark"] .PlaygroundEditorTheme__quote {
+  border-left-color: #fdc831 !important;
+  background: linear-gradient(to right, rgba(253, 200, 49, 0.06), transparent) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+}
+
+/* ── Callout blocks (CalloutNode) ──────────────────────────────────────────
+   Lives in this shared stylesheet, not in the island's editor.css, because both
+   the editor AND the portal's read-only viewer import this file — a callout must
+   look the same while authoring and once published.
+
+   Colours resolve from the --color-*-rgb tokens with hardcoded fallbacks, so the
+   block still renders correctly in any host that has not defined them. */
+.lexical-callout {
+  position: relative;
+  margin: 14px 0;
+  padding: 12px 14px 12px 16px;
+  border-left: 3px solid rgb(var(--color-primary-rgb, 0 82 204));
+  border-radius: 8px;
+  background: rgb(var(--color-surface-subtle-rgb, 243 244 246));
+  color: rgb(var(--color-text-rgb, 33 30 30));
+  line-height: 1.65;
+}
+.lexical-callout > br:only-child { display: none; }
+
+.lexical-callout[data-variant="info"] {
+  border-left-color: rgb(37 99 235);
+  background: rgb(239 246 255);
+}
+.lexical-callout[data-variant="success"] {
+  border-left-color: rgb(var(--color-success-rgb, 0 102 68));
+  background: rgb(var(--color-success-bg-rgb, 227 252 239));
+}
+.lexical-callout[data-variant="warn"] {
+  border-left-color: rgb(var(--color-warning-rgb, 255 139 0));
+  background: rgb(var(--color-warning-bg-rgb, 255 250 230));
+}
+.lexical-callout[data-variant="danger"] {
+  border-left-color: rgb(var(--color-danger-rgb, 218 51 39));
+  background: rgb(var(--color-danger-bg-rgb, 252 231 229));
+}
+
+/* Dark mode: keep the accent, drop the tint to a low-alpha wash so the block
+   reads as raised rather than as a bright panel. */
+[data-theme="dark"] .lexical-callout,
+body.editor-dark .lexical-callout {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.86);
+}
+[data-theme="dark"] .lexical-callout[data-variant="info"],
+body.editor-dark .lexical-callout[data-variant="info"] { background: rgba(37, 99, 235, 0.12); }
+[data-theme="dark"] .lexical-callout[data-variant="success"],
+body.editor-dark .lexical-callout[data-variant="success"] { background: rgba(0, 153, 102, 0.12); }
+[data-theme="dark"] .lexical-callout[data-variant="warn"],
+body.editor-dark .lexical-callout[data-variant="warn"] { background: rgba(255, 139, 0, 0.12); }
+[data-theme="dark"] .lexical-callout[data-variant="danger"],
+body.editor-dark .lexical-callout[data-variant="danger"] { background: rgba(218, 51, 39, 0.14); }
+
+/* ── Collapsible / toggle blocks (ToggleNode) ──────────────────────────────
+   Native <details>/<summary>, so collapsing works in the read-only portal with
+   no JavaScript and is keyboard accessible for free. */
+.lexical-toggle {
+  margin: 14px 0;
+  padding: 4px 0 4px 2px;
+  border-left: 3px solid rgb(var(--color-border-strong-rgb, 205 214 224));
+  border-radius: 6px;
+  background: transparent;
+}
+.lexical-toggle-summary {
+  cursor: pointer;
+  padding: 4px 8px 4px 10px;
+  font-weight: 650;
+  color: rgb(var(--color-text-rgb, 33 30 30));
+  /* MUST stay display:list-item. Chrome only honours list-style:none on the
+     disclosure marker while <summary> is a list-item; give it any other display
+     (block, flex, …) and the browser synthesises a separate marker box, which
+     renders as a stray triangle on its own line ~30px above the label. */
+  display: list-item;
+  list-style: none;
+  border-radius: 5px;
+  outline: none;
+}
+.lexical-toggle-summary::-webkit-details-marker { display: none; }
+.lexical-toggle-summary::marker { content: ''; }
+.lexical-toggle-summary::before {
+  content: '';
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+  width: 0; height: 0;
+  border-left: 5px solid currentColor;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  transition: transform 0.15s ease;
+  opacity: 0.55;
+}
+.lexical-toggle[open] > .lexical-toggle-summary::before { transform: rotate(90deg); }
+.lexical-toggle-summary:hover { background: rgba(0, 0, 0, 0.04); }
+.lexical-toggle-summary:focus-visible {
+  box-shadow: 0 0 0 2px rgb(var(--color-primary-rgb, 0 82 204) / 0.35);
+}
+/* Body blocks sit indented under the label. */
+.lexical-toggle > *:not(.lexical-toggle-summary) { margin-left: 18px; }
+
+[data-theme="dark"] .lexical-toggle-summary:hover,
+body.editor-dark .lexical-toggle-summary:hover { background: rgba(255, 255, 255, 0.06); }
+
+/* ── AI assistant palette (AiAssistant.jsx) ────────────────────────────────
+   Fixed-positioned and anchored to the selection rectangle, so it must sit
+   above the host page's sticky editor bar (z-index 20 in admin.html). */
+.lexical-ai-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: transparent;
+}
+.lexical-ai-menu {
+  position: fixed;
+  z-index: 61;
+  width: 320px;
+  max-width: calc(100vw - 24px);
+  background: rgb(var(--color-surface-rgb, 255 255 255));
+  border: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  font-size: 13.5px;
+}
+.lexical-ai-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  outline: none;
+  font: inherit;
+  color: rgb(var(--color-text-rgb, 33 30 30));
+  background: transparent;
+}
+.lexical-ai-list { max-height: 320px; overflow-y: auto; padding: 4px; }
+.lexical-ai-group {
+  padding: 8px 10px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgb(var(--color-text-muted-rgb, 68 56 48) / 0.6);
+}
+.lexical-ai-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.lexical-ai-item.is-active { background: rgb(var(--color-primary-rgb, 0 82 204) / 0.10); }
+.lexical-ai-item.is-disabled { opacity: 0.4; cursor: not-allowed; }
+.lexical-ai-label { display: block; font-weight: 600; color: rgb(var(--color-text-rgb, 33 30 30)); }
+.lexical-ai-desc { display: block; font-size: 12px; color: rgb(var(--color-text-secondary-rgb, 100 88 80)); }
+.lexical-ai-empty,
+.lexical-ai-hint {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: rgb(var(--color-text-secondary-rgb, 100 88 80));
+}
+/* Errors are shown, never swallowed into a fake local "fallback". */
+.lexical-ai-error {
+  padding: 9px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(var(--color-danger-rgb, 218 51 39));
+  background: rgb(var(--color-danger-bg-rgb, 252 231 229));
+  border-bottom: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+}
+
+/* ── Column layout (ColumnsNode / ColumnNode) ──────────────────────────────
+   Plain CSS grid, so the read-only portal lays it out with no JavaScript. */
+.lexical-columns {
+  display: grid;
+  gap: 20px;
+  margin: 16px 0;
+  align-items: start;
+}
+.lexical-columns[data-cols="2"] { grid-template-columns: 1fr 1fr; }
+.lexical-columns[data-cols="3"] { grid-template-columns: 1fr 1fr 1fr; }
+.lexical-column { min-width: 0; }
+/* First/last child margins would otherwise push the columns out of alignment
+   with each other. */
+.lexical-column > *:first-child { margin-top: 0; }
+.lexical-column > *:last-child { margin-bottom: 0; }
+
+/* While editing, a faint guide makes the cell boundaries findable — the reader
+   sees no such outline. */
+.guide-editor-root .lexical-column {
+  border-left: 2px solid rgb(var(--color-border-rgb, 223 225 230) / 0.7);
+  padding-left: 12px;
+}
+
+/* Stack on narrow screens: two 50% columns of prose are unreadable on a phone. */
+@media (max-width: 640px) {
+  .lexical-columns[data-cols="2"],
+  .lexical-columns[data-cols="3"] { grid-template-columns: 1fr; }
+}
+
+/* ── "Ask AI" toolbar button ───────────────────────────────────────────────
+   The only control in the toolbar that calls a model, so it does not use the
+   shared ghost-icon treatment — as a 31st identical icon nobody found it.
+   Amber is the IT Hub admin's accent (--accent: #FDC831), matching Publish. */
+.lexical-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  margin: 0 2px;
+  border: 1px solid #E4B421;
+  border-radius: 999px;
+  background: #FDC831;
+  color: #211E1E;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+.lexical-ai-btn:hover { background: #FFD64F; box-shadow: 0 1px 3px rgba(33, 30, 30, 0.22); }
+.lexical-ai-btn:active { transform: translateY(1px); }
+.lexical-ai-btn:focus-visible { outline: 2px solid #211E1E; outline-offset: 1px; }
+.lexical-ai-btn svg { flex: 0 0 auto; }
+
+[data-theme="dark"] .lexical-ai-btn,
+body.editor-dark .lexical-ai-btn { border-color: #C79A15; }
+
+/* ── @mention chips + picker (MentionNode / MentionPlugin) ─────────────────
+   The chip styling lives here (shared file) because the portal reader renders
+   mentions too — a guide that links to another guide has to look the same once
+   published. The picker is editor-only but kept alongside it. */
+.lexical-mention {
+  display: inline;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border-radius: 5px;
+  background: rgb(var(--color-primary-rgb, 0 82 204) / 0.10);
+  color: rgb(var(--color-primary-rgb, 0 82 204));
+  font-weight: 600;
+  box-decoration-break: clone;          /* keeps the pill intact across a line wrap */
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+}
+.lexical-mention::before { content: '@'; opacity: 0.55; }
+.lexical-mention:hover { background: rgb(var(--color-primary-rgb, 0 82 204) / 0.18); }
+
+/* Picker. Positioned relative to the editor root, which is why the plugin
+   measures against getRootElement() rather than the viewport. */
+.lexical-mention-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 260px;
+  max-width: 340px;
+  padding: 4px;
+  background: rgb(var(--color-surface-rgb, 255 255 255));
+  border: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.14);
+  font-size: 13px;
+}
+.lexical-mention-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.lexical-mention-item.is-active { background: rgb(var(--color-primary-rgb, 0 82 204) / 0.10); }
+.lexical-mention-title {
+  font-weight: 600;
+  color: rgb(var(--color-text-rgb, 33 30 30));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lexical-mention-cat {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgb(var(--color-text-muted-rgb, 68 56 48) / 0.75);
+}
+.lexical-mention-empty {
+  padding: 9px 10px;
+  color: rgb(var(--color-text-secondary-rgb, 100 88 80));
+  font-size: 12.5px;
+}

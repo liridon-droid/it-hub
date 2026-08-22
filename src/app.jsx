@@ -10,6 +10,20 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 import { rankItems as rankCatalog, matchFromText as matchCatalogText } from './catalogSearch.js';
+// Guide bodies authored in the admin's Lexical editor are stored as Lexical
+// EditorState JSON, not Markdown. The reader renders them natively rather than
+// converting — a Lexical→Markdown step would silently flatten tables, drop
+// embeds and lose bold/italic (the only such converter in the codebase,
+// slicedesk/server/routes/extension.js:373, turns a 2×2 table into "AB12").
+// Legacy Markdown rows keep using renderMarkdown(); isLexicalJson() picks.
+//
+// The viewer is lazy — statically importing it put Lexical in the main chunk and
+// grew the SPA from 848 kB to 1,168 kB (+100 kB gzipped) for every portal
+// visitor, most of whom open Markdown guides that never touch it. isLexicalJson
+// stays static: lexicalUtils.js has zero imports, so it costs nothing.
+const LexicalViewer = React.lazy(() => import('./guide-editor/lexical/LexicalViewer.jsx'));
+import { isLexicalJson } from './guide-editor/lexical/lexicalUtils.js';
+import './guideBody.css';
 
 // ─── scroll helpers ──────────────────────────────────
 // The app's real scroll container is .page-scroll — html/body have
@@ -26107,6 +26121,53 @@ function stripLeadingTitleFromBody(body, title) {
   return body.replace(new RegExp(`^\\s*#\\s+${escaped}\\s*\\n+`, 'i'), '');
 }
 
+// Renders a guide body in whichever format it was stored in.
+//
+// Guides written in the admin's Lexical editor arrive as Lexical EditorState
+// JSON; everything authored before that is Markdown. There is no migration and
+// no conversion — the column holds both and the renderer branches, which is the
+// same mixed-format approach slicedesk uses for its own Lexical columns
+// (client/src/components/ui/lexical/lexicalUtils.js:8).
+//
+// Deliberately NOT converting Lexical→Markdown to reuse renderMarkdown(): that
+// path is lossy (tables collapse, embeds vanish, bold/italic is dropped) and
+// renderMarkdown() cannot render tables or task lists at all.
+function GuideBody({ body, title, onOpenGuide }) {
+  // @mentions render as spans carrying data-guide-id. One delegated click
+  // handler on the wrapper turns them into navigation — cheaper and more
+  // robust than a listener per chip, and it keeps working when the viewer
+  // re-renders the tree.
+  const onClick = React.useCallback((e) => {
+    const chip = e.target.closest?.('.lexical-mention');
+    if (!chip) return;
+    const id = chip.getAttribute('data-guide-id');
+    if (!id || !onOpenGuide) return;
+    e.preventDefault();
+    onOpenGuide({ id: /^\d+$/.test(id) ? Number(id) : id });
+  }, [onOpenGuide]);
+
+  if (isLexicalJson(body)) {
+    // stripLeadingTitleFromBody is Markdown-specific (it strips a leading
+    // `# Title`). Lexical bodies never carry a duplicated H1 — the admin editor
+    // strips it on save — so it is not needed, and applying a regex to JSON
+    // would corrupt it.
+    return (
+      <div className="guide-lexical-body" onClick={onClick}>
+        {/* Fallback is a plain block rather than a spinner: the chunk is small
+            and usually cached, so a spinner would flash more than it informs. */}
+        <React.Suspense fallback={<div style={{ minHeight: 120 }} aria-busy="true" />}>
+          <LexicalViewer value={body} />
+        </React.Suspense>
+      </div>
+    );
+  }
+  return renderMarkdown(stripLeadingTitleFromBody(body, title));
+}
+
+// Where the guide's tool icons, back arrow and (once condensed) the title all
+// pin. Single source of truth so the three sticky layers cannot drift apart.
+const STICKY_TOP = 16;
+
 function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const [body, setBody] = React.useState(null);
   const [title, setTitle] = React.useState(guide?.title || '');
@@ -26116,6 +26177,28 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const [feedback, setFeedback] = React.useState(null);
   const [related, setRelated] = React.useState([]);
   const [shareCopied, setShareCopied] = React.useState(false);
+  // Pinned, the title must hold ONE line: wrapping would grow the sticky
+  // header as you scroll. At rest it wraps freely — it is a 32px heading with
+  // the full column to use.
+  const titleRef = React.useRef(null);
+  const [titleStuck, setTitleStuck] = React.useState(false);
+  React.useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return undefined;
+    let raf = 0;
+    const check = () => { raf = 0; setTitleStuck(el.getBoundingClientRect().top <= STICKY_TOP + 1); };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    check();
+    // Capture phase on document, not window: the guide sits in its own
+    // overflow-y container and scroll events do not bubble.
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      window.removeEventListener('resize', onScroll);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [body, title]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -26462,11 +26545,13 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             }} />
           </div>
           {/* Tools — icon-only, parked at the article's top-right corner.
-              Sticky zero-height anchor, same trick as the back arrow below:
-              stays pinned at the top of the viewport instead of scrolling
-              away with the article. Wrapper is click-through; only the
-              cluster captures the pointer. Search expands leftward on hover. */}
-          <div style={{ position: 'sticky', top: 16, zIndex: 5, height: 0, pointerEvents: 'none' }}>
+              Deliberately NOT sticky: these scroll away with the article once
+              you start reading. Only the back arrow and the title stay pinned,
+              so the reading area keeps a single slim header instead of a row of
+              icons following you down the page. Zero-height, click-through
+              wrapper; only the cluster captures the pointer. Search expands
+              leftward on hover. */}
+          <div style={{ position: 'relative', zIndex: 5, height: 0, pointerEvents: 'none' }}>
           <div style={{ position: 'absolute', top: 0, right: 16, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0, pointerEvents: 'auto' }}>
         {/* Guide search — a magnifying glass that expands on hover (stays
@@ -26613,12 +26698,11 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
           </div>
           </div>
           </div>
-          {/* Back arrow — sticky in the card's white left gutter, so it rides
-              down with you as you read. Zero-height wrapper keeps it out of
-              the text flow; nudged left of the content into the 64px padding.
-              Card padding-top is 16 so at rest it sits in line with the
-              top-right tools; the spacer below restores the title clearance. */}
-          <div style={{ position: 'sticky', top: 16, zIndex: 5, height: 0, pointerEvents: 'none' }}>
+          {/* Back arrow — sits in line with the four tool icons at rest, but
+              unlike them it STAYS pinned as you scroll, so there is always a
+              way back without scrolling up. Zero-height, click-through wrapper;
+              nudged left of the content into the card's 64px padding. */}
+          <div style={{ position: 'sticky', top: STICKY_TOP, zIndex: 5, height: 0, pointerEvents: 'none' }}>
             <button className="guide-back" onClick={onClose} aria-label="Back to Docs" title="Back to Docs" style={{
               ...toolBtn(false), pointerEvents: 'auto',
               position: 'relative', left: -48,
@@ -26655,18 +26739,31 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               body text stays visible through). The inner span keeps the
               divider line 14px below the text, exactly as before. */}
           {body && title && (
-            <h1 style={{
-              margin: 0, padding: '0 0 16px', position: 'sticky', top: 62,
+            <h1 ref={titleRef} style={{
+              margin: 0, padding: '0 0 16px',
+              // Pins at the SAME offset as the back arrow, so the two travel
+              // together as one slim header. The four tool icons deliberately
+              // do NOT pin — they scroll away with the article.
+              position: 'sticky', top: STICKY_TOP,
               zIndex: 4, background: '#FFFFFF',
             }}>
               <span style={{
                 display: 'block', fontSize: 32, fontWeight: 900, letterSpacing: '-0.015em',
                 lineHeight: 1.2, paddingBottom: 14,
+                // Kept visible while pinned: it is the only thing separating
+                // the header from the body scrolling underneath.
                 borderBottom: '1px solid #E5E7EB', color: '#211E1E',
+                // One line once pinned. With the tool icons scrolled away the
+                // title has the full 652px column, and a 30-character title at
+                // 32px needs ~506px — so this clips in practice only for
+                // unusually long titles, where the ellipsis is the safety net.
+                whiteSpace: titleStuck ? 'nowrap' : 'normal',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
               }}>{title}</span>
             </h1>
           )}
-          {body && renderMarkdown(stripLeadingTitleFromBody(body, title))}
+          {body && <GuideBody body={body} title={title} onOpenGuide={onOpenGuide} />}
         </article>
 
         {body && (
@@ -26693,13 +26790,10 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
             onOpenGuide={onOpenGuide}
           />
         )}
-
-        <div style={{
-          marginTop: 'auto', paddingTop: 56, textAlign: 'center',
-          fontSize: 10.5, color: '#4A3F2E',
-          fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase',
-          fontFamily: "'Archivo', sans-serif",
-        }}>Built by the Slice IT Team</div>
+        {/* The "Built by the Slice IT Team" footer is intentionally absent
+            inside a guide: it added 56px of dead space under every article,
+            and by that point the reader has already passed the feedback
+            panel. Still shown on the other portal screens. */}
       </div>
       {lightbox && (
         <ImageLightbox

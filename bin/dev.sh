@@ -35,6 +35,15 @@ start() {
   [ -d node_modules ] || npm install
   [ -d server/node_modules ] || (cd server && npm install)
 
+  # 3b. Guide-editor island bundle. public/admin.html loads this with a plain
+  # <script src>, and it is gitignored, so a fresh checkout has no copy — build
+  # it before the client comes up or the editor section renders empty. Cheap
+  # (~1s) and idempotent. For live rebuilds while editing it, run
+  # `npm run watch:editor` in a second terminal.
+  echo "→ guide-editor bundle…"
+  npm run build:editor --silent >"$LOGDIR/build-editor.log" 2>&1 \
+    || { echo "✗ guide-editor build failed — see $LOGDIR/build-editor.log"; exit 1; }
+
   # 4. Server (auto-creates schema on boot)
   if ! curl -s -m2 -o /dev/null http://localhost:3001/api/health; then
     echo "→ Express server (:3001)…"

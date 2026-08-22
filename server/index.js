@@ -937,7 +937,26 @@ app.post('/api/approvals/:id/respond', requireSliceUser, async (req, res) => {
 // Registered BEFORE the legacy inline /api/guides* handlers below so it wins
 // route matching; the inline portal2-backed handlers become dead fallback.
 // Reads guides + writes feedback to SliceDesk; local guide CRUD is 409'd.
-registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin });
+//
+// DEV_LOCAL_GUIDES=1 skips the adapter so the inline handlers below serve the
+// local portal2 `guides` table instead. Local dev has no SliceDesk to pair
+// with, so otherwise every /api/guides* call fails with "module not paired"
+// and the admin console renders empty. Same escape-hatch shape as
+// DEV_BYPASS_AUTH (middleware/sliceAuth.js). Only set in server/.env.local —
+// never in docker-compose.yml or bin/deploy.sh, so prod always gets SliceDesk.
+const DEV_LOCAL_GUIDES = ['1', 'true', 'yes'].includes(
+  String(process.env.DEV_LOCAL_GUIDES || '').toLowerCase(),
+);
+if (DEV_LOCAL_GUIDES) {
+  // The adapter normally owns /api/guides/pins and must beat /api/guides/:id in
+  // registration order, or ':id' captures the literal "pins" and the numeric
+  // cast blows up. Pins live only in SliceDesk (there is no local pins table),
+  // so serve an empty set — the caller already tolerates it (src/app.jsx:694).
+  app.get('/api/guides/pins', requireSliceUser, (_req, res) => res.json([]));
+  console.log('[dev] DEV_LOCAL_GUIDES=1 — guides served from the local table; SliceDesk adapter skipped');
+} else {
+  registerGuideRoutes(app, { requireSliceUser, requireSliceAdmin });
+}
 
 app.get('/api/guides', requireSliceUser, async (req, res, next) => {
   try {
