@@ -137,6 +137,44 @@ body.editor-dark #ed-toolbar,
   border-bottom: 0;
 }
 
+/* Align the portaled toolbar with the document column.
+ *
+ * The toolbar renders full-width, so its first button sat hard against the left
+ * edge of the window while the document text began at the centred column
+ * (admin.html's `.editor-page { max-width: 830px; margin: 0 auto; padding: 36px
+ * 24px }`). That reads as a misalignment rather than a design.
+ *
+ * Constrain the button row to the same box and centre it. The 10px inline
+ * padding is 24px (the column's own padding) minus the row's px-1.5 (6px) and
+ * the button's p-2 (8px), so the first ICON lines up with the first character of
+ * the text rather than the button's invisible hit area doing so.
+ *
+ * Scoped to #ed-toolbar and to the main row only: the secondary rows (find,
+ * link, image, embed, table) draw their own borders and are left full-width so
+ * those hairlines still span the bar. */
+/* Neutralise the host bar's own inset so the row below controls the geometry
+ * on its own. admin.html gives #ed-toolbar a horizontal padding, which would
+ * otherwise be added to the alignment padding and push everything right. */
+#ed-toolbar {
+  padding-left: 0;
+  padding-right: 0;
+}
+#ed-toolbar .guide-toolbar-row {
+  /* Same box as the document column: admin.html's
+     `.editor-page { max-width: 830px; margin: 0 auto }`. Below 830px both are
+     full-width, above it both centre, so they track each other at every size. */
+  max-width: 830px;
+  margin-inline: auto;
+  width: 100%;
+  /* Line the first ICON up with the first character of the text:
+     24px (.editor-page padding) + 64px (.editor-body padding) + 1px border
+     - 8px (the button's own p-2, which is invisible hit area). */
+  padding-left: 81px;
+  /* Not mirrored: the buttons are left-aligned and flex-wrap, so a large right
+     padding would only make the row wrap sooner for no visual gain. */
+  padding-right: 24px;
+}
+
 /* Active toolbar buttons render as `bg-primary/15 text-primary`, and `primary`
  * is slicedesk's red (218 51 39) — which on this amber-branded admin reads as a
  * warning rather than "this format is on".
