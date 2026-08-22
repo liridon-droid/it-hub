@@ -2531,6 +2531,76 @@
   </div>
 </dialog>
 
+<!-- "Write a guide with AI" guided composer.
+     Restored: this dialog and its two driver functions were deleted alongside
+     TEMPLATES when TipTap was removed (see the note further down), but the
+     server side never was -- AI_PROMPTS['ai-write-guide'] and its handler in
+     server/index.js are intact and Slice-aware. Only the client was missing. -->
+<dialog class="modal" id="aiWriteModal" style="max-width:640px;">
+  <div class="body">
+    <div class="modal-head">
+      <h3 id="aiWriteTitle">✨ Write a guide with AI</h3>
+      <button class="modal-close-x" id="aiWriteClose" type="button">×</button>
+    </div>
+    <p style="margin: 0 0 16px; color: var(--ink-3); font-size: 13px;">Tell AI what this guide should cover. The more specific you are, the better the draft.</p>
+    <div class="field">
+      <label class="field-label" for="aiwTopic">What is this guide about? <span style="color:var(--neg);">*</span></label>
+      <input class="tx" id="aiwTopic" placeholder="e.g. Resetting OneLogin password, Connecting to office Wi-Fi, Setting up Gmail filters…" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label class="field-label" for="aiwAppDevice">App or device (optional)</label>
+      <input class="tx" id="aiwAppDevice" placeholder="e.g. macOS Sonoma · OneLogin Protect · Slack" autocomplete="off" />
+      <div class="field-hint">List specific tools / OS versions / SaaS apps the user will be using.</div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="aiwAudience">Audience (optional)</label>
+      <input class="tx" id="aiwAudience" placeholder="e.g. New hire · Engineering · Non-technical staff" autocomplete="off" />
+    </div>
+    <div class="field-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+      <div class="field">
+        <label class="field-label" for="aiwType">Guide type</label>
+        <select class="tx" id="aiwType">
+          <option value="howto">How-to</option>
+          <option value="troubleshoot">Troubleshooting</option>
+          <option value="runbook">Runbook</option>
+          <option value="faq">FAQ</option>
+          <option value="announcement">Announcement</option>
+          <option value="incident">Incident postmortem</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="aiwTone">Tone</label>
+        <select class="tx" id="aiwTone">
+          <option value="friendly">Friendly</option>
+          <option value="professional">Professional</option>
+          <option value="concise">Concise</option>
+          <option value="detailed">Detailed</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field-label" for="aiwLength">Length</label>
+        <select class="tx" id="aiwLength">
+          <option value="short">Short (~150 words)</option>
+          <option value="medium" selected>Medium (~400 words)</option>
+          <option value="long">Long (~800 words)</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label" for="aiwExtras">Anything else? (optional)</label>
+      <textarea class="tx" id="aiwExtras" rows="3" placeholder="Constraints, links to include, examples to reference, escalation rules…"></textarea>
+    </div>
+    <div class="actions" style="margin-top: 18px;">
+      <button class="btn ghost" id="aiwCancel" type="button">Cancel</button>
+      <span style="flex:1;"></span>
+      <button class="btn primary" id="aiwGenerate" type="button" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-2px;margin-right:5px;"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/></svg>
+        Generate draft
+      </button>
+    </div>
+  </div>
+</dialog>
+
 <!-- Toast stack -->
 <div class="toast-stack" id="toastStack"></div>
 
@@ -2725,7 +2795,145 @@ function confirmDialog(title, msg, danger = true, okLabel = 'Confirm') {
 }
 
 // [removed: LINK PICKER + IMAGE PICKER + LIST-AWARE IMAGE INSERT (only ever called from the TipTap toolbar/bubble menus)]
-// [removed: TEMPLATES + WRITE-WITH-AI COMPOSER (applyTemplate was only reachable from buildToolbar)]
+// [removed: TEMPLATES (applyTemplate was only reachable from buildToolbar)]
+
+// =========== WRITE WITH AI ===========
+// Restored after the TipTap removal took it out. The server half was never
+// removed: POST /api/ai-edit action 'ai-write-guide' (server/index.js) carries a
+// long Slice-specific system prompt -- Jamf/Intune, OneLogin vs local macOS
+// password, Gmail not Outlook, 1Password, GlobalProtect, and a rule that
+// hardware failures become escalation guides rather than self-repair steps.
+// That prompt returns {title, category, tags, sourceType, body} with body as
+// markdown and no leading "# Title".
+//
+// Reachable from the "Write with AI" button in the editor's header. The old
+// entry point was a TEMPLATES menu item, and TEMPLATES went with the toolbar.
+function openAIWriteModal(editor, tags) {
+  const d = $('aiWriteModal');
+  const topic = $('aiwTopic');
+  const appDev = $('aiwAppDevice');
+  const audience = $('aiwAudience');
+  const type = $('aiwType');
+  const tone = $('aiwTone');
+  const length = $('aiwLength');
+  const extras = $('aiwExtras');
+  const gen = $('aiwGenerate');
+  const GEN_LABEL = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-2px;margin-right:5px;"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/></svg>Generate draft';
+
+  topic.value = ''; appDev.value = ''; audience.value = ''; extras.value = '';
+  type.value = 'howto'; tone.value = 'friendly'; length.value = 'medium';
+  gen.disabled = true;
+  gen.innerHTML = GEN_LABEL;
+
+  const validate = () => { gen.disabled = !topic.value.trim(); };
+  topic.oninput = validate;
+  topic.onkeydown = (e) => { if (e.key === 'Enter' && !gen.disabled) { e.preventDefault(); gen.click(); } };
+
+  const close = () => { try { d.close(); } catch {} };
+  const closeBtn = $('aiWriteClose');
+  if (closeBtn) closeBtn.onclick = close;
+  $('aiwCancel').onclick = close;
+
+  gen.onclick = async () => {
+    const ctx = {
+      topic: topic.value.trim(),
+      appDevice: appDev.value.trim(),
+      audience: audience.value.trim(),
+      type: type.value,
+      tone: tone.value,
+      length: length.value,
+      extras: extras.value.trim(),
+    };
+    if (!ctx.topic) return;
+
+    // toPlainText(), not the old editor.getText() — the Lexical handle exposes a
+    // plain-text projection instead (src/guide-editor/index.jsx).
+    const hasContent = (
+      ($('ed-title').value || '').trim().length > 0 ||
+      (editor && !editor.isDestroyed ? editor.toPlainText().trim().length > 0 : false)
+    );
+    if (hasContent && !(await confirmDialog('Replace content?', 'AI will overwrite what you have in the editor right now.', false))) return;
+
+    gen.disabled = true;
+    gen.innerHTML = '<span style="display:inline-block;width:11px;height:11px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;vertical-align:-1px;margin-right:6px;animation:img-spin 0.7s linear infinite;"></span>Drafting…';
+    try {
+      const draft = await generateAIDraft(ctx);
+      const titleEl = $('ed-title');
+      titleEl.value = draft.title;
+      // #ed-title is an autogrowing <textarea>; without this it keeps its
+      // one-row height and a long AI title is clipped.
+      titleEl.dispatchEvent(new Event('input', { bubbles: true }));
+      if ($('ed-type')) $('ed-type').value = draft.sourceType || 'guide';
+      if ($('ed-category')) $('ed-category').value = draft.category || '';
+      if (Array.isArray(draft.tags) && tags) tags.set(draft.tags);
+      // setValue() runs the body through the editor's normalise(), which feeds
+      // markdown to Lexical's own importer — so headings, steps and **bold**
+      // arrive as real nodes rather than literal characters.
+      editor.setValue(draft.body);
+      editor.focus();
+      close();
+      toast('✨ AI draft ready — review and edit', 'ok');
+    } catch (e) {
+      console.error('[ai-write]', e);
+      // Deliberately NO silent template fallback. The removed version dropped
+      // to a deterministic boilerplate draft on any failure and still toasted
+      // "AI draft ready" — so a network error looked like a successful AI
+      // generation. Say what actually happened instead.
+      toast(`AI draft failed: ${e.message || e}`, 'err');
+      gen.disabled = false;
+      gen.innerHTML = GEN_LABEL;
+    }
+  };
+
+  d.showModal();
+  setTimeout(() => topic.focus(), 30);
+}
+
+// POSTs the spec to /api/ai-edit and returns { title, category, tags,
+// sourceType, body }. Throws on failure — the caller surfaces it.
+async function generateAIDraft(ctx) {
+  const r = await fetch('/api/ai-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ action: 'ai-write-guide', text: JSON.stringify(ctx) }),
+  });
+  if (!r.ok) {
+    const j = await r.json().catch(() => ({}));
+    throw new Error(j.detail || j.error || `HTTP ${r.status}`);
+  }
+  const j = await r.json();
+  const raw = String(j.text || '').trim();
+
+  // Tolerant parse: models wrap JSON in ``` fences or prose often enough that
+  // one strict JSON.parse would fail on otherwise-good drafts.
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch {
+    const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    try { parsed = JSON.parse(stripped); } catch {
+      const m = stripped.match(/\{[\s\S]*\}/);
+      if (m) { try { parsed = JSON.parse(m[0]); } catch {} }
+    }
+  }
+
+  if (parsed && typeof parsed.body === 'string' && parsed.body.trim()) {
+    return {
+      title: String(parsed.title || ctx.topic).slice(0, 200),
+      category: String(parsed.category || '').slice(0, 80),
+      tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 8).map((t) => String(t).slice(0, 32)) : [],
+      // Whitelisted: #ed-type also accepts 'ticket', which this prompt never
+      // emits, and an unknown value would leave the select on a stale option.
+      sourceType: ['guide', 'runbook', 'faq', 'announcement'].includes(parsed.sourceType) ? parsed.sourceType : 'guide',
+      body: parsed.body,
+    };
+  }
+  // Model ignored the JSON contract and just wrote the guide — still usable.
+  if (raw.length > 60) {
+    return { title: ctx.topic, category: '', tags: [], sourceType: 'guide', body: raw };
+  }
+  throw new Error('the AI returned an empty draft');
+}
+
 // =========== TAGS ===========
 function setupTags(shellEl, inputEl, onChange) {
   let tags = [];
@@ -5776,6 +5984,9 @@ function renderEditor(root) {
             <svg id="editorThemeIconLight" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
             <svg id="editorThemeIconDark" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
           </button>
+          <button class="btn ghost" id="aiWriteBtn" type="button" title="Draft a whole guide with AI">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="vertical-align:-2px;margin-right:5px;"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2z"/></svg>Write with AI
+          </button>
           <button class="btn ghost" id="detailsBtn">Details</button>
           <button class="btn ghost" id="previewToggleBtn">Preview</button>
           <button class="btn primary" id="saveBtn">${e.mode === 'edit' ? 'Save changes' : 'Publish'}</button>
@@ -6000,6 +6211,9 @@ function renderEditor(root) {
   // wired directly and tbApi's setPreviewActive() becomes a no-op.
   const tbApi = { setPreviewActive() {} };
   $('previewToggleBtn').onclick = togglePreview;
+  // Restored "Write with AI". Needs both handles: the draft sets the title,
+  // type, category AND tags, not just the body.
+  $('aiWriteBtn').onclick = () => openAIWriteModal(editor, tags);
   state.editor = editor;
 
   // New guides start with the title input focused so you can type immediately —

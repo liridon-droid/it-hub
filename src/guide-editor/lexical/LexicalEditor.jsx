@@ -432,9 +432,6 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   const [alignOpen, setAlignOpen] = useState(false);
   const [insertMenuOpen, setInsertMenuOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
-  // Full-page editors (the Docs editor) show the formatting toolbar expanded by
-  // default; compact inline editors stay collapsed to save space.
-  const [collapsed, setCollapsed] = useState(surface !== 'page');
   const [findQuery, setFindQuery] = useState('');
   const [replaceQuery, setReplaceQuery] = useState('');
   const [matchCount, setMatchCount] = useState(0);
@@ -740,7 +737,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
   return (
     <div className={`border-b border-border bg-surface-subtle/50 flex flex-col ${className || ''}`}>
       {/* Find & Replace Bar */}
-      {!collapsed && findOpen && (
+      {findOpen && (
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border/50 bg-primary-light/5">
           <I size={14} className="text-text-muted flex-shrink-0"><path d="m21 21-4.35-4.35M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z"/></I>
           <input
@@ -775,8 +772,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
       )}
 
       {/* Main Toolbar — all tools flat, no dropdowns */}
-      <div className="flex items-center flex-wrap gap-0 px-1.5 py-1.5">
-        {!collapsed && <>
+      <div className="guide-toolbar-row flex items-center flex-wrap gap-0 px-1.5 py-1.5">
         {/* ── Text Formatting ── */}
         <Btn onClick={() => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold')} title="Bold (Ctrl+B)" active={boldActive}>
           <I size={15}><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></I>
@@ -1017,22 +1013,10 @@ function Toolbar({ className, surface, showKeyboardHints }) {
         <Btn onClick={() => setFindOpen(!findOpen)} title="Find & Replace (Ctrl+F)" active={findOpen}>
           <I size={15}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></I>
         </Btn>
-        </>}
-        <button
-          type="button"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Show toolbar' : 'Hide toolbar'}
-          className="ml-auto p-2 rounded-lg transition-all flex items-center justify-center text-text-muted/60 hover:text-text-primary hover:bg-surface-raised flex-shrink-0"
-        >
-          {collapsed
-            ? <I size={14}><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></I>
-            : <I size={14}><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></I>
-          }
-        </button>
       </div>
 
       {/* Link insertion row */}
-      {!collapsed && linkOpen && (
+      {linkOpen && (
         <div className="flex items-center gap-2 px-3 py-2 border-t border-border/50 bg-primary-light/5 flex-wrap">
           <I size={16} className="text-primary flex-shrink-0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></I>
           <input
@@ -1070,7 +1054,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
       )}
 
       {/* Image insertion row */}
-      {!collapsed && imageOpen && (
+      {imageOpen && (
         <div className="flex items-center gap-2 px-3 py-2 border-t border-border/50 bg-primary-light/5 flex-wrap">
           <I size={16} className="text-primary flex-shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></I>
           <button
@@ -1107,7 +1091,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
       )}
 
       {/* Embed (video / Google Doc) insertion row */}
-      {!collapsed && embedOpen && (
+      {embedOpen && (
         <div className="flex items-center gap-2 px-3 py-2 border-t border-border/50 bg-primary-light/5 flex-wrap">
           <I size={16} className="text-primary flex-shrink-0"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="m10 8 5 3-5 3z"/></I>
           <input
@@ -1139,7 +1123,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
       )}
 
       {/* Table insertion row with visual grid picker */}
-      {!collapsed && tableOpen && (
+      {tableOpen && (
         <div className="flex items-center gap-3 px-3 py-2 border-t border-border/50 bg-primary-light/5">
           <I size={16} className="text-primary flex-shrink-0"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></I>
           {/* Visual 6x6 grid picker - compact inline */}
@@ -1178,7 +1162,7 @@ function Toolbar({ className, surface, showKeyboardHints }) {
         </div>
       )}
 
-      {!collapsed && showKeyboardHints && (
+      {showKeyboardHints && (
         <div className="px-3 py-1 border-t border-border/40 bg-bg/30">
           <p className="text-[10px] text-text-muted/60 flex items-center gap-2 flex-wrap">
             <span><kbd className="font-mono bg-surface-raised px-1 py-0.5 rounded text-[9px] border border-border/50">#</kbd> H1</span>
