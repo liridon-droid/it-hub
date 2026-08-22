@@ -851,3 +851,63 @@ body.editor-dark .lexical-toggle-summary:hover { background: rgba(255, 255, 255,
   background: rgb(var(--color-danger-bg-rgb, 252 231 229));
   border-bottom: 1px solid rgb(var(--color-border-rgb, 223 225 230));
 }
+
+/* ── Column layout (ColumnsNode / ColumnNode) ──────────────────────────────
+   Plain CSS grid, so the read-only portal lays it out with no JavaScript. */
+.lexical-columns {
+  display: grid;
+  gap: 20px;
+  margin: 16px 0;
+  align-items: start;
+}
+.lexical-columns[data-cols="2"] { grid-template-columns: 1fr 1fr; }
+.lexical-columns[data-cols="3"] { grid-template-columns: 1fr 1fr 1fr; }
+.lexical-column { min-width: 0; }
+/* First/last child margins would otherwise push the columns out of alignment
+   with each other. */
+.lexical-column > *:first-child { margin-top: 0; }
+.lexical-column > *:last-child { margin-bottom: 0; }
+
+/* While editing, a faint guide makes the cell boundaries findable — the reader
+   sees no such outline. */
+.guide-editor-root .lexical-column {
+  border-left: 2px solid rgb(var(--color-border-rgb, 223 225 230) / 0.7);
+  padding-left: 12px;
+}
+
+/* Stack on narrow screens: two 50% columns of prose are unreadable on a phone. */
+@media (max-width: 640px) {
+  .lexical-columns[data-cols="2"],
+  .lexical-columns[data-cols="3"] { grid-template-columns: 1fr; }
+}
+
+/* ── "Ask AI" toolbar button ───────────────────────────────────────────────
+   The only control in the toolbar that calls a model, so it does not use the
+   shared ghost-icon treatment — as a 31st identical icon nobody found it.
+   Amber is the IT Hub admin's accent (--accent: #FDC831), matching Publish. */
+.lexical-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 10px;
+  margin: 0 2px;
+  border: 1px solid #E4B421;
+  border-radius: 999px;
+  background: #FDC831;
+  color: #211E1E;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, box-shadow 0.12s ease, transform 0.08s ease;
+}
+.lexical-ai-btn:hover { background: #FFD64F; box-shadow: 0 1px 3px rgba(33, 30, 30, 0.22); }
+.lexical-ai-btn:active { transform: translateY(1px); }
+.lexical-ai-btn:focus-visible { outline: 2px solid #211E1E; outline-offset: 1px; }
+.lexical-ai-btn svg { flex: 0 0 auto; }
+
+[data-theme="dark"] .lexical-ai-btn,
+body.editor-dark .lexical-ai-btn { border-color: #C79A15; }

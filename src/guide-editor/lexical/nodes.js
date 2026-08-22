@@ -20,6 +20,7 @@ import { ImageNode } from './ImageNode';
 import { EmbedNode } from './EmbedNode';
 import { CalloutNode } from './CalloutNode';
 import { ToggleNode, ToggleSummaryNode } from './ToggleNode';
+import { ColumnsNode, ColumnNode } from './ColumnsNode';
 
 export const NODES = [
   ImageNode,
@@ -27,6 +28,8 @@ export const NODES = [
   CalloutNode,
   ToggleNode,
   ToggleSummaryNode,
+  ColumnsNode,
+  ColumnNode,
   HeadingNode,
   QuoteNode,
   CodeNode,

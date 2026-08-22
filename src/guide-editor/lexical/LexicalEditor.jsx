@@ -42,6 +42,7 @@ import { $createImageNode, ImageNode } from './ImageNode';
 import { $createEmbedNode, EmbedNode } from './EmbedNode';
 import { CalloutNode, $createCalloutNode, $isCalloutNode, CALLOUT_VARIANTS } from './CalloutNode';
 import { $buildToggle, $isToggleNode } from './ToggleNode';
+import { $buildColumns } from './ColumnsNode';
 import AiAssistantPlugin from './AiAssistant';
 import { resolveEmbed } from './embedUrls';
 import { HeadingNode, QuoteNode, $isHeadingNode } from '@lexical/rich-text';
@@ -342,6 +343,42 @@ function applyCallout(editor, emoji, variant) {
     if (!textNode || typeof textNode.getTextContent !== 'function') return;
     const existing = textNode.getTextContent();
     if (!existing.startsWith(emoji)) textNode.setTextContent(emoji + existing);
+  });
+}
+
+// Wrap the current block in a CSS-grid column layout. Whatever the author had
+// selected becomes column one, so turning a paragraph into two columns keeps
+// the text instead of discarding it.
+function applyColumns(editor, cols) {
+  editor.update(() => {
+    const sel = $getSelection();
+    if (!$isRangeSelection(sel)) return;
+    const block = sel.anchor.getNode().getTopLevelElementOrThrow();
+    const hasContent = block.getTextContentSize
+      ? block.getTextContentSize() > 0
+      : !!block.getTextContent?.();
+
+    const { columns, first } = $buildColumns(cols, null);
+    block.insertAfter(columns);
+
+    if (hasContent) {
+      // MOVE the original block into cell one rather than cloning it:
+      // appending a node already in the tree relocates it, so its formatting,
+      // links and children survive intact. (Cloning via
+      // importJSON(exportJSON()) would mint fresh keys and drop anything the
+      // serializer does not round-trip.)
+      //
+      // Order matters: append FIRST, then drop the placeholder. Clearing the
+      // cell first empties it, and ColumnNode.canBeEmpty() is false — so
+      // Lexical removes the cell during reconciliation and the following
+      // append runs against a detached node (Lexical error #19).
+      const placeholder = first.getFirstChild();
+      first.append(block);
+      if (placeholder) placeholder.remove();
+    } else {
+      block.remove();
+    }
+    (first.getFirstChild() || first).selectStart();
   });
 }
 
@@ -933,6 +970,8 @@ function Toolbar({ className, surface, showKeyboardHints }) {
           <div className="h-px bg-border/60 my-1 mx-2" />
           <div className="px-3 pt-1.5 pb-1 text-[9px] font-semibold text-text-muted/50 uppercase tracking-widest">Advanced</div>
           <MenuItem onClick={() => { insertToggle(); setInsertMenuOpen(false); }} icon={<I size={14}><path d="M9 6l-2 3h2v4H9l2 3V6z"/></I>} label="Toggle / Collapsible" />
+          <MenuItem onClick={() => { applyColumns(editor, 2); setInsertMenuOpen(false); }} icon={<I size={14}><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/></I>} label="2 columns" />
+          <MenuItem onClick={() => { applyColumns(editor, 3); setInsertMenuOpen(false); }} icon={<I size={14}><rect x="2" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="16" rx="1"/><rect x="17" y="4" width="5" height="16" rx="1"/></I>} label="3 columns" />
           <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'subscript'); setInsertMenuOpen(false); }} icon={<span className="text-[11px] font-bold">X<sub>2</sub></span>} label="Subscript" />
           <MenuItem onClick={() => { editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'superscript'); setInsertMenuOpen(false); }} icon={<span className="text-[11px] font-bold">X<sup>2</sup></span>} label="Superscript" />
           <MenuItem onClick={() => { editor.update(() => { const sel = $getSelection(); if ($isRangeSelection(sel)) { $setBlocksType(sel, () => $createParagraphNode()); $patchStyleText(sel, { color: '', 'background-color': '', 'font-size': '' }); if (sel.hasFormat('bold')) sel.formatText('bold'); if (sel.hasFormat('italic')) sel.formatText('italic'); if (sel.hasFormat('underline')) sel.formatText('underline'); if (sel.hasFormat('strikethrough')) sel.formatText('strikethrough'); if (sel.hasFormat('code')) sel.formatText('code'); if (sel.hasFormat('highlight')) sel.formatText('highlight'); } }); setInsertMenuOpen(false); }} icon={<I size={14}><path d="M21 10H7"/><path d="M21 6H3"/><path d="M21 14H3"/><path d="M21 18H7"/></I>} label="Clear All Formatting" />
@@ -954,9 +993,19 @@ function Toolbar({ className, surface, showKeyboardHints }) {
         {/* AI assistant (⌘J). Dispatches an event rather than lifting the
             palette's state into the toolbar — the palette lives inside the
             composer so it can read the selection. */}
-        <Btn onClick={() => window.dispatchEvent(new CustomEvent('guide-editor:open-ai'))} title="Ask AI (⌘J)">
-          <I size={15}><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></I>
-        </Btn>
+        {/* Deliberately NOT a plain <Btn>: as one more ghost icon among thirty
+            it was invisible. Accent pill + "AI" label so the one thing in the
+            toolbar that calls a model is findable. */}
+        <button
+          type="button"
+          className="lexical-ai-btn"
+          aria-label="Ask AI"
+          title="Ask AI (⌘J)"
+          onClick={() => window.dispatchEvent(new CustomEvent('guide-editor:open-ai'))}
+        >
+          <I size={13}><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></I>
+          <span>AI</span>
+        </button>
         <Btn onClick={() => setFindOpen(!findOpen)} title="Find & Replace (Ctrl+F)" active={findOpen}>
           <I size={15}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></I>
         </Btn>
@@ -1157,6 +1206,8 @@ function SlashCommandPlugin() {
     { id: 'checklist', label: 'Task List', desc: 'Checkboxes for tasks', icon: <I size={14}><rect x="3" y="5" width="6" height="6" rx="1"/><path d="m3 17 2 2 4-4"/><line x1="13" y1="8" x2="21" y2="8"/></I>, action: () => editor.dispatchCommand(INSERT_CHECK_LIST_COMMAND, undefined) },
     { id: 'quote', label: 'Quote', desc: 'Blockquote', icon: <I size={14}><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V20c0 1 0 1 1 1z" fill="currentColor" stroke="none"/></I>, action: () => { editor.update(() => { const sel = $getSelection(); if ($isRangeSelection(sel)) $setBlocksType(sel, () => $createQuoteNode()); }); } },
     { id: 'toggle', label: 'Toggle / Collapsible', desc: 'Collapsible section', icon: <I size={14}><path d="M9 6l-2 3h2v4H9l2 3V6z"/></I>, action: () => applyToggle(editor) },
+    { id: 'columns2', label: '2 columns', desc: 'Side-by-side layout', icon: <I size={14}><rect x="3" y="4" width="7" height="16" rx="1"/><rect x="14" y="4" width="7" height="16" rx="1"/></I>, action: () => applyColumns(editor, 2) },
+    { id: 'columns3', label: '3 columns', desc: 'Three-up layout', icon: <I size={14}><rect x="2" y="4" width="5" height="16" rx="1"/><rect x="9.5" y="4" width="5" height="16" rx="1"/><rect x="17" y="4" width="5" height="16" rx="1"/></I>, action: () => applyColumns(editor, 3) },
     { id: 'code', label: 'Code Block', desc: 'Syntax highlighted block', icon: <I size={14}><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></I>, action: () => { editor.update(() => { const sel = $getSelection(); if ($isRangeSelection(sel)) $setBlocksType(sel, () => $createCodeNode()); }); } },
     { id: 'divider', label: 'Divider', desc: 'Horizontal rule', icon: <I size={14}><line x1="3" y1="12" x2="21" y2="12"/></I>, action: () => editor.dispatchCommand(INSERT_HORIZONTAL_RULE_COMMAND, undefined) },
     { id: 'table', label: 'Table', desc: 'Insert a 3x3 table', icon: <I size={14}><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></I>, action: () => { editor.update(() => { const table = $createTableNodeWithDimensions(3, 3, false); $insertNodes([table, $createParagraphNode()]); }); } },

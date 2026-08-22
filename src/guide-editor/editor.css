@@ -94,6 +94,31 @@
   --color-text-muted-rgb: 68 56 48;
 }
 
+/* Dark mode. Without this the token block above applies unconditionally, so the
+ * editor kept near-black text (33 30 30) while admin.html swapped the surface
+ * to #15171C — text the same value as its background, i.e. invisible.
+ *
+ * Values mirror admin.html's own `body.editor-dark` palette (--canvas #15171C,
+ * --ink #F1F3F5, --ink-2 #D1D5DB, --ink-3 #94A3B8, --border #2A2D34) so the
+ * editor matches the page it sits in rather than inventing a second dark theme.
+ * [data-theme="dark"] is included for hosts that use that convention instead. */
+body.editor-dark .guide-editor-root,
+body.editor-dark .guide-lexical-body,
+body.editor-dark #ed-toolbar,
+[data-theme="dark"] .guide-editor-root,
+[data-theme="dark"] .guide-lexical-body,
+[data-theme="dark"] #ed-toolbar {
+  --color-bg-rgb: 15 17 21;
+  --color-surface-rgb: 21 23 28;
+  --color-surface-raised-rgb: 30 33 40;
+  --color-surface-subtle-rgb: 26 28 34;
+  --color-border-rgb: 42 45 52;
+  --color-border-strong-rgb: 58 62 71;
+  --color-text-rgb: 241 243 245;
+  --color-text-secondary-rgb: 209 213 219;
+  --color-text-muted-rgb: 148 163 184;
+}
+
 /* The toolbar is portaled into the host page's sticky header slot (#ed-toolbar)
  * rather than rendered inline, so it needs no sticky positioning of its own —
  * the header bar it lives in is already sticky.
@@ -123,6 +148,12 @@
  * primary for links and selection. */
 #ed-toolbar {
   --color-primary-rgb: 33 30 30;
+}
+/* …and its inverse in dark mode, or the "format is on" pill would be dark ink
+   on a dark bar — the same invisible-text problem, just on the active state. */
+body.editor-dark #ed-toolbar,
+[data-theme="dark"] #ed-toolbar {
+  --color-primary-rgb: 241 243 245;
 }
 
 /* lexicalTheme.css is intentionally NOT imported here — LexicalEditor.jsx:85
