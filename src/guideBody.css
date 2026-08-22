@@ -1,0 +1,49 @@
+/* Support styles for rendering Lexical guide bodies in the portal reader.
+ *
+ * The portal SPA uses no Tailwind (it styles with inline style={{}} objects and
+ * styles.css), but the vendored LexicalViewer applies three Tailwind utilities
+ * to its ContentEditable, and its theme classes resolve colours from
+ * --color-*-rgb custom properties. Rather than edit the vendored component
+ * (which would make re-syncing it from slicedesk harder), both gaps are filled
+ * here, scoped to the wrapper.
+ *
+ * lexicalTheme.css itself is NOT imported here — LexicalViewer.jsx:31 imports
+ * it, so Vite folds it into the SPA stylesheet automatically.
+ */
+.guide-lexical-body {
+  /* Same token values as the editor island (src/guide-editor/editor.css), so a
+   * guide looks identical in the admin editor and in the portal reader.
+   * lexicalTheme.css has hardcoded fallbacks for all 57 uses, so these only
+   * need to cover what we want to look *right* rather than merely legible. */
+  --color-primary-rgb: 218 51 39;
+  --color-primary-hover-rgb: 197 38 26;
+  --color-primary-light-rgb: 252 231 229;
+  --color-success-rgb: 0 102 68;
+  --color-success-bg-rgb: 227 252 239;
+  --color-warning-rgb: 255 139 0;
+  --color-warning-bg-rgb: 255 250 230;
+  --color-danger-rgb: 218 51 39;
+  --color-danger-bg-rgb: 252 231 229;
+  --color-bg-rgb: 247 244 239;
+  --color-surface-rgb: 255 255 255;
+  --color-surface-raised-rgb: 250 251 252;
+  --color-surface-subtle-rgb: 245 247 250;
+  --color-border-rgb: 223 225 230;
+  --color-border-strong-rgb: 205 214 224;
+  --color-text-rgb: 33 30 30;
+  --color-text-secondary-rgb: 100 88 80;
+  --color-text-muted-rgb: 68 56 48;
+}
+
+/* The three Tailwind utilities LexicalViewer puts on its ContentEditable
+ * (LexicalViewer.jsx:107). Scoped so they cannot leak into the rest of the SPA. */
+.guide-lexical-body .outline-none { outline: none; }
+.guide-lexical-body .leading-relaxed { line-height: 1.625; }
+/* Deliberately NOT Tailwind's text-sm (0.875rem). A guide body is primary
+ * reading content — this matches the size renderMarkdown() produces so switching
+ * a guide from Markdown to Lexical does not visibly shrink the text. */
+.guide-lexical-body .text-sm { font-size: 15.5px; }
+
+/* whitespace-pre-line is used by the viewer's own non-Lexical fallback path.
+ * We branch before reaching it, but define it so the fallback stays readable. */
+.guide-lexical-body .whitespace-pre-line { white-space: pre-line; }

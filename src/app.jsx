@@ -10,6 +10,20 @@
 import React from 'react';
 import * as ReactDOM from 'react-dom';
 import { rankItems as rankCatalog, matchFromText as matchCatalogText } from './catalogSearch.js';
+// Guide bodies authored in the admin's Lexical editor are stored as Lexical
+// EditorState JSON, not Markdown. The reader renders them natively rather than
+// converting — a Lexical→Markdown step would silently flatten tables, drop
+// embeds and lose bold/italic (the only such converter in the codebase,
+// slicedesk/server/routes/extension.js:373, turns a 2×2 table into "AB12").
+// Legacy Markdown rows keep using renderMarkdown(); isLexicalJson() picks.
+//
+// The viewer is lazy — statically importing it put Lexical in the main chunk and
+// grew the SPA from 848 kB to 1,168 kB (+100 kB gzipped) for every portal
+// visitor, most of whom open Markdown guides that never touch it. isLexicalJson
+// stays static: lexicalUtils.js has zero imports, so it costs nothing.
+const LexicalViewer = React.lazy(() => import('./guide-editor/lexical/LexicalViewer.jsx'));
+import { isLexicalJson } from './guide-editor/lexical/lexicalUtils.js';
+import './guideBody.css';
 
 // ─── scroll helpers ──────────────────────────────────
 // The app's real scroll container is .page-scroll — html/body have
@@ -26107,6 +26121,36 @@ function stripLeadingTitleFromBody(body, title) {
   return body.replace(new RegExp(`^\\s*#\\s+${escaped}\\s*\\n+`, 'i'), '');
 }
 
+// Renders a guide body in whichever format it was stored in.
+//
+// Guides written in the admin's Lexical editor arrive as Lexical EditorState
+// JSON; everything authored before that is Markdown. There is no migration and
+// no conversion — the column holds both and the renderer branches, which is the
+// same mixed-format approach slicedesk uses for its own Lexical columns
+// (client/src/components/ui/lexical/lexicalUtils.js:8).
+//
+// Deliberately NOT converting Lexical→Markdown to reuse renderMarkdown(): that
+// path is lossy (tables collapse, embeds vanish, bold/italic is dropped) and
+// renderMarkdown() cannot render tables or task lists at all.
+function GuideBody({ body, title }) {
+  if (isLexicalJson(body)) {
+    // stripLeadingTitleFromBody is Markdown-specific (it strips a leading
+    // `# Title`). Lexical bodies never carry a duplicated H1 — the admin editor
+    // strips it on save — so it is not needed, and applying a regex to JSON
+    // would corrupt it.
+    return (
+      <div className="guide-lexical-body">
+        {/* Fallback is a plain block rather than a spinner: the chunk is small
+            and usually cached, so a spinner would flash more than it informs. */}
+        <React.Suspense fallback={<div style={{ minHeight: 120 }} aria-busy="true" />}>
+          <LexicalViewer value={body} />
+        </React.Suspense>
+      </div>
+    );
+  }
+  return renderMarkdown(stripLeadingTitleFromBody(body, title));
+}
+
 function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
   const [body, setBody] = React.useState(null);
   const [title, setTitle] = React.useState(guide?.title || '');
@@ -26666,7 +26710,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               }}>{title}</span>
             </h1>
           )}
-          {body && renderMarkdown(stripLeadingTitleFromBody(body, title))}
+          {body && <GuideBody body={body} title={title} />}
         </article>
 
         {body && (

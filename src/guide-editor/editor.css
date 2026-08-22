@@ -1,0 +1,131 @@
+/* Style entry for the guide-editor island.
+ *
+ * Note there is no `@tailwind base` — preflight is disabled in
+ * tailwind.editor.config.js (it would restyle all of admin.html), and without
+ * preflight the base layer emits nothing useful.
+ */
+@tailwind components;
+@tailwind utilities;
+
+/* ── Scoped preflight subset ───────────────────────────────────────────────
+ * Tailwind's preflight is disabled globally (it would restyle all of
+ * admin.html), but the ported editor is written against it — without it every
+ * <button> falls back to the browser's native chrome: `2px outset black` with a
+ * grey face. That is what made the toolbar look like 30 chunky OS buttons.
+ *
+ * So: replicate only the parts preflight provides that this component needs,
+ * scoped to the island and its portaled toolbar.
+ *
+ * Wrapped in :where() deliberately — that keeps specificity at (0,0,1), so
+ * every Tailwind utility (p-2, rounded-lg, text-text-secondary…) still wins.
+ * Without :where(), `#ed-toolbar button` would be (1,0,1) and would beat the
+ * utilities, killing the padding and colours instead of just the native chrome.
+ */
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) *,
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) *::before,
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) *::after {
+  border: 0 solid;
+  box-sizing: border-box;
+}
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) button,
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) input,
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) select,
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) textarea {
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  background-image: none;
+  text-transform: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) button {
+  cursor: pointer;
+}
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) button:disabled {
+  cursor: not-allowed;
+}
+/* Icons are laid out as flex children; inline-baseline alignment adds a
+ * phantom descender gap that makes the icon buttons look vertically off. */
+:where(#ed-toolbar, .guide-editor-root, .guide-lexical-body) svg {
+  display: block;
+}
+
+/* Design tokens the ported editor's 122 className sites resolve against.
+ *
+ * Copied from slicedesk/client/src/index.css, but scoped to .guide-editor-root
+ * instead of :root. admin.html has its own token set (--ink, --accent, --border,
+ * …); keeping these local means neither can bleed into the other, and it also
+ * means the editor renders identically regardless of what page hosts it. */
+/* .guide-lexical-body is the read-only wrapper used by mountViewer() (the
+ * admin preview pane) and by the portal reader. Same tokens, so a guide looks
+ * identical while editing, while previewing, and once published. Tailwind
+ * generates the utility classes the viewer needs from this same build, so only
+ * the tokens are declared here. */
+/* #ed-toolbar is included because the toolbar is portaled into the host page's
+ * sticky header, which sits OUTSIDE .guide-editor-root — without it the
+ * toolbar's 100+ Tailwind colour utilities would fall back to their hardcoded
+ * defaults and stop matching the editor body. */
+.guide-editor-root,
+.guide-lexical-body,
+#ed-toolbar {
+  --color-primary-rgb: 218 51 39;
+  --color-primary-hover-rgb: 197 38 26;
+  --color-primary-light-rgb: 252 231 229;
+  --color-success-rgb: 0 102 68;
+  --color-success-bg-rgb: 227 252 239;
+  --color-warning-rgb: 255 139 0;
+  --color-warning-bg-rgb: 255 250 230;
+  --color-danger-rgb: 218 51 39;
+  --color-danger-bg-rgb: 252 231 229;
+  --color-bg-rgb: 247 244 239;
+  --color-surface-rgb: 255 255 255;
+  --color-surface-raised-rgb: 250 251 252;
+  --color-surface-subtle-rgb: 245 247 250;
+  --color-border-rgb: 223 225 230;
+  --color-border-strong-rgb: 205 214 224;
+  --color-text-rgb: 33 30 30;
+  --color-text-secondary-rgb: 100 88 80;
+  /* Upstream note: originally 165/155/145, which failed AA once Tailwind alpha
+     modifiers (/70, /60, /50) lightened it further. 68/56/48 survives them. */
+  --color-text-muted-rgb: 68 56 48;
+}
+
+/* The toolbar is portaled into the host page's sticky header slot (#ed-toolbar)
+ * rather than rendered inline, so it needs no sticky positioning of its own —
+ * the header bar it lives in is already sticky.
+ *
+ * It does need an OPAQUE background (the component ships bg-surface-subtle/50,
+ * 50% alpha, which would let the document show through while scrolling
+ * underneath) — but it must be the host page's own canvas colour, not a grey.
+ * Hardcoding #FAFAFA put a visible grey band directly under the white header
+ * row. --canvas is #FFFFFF in light and #15171C in dark, so inheriting it also
+ * removes the need for a separate dark-mode override. */
+#ed-toolbar > div {
+  background: var(--canvas, #fff);
+  width: 100%;
+  /* .editor-sticky-bar already draws the bottom hairline; the component's own
+   * border-b would stack a second line right on top of it. */
+  border-bottom: 0;
+}
+
+/* Active toolbar buttons render as `bg-primary/15 text-primary`, and `primary`
+ * is slicedesk's red (218 51 39) — which on this amber-branded admin reads as a
+ * warning rather than "this format is on".
+ *
+ * Both the fill and the icon derive from the same token, so retinting it here
+ * to the admin's own ink colour yields a neutral grey pill with a dark icon:
+ * high contrast, and consistent with .tb-btn.is-active, which the previous
+ * TipTap toolbar used. Scoped to #ed-toolbar so the editor BODY keeps the red
+ * primary for links and selection. */
+#ed-toolbar {
+  --color-primary-rgb: 33 30 30;
+}
+
+/* lexicalTheme.css is intentionally NOT imported here — LexicalEditor.jsx:85
+ * and LexicalViewer.jsx:31 already import it themselves (as upstream does), so
+ * Vite pulls it into this same bundle's stylesheet. Adding an @import would
+ * both duplicate it and sit after rules, which is invalid CSS ordering. */

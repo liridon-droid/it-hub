@@ -15,7 +15,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --no-audit --no-fund
 
-COPY index.html vite.config.js ./
+# vite.editor.config.js is required too: `npm run build` runs build:editor
+# first (package.json), which bundles the React/Lexical guide-editor island
+# into public/assets/ before the main build copies public/ into dist/. Without
+# it the image build fails on a missing config file.
+COPY index.html vite.config.js vite.editor.config.js ./
 COPY src ./src
 COPY public ./public
 
