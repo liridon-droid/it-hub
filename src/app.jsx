@@ -26132,14 +26132,27 @@ function stripLeadingTitleFromBody(body, title) {
 // Deliberately NOT converting Lexical→Markdown to reuse renderMarkdown(): that
 // path is lossy (tables collapse, embeds vanish, bold/italic is dropped) and
 // renderMarkdown() cannot render tables or task lists at all.
-function GuideBody({ body, title }) {
+function GuideBody({ body, title, onOpenGuide }) {
+  // @mentions render as spans carrying data-guide-id. One delegated click
+  // handler on the wrapper turns them into navigation — cheaper and more
+  // robust than a listener per chip, and it keeps working when the viewer
+  // re-renders the tree.
+  const onClick = React.useCallback((e) => {
+    const chip = e.target.closest?.('.lexical-mention');
+    if (!chip) return;
+    const id = chip.getAttribute('data-guide-id');
+    if (!id || !onOpenGuide) return;
+    e.preventDefault();
+    onOpenGuide({ id: /^\d+$/.test(id) ? Number(id) : id });
+  }, [onOpenGuide]);
+
   if (isLexicalJson(body)) {
     // stripLeadingTitleFromBody is Markdown-specific (it strips a leading
     // `# Title`). Lexical bodies never carry a duplicated H1 — the admin editor
     // strips it on save — so it is not needed, and applying a regex to JSON
     // would corrupt it.
     return (
-      <div className="guide-lexical-body">
+      <div className="guide-lexical-body" onClick={onClick}>
         {/* Fallback is a plain block rather than a spinner: the chunk is small
             and usually cached, so a spinner would flash more than it informs. */}
         <React.Suspense fallback={<div style={{ minHeight: 120 }} aria-busy="true" />}>
@@ -26750,7 +26763,7 @@ function GuideExperience({ guide, onClose, onFileTicket, onOpenGuide }) {
               }}>{title}</span>
             </h1>
           )}
-          {body && <GuideBody body={body} title={title} />}
+          {body && <GuideBody body={body} title={title} onOpenGuide={onOpenGuide} />}
         </article>
 
         {body && (

@@ -5936,6 +5936,27 @@ function renderEditor(root) {
     // the toolbar keeps its editor context.
     toolbarTarget: $('ed-toolbar'),
     onAiAction: aiActionForEditor,
+    // Powers the "@" guide picker. Served from state.guides, already in memory
+    // from loadData() — no extra request per keystroke. Title matches first,
+    // then category, so typing "@vpn" surfaces the VPN guide before anything
+    // merely filed under Network.
+    searchGuides: (q) => {
+      const all = Array.isArray(state.guides) ? state.guides : [];
+      const term = String(q || '').trim().toLowerCase();
+      const scored = all
+        .map((g) => {
+          const t = (g.title || '').toLowerCase();
+          const c = (g.category || '').toLowerCase();
+          if (!term) return { g, score: 1 };
+          if (t.startsWith(term)) return { g, score: 4 };
+          if (t.includes(term)) return { g, score: 3 };
+          if (c.includes(term)) return { g, score: 2 };
+          return null;
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score || (a.g.title || '').localeCompare(b.g.title || ''));
+      return scored.map(({ g }) => ({ id: g.id, title: g.title, category: g.category }));
+    },
     // 'brainstorm' and 'summary' prompt off the guide title, so the palette
     // needs to read the live title field rather than the saved snapshot.
     getTitle: () => ($('ed-title')?.value || '').trim(),

@@ -43,6 +43,7 @@ import { $createEmbedNode, EmbedNode } from './EmbedNode';
 import { CalloutNode, $createCalloutNode, $isCalloutNode, CALLOUT_VARIANTS } from './CalloutNode';
 import { $buildToggle, $isToggleNode } from './ToggleNode';
 import { $buildColumns } from './ColumnsNode';
+import MentionPlugin from './MentionPlugin';
 import AiAssistantPlugin from './AiAssistant';
 import { resolveEmbed } from './embedUrls';
 import { HeadingNode, QuoteNode, $isHeadingNode } from '@lexical/rich-text';
@@ -1730,6 +1731,9 @@ export default function LexicalEditor({
   // than pretending to work.
   onAiAction = null,
   getTitle = null,
+  // (query) => [{ id, title, category }] — powers the @ guide picker.
+  // Omitted → the picker never opens (no endpoint guessed on the host's behalf).
+  searchGuides = null,
 }) {
   const appendRef = useRef(null);
   const lastEmittedRef = useRef(value);
@@ -1811,6 +1815,7 @@ export default function LexicalEditor({
         <PasteImagePlugin />
         <SlashCommandPlugin />
         <AiAssistantPlugin onAiAction={onAiAction} getTitle={getTitle} />
+        <MentionPlugin searchGuides={searchGuides} />
         {/* FloatingToolbarPlugin removed */}
         <MarkdownShortcutPlugin transformers={TRANSFORMERS} />
         <OnChangePlugin onChange={handleChange} ignoreSelectionChange />

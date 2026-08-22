@@ -21,6 +21,7 @@ import { EmbedNode } from './EmbedNode';
 import { CalloutNode } from './CalloutNode';
 import { ToggleNode, ToggleSummaryNode } from './ToggleNode';
 import { ColumnsNode, ColumnNode } from './ColumnsNode';
+import { MentionNode } from './MentionNode';
 
 export const NODES = [
   ImageNode,
@@ -30,6 +31,7 @@ export const NODES = [
   ToggleSummaryNode,
   ColumnsNode,
   ColumnNode,
+  MentionNode,
   HeadingNode,
   QuoteNode,
   CodeNode,

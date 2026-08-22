@@ -911,3 +911,68 @@ body.editor-dark .lexical-toggle-summary:hover { background: rgba(255, 255, 255,
 
 [data-theme="dark"] .lexical-ai-btn,
 body.editor-dark .lexical-ai-btn { border-color: #C79A15; }
+
+/* ── @mention chips + picker (MentionNode / MentionPlugin) ─────────────────
+   The chip styling lives here (shared file) because the portal reader renders
+   mentions too — a guide that links to another guide has to look the same once
+   published. The picker is editor-only but kept alongside it. */
+.lexical-mention {
+  display: inline;
+  padding: 1px 5px;
+  margin: 0 1px;
+  border-radius: 5px;
+  background: rgb(var(--color-primary-rgb, 0 82 204) / 0.10);
+  color: rgb(var(--color-primary-rgb, 0 82 204));
+  font-weight: 600;
+  box-decoration-break: clone;          /* keeps the pill intact across a line wrap */
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+}
+.lexical-mention::before { content: '@'; opacity: 0.55; }
+.lexical-mention:hover { background: rgb(var(--color-primary-rgb, 0 82 204) / 0.18); }
+
+/* Picker. Positioned relative to the editor root, which is why the plugin
+   measures against getRootElement() rather than the viewport. */
+.lexical-mention-menu {
+  position: absolute;
+  z-index: 40;
+  min-width: 260px;
+  max-width: 340px;
+  padding: 4px;
+  background: rgb(var(--color-surface-rgb, 255 255 255));
+  border: 1px solid rgb(var(--color-border-rgb, 223 225 230));
+  border-radius: 10px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.14);
+  font-size: 13px;
+}
+.lexical-mention-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.lexical-mention-item.is-active { background: rgb(var(--color-primary-rgb, 0 82 204) / 0.10); }
+.lexical-mention-title {
+  font-weight: 600;
+  color: rgb(var(--color-text-rgb, 33 30 30));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lexical-mention-cat {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: rgb(var(--color-text-muted-rgb, 68 56 48) / 0.75);
+}
+.lexical-mention-empty {
+  padding: 9px 10px;
+  color: rgb(var(--color-text-secondary-rgb, 100 88 80));
+  font-size: 12.5px;
+}

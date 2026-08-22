@@ -29,7 +29,7 @@ import './editor.css';
 // NOTE: no <StrictMode>. It double-invokes effects, and Lexical's editor
 // instance is created in one — under Strict the second pass reinitialises the
 // editor and the initial value is lost. Upstream mounts it unwrapped too.
-function GuideEditorRoot({ initialValue, placeholder, onChange, toolbarTarget, onAiAction, getTitle }) {
+function GuideEditorRoot({ initialValue, placeholder, onChange, toolbarTarget, onAiAction, getTitle, searchGuides }) {
   // Lexical's `value` prop is read on mount only; keeping it in a ref (rather
   // than state) means a parent re-render cannot clobber what the user is typing.
   const initial = useRef(initialValue);
@@ -60,6 +60,7 @@ function GuideEditorRoot({ initialValue, placeholder, onChange, toolbarTarget, o
         // Host-provided AI bridge; see mount()'s onAiAction option.
         onAiAction={onAiAction}
         getTitle={getTitle}
+        searchGuides={searchGuides}
       />
     </div>
   );
@@ -75,7 +76,7 @@ function GuideEditorRoot({ initialValue, placeholder, onChange, toolbarTarget, o
  * @param {string}   [opts.placeholder]
  * @returns {{getValue: Function, setValue: Function, destroy: Function, toPlainText: Function}}
  */
-export function mount(el, { value = '', onChange, onUpload, placeholder, toolbarTarget = null, onAiAction = null, getTitle = null } = {}) {
+export function mount(el, { value = '', onChange, onUpload, placeholder, toolbarTarget = null, onAiAction = null, getTitle = null, searchGuides = null } = {}) {
   if (!el) throw new Error('GuideEditor.mount: target element is required');
 
   // Legacy rows hold Markdown, not Lexical JSON. Convert with Lexical's own
@@ -115,6 +116,7 @@ export function mount(el, { value = '', onChange, onUpload, placeholder, toolbar
         toolbarTarget={toolbarTarget}
         onAiAction={onAiAction}
         getTitle={getTitle}
+        searchGuides={searchGuides}
       />,
     );
   };
