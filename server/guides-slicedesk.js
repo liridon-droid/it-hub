@@ -105,7 +105,18 @@ function isLexicalJson(value) {
 // SliceDesk portal feed row → IT Hub guide shape.
 function toGuide(g, { withBody = false } = {}) {
   return {
-    id: g.id, // numeric how_to_guides id — the Portal frontend requires /^\d+$/
+    // Number(), NOT g.id verbatim. how_to_guides.id is BIGSERIAL (int8), and
+    // node-postgres serialises int8 as a STRING to avoid precision loss — so
+    // SliceDesk's feed sends "30", not 30. The admin console hard-asserts
+    // `typeof snapshot.id === 'number'` before it will open a guide
+    // (public/admin.html startEditGuide), so a string here made every guide
+    // fail to open with "Server returned an invalid guide." The Portal SPA is
+    // equally strict: it only loads content when /^\d+$/ matches.
+    //
+    // Safe: BIGSERIAL starts at 1, so these ids are nowhere near 2^53 where a
+    // JS number would start losing precision. This is also the single choke
+    // point for every read — list, detail and pins all build rows through here.
+    id: Number(g.id),
     title: g.title,
     category: g.category,
     tags: parseTags(g.tags),
