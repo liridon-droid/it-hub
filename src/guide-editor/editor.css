@@ -160,19 +160,39 @@ body.editor-dark #ed-toolbar,
   padding-right: 0;
 }
 #ed-toolbar .guide-toolbar-row {
-  /* Same box as the document column: admin.html's
-     `.editor-page { max-width: 830px; margin: 0 auto }`. Below 830px both are
-     full-width, above it both centre, so they track each other at every size. */
-  max-width: 830px;
-  margin-inline: auto;
-  width: 100%;
-  /* Line the first ICON up with the first character of the text:
-     24px (.editor-page padding) + 64px (.editor-body padding) + 1px border
-     - 8px (the button's own p-2, which is invisible hit area). */
-  padding-left: 81px;
-  /* Not mirrored: the buttons are left-aligned and flex-wrap, so a large right
-     padding would only make the row wrap sooner for no visual gain. */
-  padding-right: 24px;
+  /* Align the row's left edge with the DOCUMENT CARD's left edge, and leave the
+   * right side unconstrained.
+   *
+   * The first attempt capped the row at 830px (the document's own width) and
+   * centred it. That aligned it, but ~30 buttons no longer fit in 749px of
+   * usable width, so the toolbar wrapped onto a second line.
+   *
+   * calc() gives the same left inset without capping the width: max() resolves
+   * the centring offset the document gets from `margin: 0 auto` (zero until the
+   * window exceeds 830px), plus the column's own 24px padding, minus the
+   * button's 8px p-2 so the first ICON lands on the card edge rather than the
+   * button's invisible hit area. The row then keeps the full window width for
+   * its buttons and has more room than it did before any of this. */
+  padding-left: calc(max(0px, (100% - 830px) / 2) + 16px);
+  padding-right: 16px;
+}
+
+/* Below 1040px the indent costs more than it is worth, so give the width back.
+ *
+ * Measured, not guessed: the 37 toolbar children (buttons, separators, dropdown
+ * triggers) have an intrinsic width of 899px. One line therefore needs a
+ * viewport of at least 1032px WITH the card-aligned indent (available width is
+ * vw/2 + 399), but only 911px without it. In the 911–1032px band the indent is
+ * the sole cause of a second row — which looks worse than sitting near the
+ * edge, especially as the document card is close to the edge at those sizes too.
+ *
+ * Below 911px the toolbar wraps whatever we do; that is pre-existing and not
+ * something this rule can fix. 1040px carries a little margin over 1032. */
+@media (max-width: 1040px) {
+  #ed-toolbar .guide-toolbar-row {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
 }
 
 /* Active toolbar buttons render as `bg-primary/15 text-primary`, and `primary`
