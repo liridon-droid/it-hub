@@ -9405,21 +9405,99 @@ function TicketsTab({ label, active, onClick, badge }) {
   );
 }
 
+// Resolve the two parties of an on-behalf request, framed from the VIEWER's side.
+//
+// ⚠️ Reads `requested_for` / `raised_by` FIRST. The ticket module records
+// "on behalf of" two different ways depending on which app created the request
+// — the requester/submitter columns for portal-raised ones, a separate
+// secondary-requester row for agent-raised ones — and it now normalises both
+// into these two fields on the ticket payload. The submitter fallback below is
+// what this used to do on its own, kept for an older module that predates the
+// normalised fields.
+//
+// Returns null for an ordinary self-request.
+function resolveOnBehalf(ticket) {
+  if (!ticket) return null;
+  const me    = (typeof window !== 'undefined' && window.PORTAL_CURRENT_ID != null) ? String(window.PORTAL_CURRENT_ID) : '';
+  const myEm  = (typeof window !== 'undefined' && window.PORTAL_CURRENT_EMAIL) ? String(window.PORTAL_CURRENT_EMAIL).toLowerCase() : '';
+
+  let forP = null, byP = null;
+  if (ticket.on_behalf && ticket.requested_for && ticket.raised_by) {
+    forP = { id: String(ticket.requested_for.id ?? ''), name: ticket.requested_for.name || 'someone', email: String(ticket.requested_for.email || '').toLowerCase() };
+    byP  = { id: String(ticket.raised_by.id ?? ''),     name: ticket.raised_by.name || 'someone',     email: String(ticket.raised_by.email || '').toLowerCase() };
+  } else {
+    const reqId = ticket.requester_id != null ? String(ticket.requester_id) : '';
+    const subId = ticket.submitter_id != null ? String(ticket.submitter_id) : '';
+    if (!subId || subId === reqId) return null;
+    forP = { id: reqId, name: ticket.requester_name || 'someone', email: String(ticket.requester_email || '').toLowerCase() };
+    byP  = { id: subId, name: ticket.submitter_name || 'someone', email: String(ticket.submitter_email || '').toLowerCase() };
+  }
+  if (!forP || !byP) return null;
+
+  const isMe = (p) => (me && p.id && p.id === me) || (myEm && p.email && p.email === myEm);
+  return { forP, byP, viewerIsBeneficiary: isMe(forP), viewerIsFiler: isMe(byP) };
+}
+
+// Initials for the small avatar bubble.
+function obInitials(name) {
+  return String(name || '').trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
+}
+
+// "Raised for you by ‹person›" callout for the ticket page.
+//
+// The grey "Opened by ‹name›" meta field this replaces sat fifth in a row of
+// six muted fields, and it read as a system detail rather than as the answer to
+// the question people were actually asking — "who raised this for me?" Said
+// plainly, from the reader's side, in one line.
+function OnBehalfBanner({ ticket }) {
+  const ob = resolveOnBehalf(ticket);
+  if (!ob) return null;
+  const { forP, byP, viewerIsBeneficiary, viewerIsFiler } = ob;
+  // Whose name to show is whichever one the reader ISN'T.
+  const person = viewerIsBeneficiary ? byP : forP;
+  const text = viewerIsBeneficiary
+    ? <>Raised for you by <b style={{ color: '#211E1E', fontWeight: 800 }}>{byP.name}</b></>
+    : viewerIsFiler
+      ? <>You raised this for <b style={{ color: '#211E1E', fontWeight: 800 }}>{forP.name}</b></>
+      : <>Raised for <b style={{ color: '#211E1E', fontWeight: 800 }}>{forP.name}</b> by <b style={{ color: '#211E1E', fontWeight: 800 }}>{byP.name}</b></>;
+  return (
+    <div style={{
+      display: 'inline-flex', alignItems: 'center', gap: 8,
+      padding: '5px 12px 5px 5px', marginBottom: 10,
+      background: '#FFF9EC', border: '1px solid #211E1E', borderRadius: 999,
+      boxShadow: '1px 1px 0 #211E1E', maxWidth: '100%',
+    }}>
+      <span aria-hidden="true" style={{
+        width: 21, height: 21, borderRadius: 999, flexShrink: 0, boxSizing: 'border-box',
+        background: '#FDC831', border: '1px solid #211E1E', display: 'grid', placeItems: 'center',
+        fontFamily: "'Archivo', sans-serif", fontSize: 9, fontWeight: 900, color: '#211E1E', lineHeight: 1,
+      }}>{obInitials(person.name)}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#55503F', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
 // "For ‹person›" / "Opened by ‹person›" chip — the on-behalf relationship, framed
 // from the viewer's side. A ticket is FOR its requester and was OPENED BY its
 // submitter; when they differ we show which side you're on (the industry-standard
 // requester-vs-submitter display). Renders nothing for an ordinary self-request.
 function OnBehalfTag({ ticket, size = 11 }) {
-  const me = (typeof window !== 'undefined' && window.PORTAL_CURRENT_ID != null) ? String(window.PORTAL_CURRENT_ID) : '';
-  const reqId = ticket.requester_id != null ? String(ticket.requester_id) : '';
-  const subId = ticket.submitter_id != null ? String(ticket.submitter_id) : '';
-  if (!subId || subId === reqId) return null; // self-request → no tag
+  // Shares resolveOnBehalf with the ticket-page banner, so the list chip and
+  // the page agree — and so an AGENT-raised on-behalf request (recorded as a
+  // secondary requester rather than in the submitter column) gets a chip at
+  // all. Previously this read submitter_id directly and showed nothing for
+  // those.
+  const ob = resolveOnBehalf(ticket);
+  if (!ob) return null; // self-request → no tag
+  const { forP, byP, viewerIsBeneficiary, viewerIsFiler } = ob;
   let prefix = null, name = null;
-  if (me && subId === me && reqId !== me)      { prefix = 'For';       name = ticket.requester_name || 'someone'; }
-  else if (me && reqId === me && subId !== me) { prefix = 'Opened by'; name = ticket.submitter_name || 'someone'; }
-  else if (ticket.requester_name)              { prefix = 'For';       name = ticket.requester_name; } // viewer is neither
-  if (!prefix) return null;
-  const initials = name.trim().split(/\s+/).slice(0, 2).map((w) => w.charAt(0).toUpperCase()).join('') || '?';
+  if (viewerIsFiler)            { prefix = 'For';       name = forP.name; }
+  else if (viewerIsBeneficiary) { prefix = 'Opened by'; name = byP.name; }
+  else                          { prefix = 'For';       name = forP.name; } // viewer is neither
+  if (!prefix || !name) return null;
+  const initials = obInitials(name);
   const label = `${prefix} ${name}`;
   return (
     <span title={label} style={{
@@ -10325,11 +10403,13 @@ function TicketDetailView({ id, onBack, initial, list, onNavigate, onClosed, onT
                     {closeReopenButtons()}
                   </div>
                 </div>
+                {/* Who raised this for whom — said once, plainly, above the meta
+                    row. The "Opened by" field that used to live in that row is
+                    gone: it duplicated this and was the easiest thing on the
+                    page to miss. */}
+                <OnBehalfBanner ticket={t} />
                 <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: '#78684C', fontWeight: 600 }}>
                   {t.requester_name && <span>Requested by <b style={{ color: '#55503F' }}>{t.requester_name}</b></span>}
-                  {t.submitter_name && String(t.submitter_id ?? '') !== String(t.requester_id ?? '') && (
-                    <span>Opened by <b style={{ color: '#55503F' }}>{t.submitter_name}</b></span>
-                  )}
                   {t.priority && <span>Priority: <b style={{ color: '#55503F', textTransform: 'capitalize' }}>{t.priority}</b></span>}
                   {t.created_at && <span>Opened {relativeTime(t.created_at)}</span>}
                   {t.assignments && t.assignments.length > 0 && <span>Assigned to IT</span>}
