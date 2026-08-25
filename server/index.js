@@ -173,6 +173,38 @@ function ticketProxyError(res, err, label) {
 // behalf of another person (requested_for, from the portal's user picker); the
 // catalog route still passes the signed-in user as the submitter (audit +
 // manager auto-approve). No/own beneficiary → an ordinary self-request.
+// Is the signed-in user the BENEFICIARY of a request someone else raised for
+// them, as recorded under the ticket module's *other* on-behalf convention?
+//
+// ⚠️ There are two, and only one of them is visible in the ticket's own columns
+// (see the module's services/onBehalf.js):
+//   • portal-raised → the beneficiary IS `requester_*` and the manager who
+//     filed is `submitter_*`. Both are covered by the existing checks below.
+//   • agent-raised  → the beneficiary is a `ticket_secondary_requesters` row
+//     and appears in NEITHER column, so every ownership check here said the
+//     ticket belonged to someone else.
+//
+// The module now normalises both into `requested_for` / `raised_by` on the
+// ticket payload and notifies the beneficiary either way — so without this arm
+// those users would receive a notification linking to a ticket the portal then
+// refused to show them.
+//
+// Deliberately ADDITIVE: each call site keeps its own rule and simply widens by
+// this one clause, rather than being rewritten onto a single unified rule.
+// These are ownership checks; consolidating their differing strictness (the
+// email sites fail closed on a missing address, the id sites allow a null
+// requester_id) is not something to do as a side effect of another change.
+function isOnBehalfBeneficiary(u, t) {
+  if (!u || !t) return false;
+  const rf = t.requested_for;
+  if (!rf) return false;
+  const uid = String(u.id ?? '').trim();
+  const uem = String(u.email ?? '').trim().toLowerCase();
+  if (uid && String(rf.id ?? '').trim() === uid) return true;
+  if (uem && String(rf.email ?? '').trim().toLowerCase() === uem) return true;
+  return false;
+}
+
 function resolveRequester(u, requestedFor) {
   if (requestedFor && requestedFor.id && String(requestedFor.id) !== String(u.id)) {
     return {
@@ -249,12 +281,24 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
   const u = req.user;
   const uid = String(u.id);
   const status = req.query.status ? String(req.query.status) : null;
-  // Two filters: tickets you're the requester of, AND tickets you opened on
-  // someone's behalf. Issued explicitly (rather than the module's involving_id OR)
-  // so this stays correct against an OLDER module that doesn't know the submitter
-  // filter yet: requester_id is always honored, so you never lose your own tickets;
-  // the submitter call yields nothing extra until the module is deployed. No
-  // regression in either deploy order.
+  // THREE filters, covering every way you can be party to a request:
+  //   requester_id     — you asked for it
+  //   submitter_id     — you raised it for someone else via this portal
+  //   requested_for_id — someone else (an IT agent, in the ticketing system)
+  //                      raised it FOR you. That relationship lives in the
+  //                      module's secondary-requester table, not in either
+  //                      column above, so neither of the first two can find it.
+  //
+  // Issued as separate calls rather than one combined "any involvement" query
+  // because the module has no such filter — despite what an earlier version of
+  // this comment claimed about an `involving_id` param. There is none; grep the
+  // module if in doubt.
+  //
+  // Separate calls also keep this correct in EITHER deploy order: requester_id
+  // is always honored, so you never lose your own tickets; a filter an older
+  // module doesn't recognise simply yields nothing usable, because the module
+  // ignores unknown params and the ownership check below then discards what it
+  // returns. No regression whichever side ships first.
   // NOTE: do NOT switch this to a requester_email query — the ticket module's
   // /tickets list endpoint has no such filter and silently ignores unknown params,
   // returning the newest tickets company-wide (so the ownership filter below
@@ -290,13 +334,27 @@ app.get('/api/tickets', requireSliceUser, async (req, res) => {
     return out;
   };
   try {
-    const [mine, onBehalf] = await Promise.all([fetchBy('requester_id'), fetchBy('submitter_id')]);
+    const [mine, onBehalf, raisedForMe] = await Promise.all([
+      fetchBy('requester_id'), fetchBy('submitter_id'), fetchBy('requested_for_id'),
+    ]);
     // Merge + dedup, and defensively keep only tickets the caller is actually
-    // party to — so an ignored submitter filter on an old module (which would
-    // return everyone's tickets) can never leak someone else's into your list.
+    // party to — so an ignored filter on an old module (which would return
+    // everyone's tickets) can never leak someone else's into your list.
+    //
+    // ⚠️ The third arm is what makes that safety net hold for the new filter.
+    // isOnBehalfBeneficiary reads the module's normalised `requested_for` field,
+    // so on an OLDER module — which ignores `requested_for_id` and answers with
+    // the newest tickets company-wide, carrying no `requested_for` — it returns
+    // false for every row and the whole batch is discarded. Fails closed by
+    // construction, rather than by us trusting that the module applied the
+    // filter we asked for.
     const byId = new Map();
-    for (const t of [...mine, ...onBehalf]) {
-      if (String(t.requester_id) === uid || String(t.submitter_id ?? '') === uid) byId.set(t.id, t);
+    for (const t of [...mine, ...onBehalf, ...raisedForMe]) {
+      if (String(t.requester_id) === uid ||
+          String(t.submitter_id ?? '') === uid ||
+          isOnBehalfBeneficiary(u, t)) {
+        byId.set(t.id, t);
+      }
     }
     // Most-recently-active first, not most-recently-created: a comment or a
     // re-open bumps updated_at, so the ticket you just touched surfaces at the
@@ -329,7 +387,8 @@ app.get('/api/tickets/:id', requireSliceUser, async (req, res) => {
     // Requester OR submitter: whoever the ticket is for, and whoever opened it
     // on their behalf, can both read it — same party rule as the list and the
     // status/priority routes. Still fails closed when emails are absent.
-    if (!userEmail || !requesterEmail || (userEmail !== requesterEmail && userEmail !== submitterEmail)) {
+    if ((!userEmail || !requesterEmail || (userEmail !== requesterEmail && userEmail !== submitterEmail))
+        && !isOnBehalfBeneficiary(u, data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json(data);
@@ -357,7 +416,8 @@ app.post('/api/tickets/:id/comments', requireSliceUser, async (req, res) => {
     const submitterEmailC = (look.data.submitter_email || '').trim().toLowerCase();
     // Same party rule as GET /api/tickets/:id — the on-behalf submitter can
     // reply on the ticket they opened (attributed to them, as themselves).
-    if (!userEmailC || !requesterEmailC || (userEmailC !== requesterEmailC && userEmailC !== submitterEmailC)) {
+    if ((!userEmailC || !requesterEmailC || (userEmailC !== requesterEmailC && userEmailC !== submitterEmailC))
+        && !isOnBehalfBeneficiary(u, look.data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/comments`, {
@@ -406,7 +466,7 @@ app.post('/api/tickets/:id/status', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { status: target });
@@ -431,7 +491,7 @@ app.post('/api/tickets/:id/priority', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('PATCH', `/tickets/${encodeURIComponent(req.params.id)}`, { priority });
@@ -459,7 +519,7 @@ app.post('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     const { ok, status, data } = await ticketModuleFetch('POST', `/tickets/${encodeURIComponent(req.params.id)}/attachments`, {
@@ -509,7 +569,7 @@ app.get('/api/tickets/:id/attachments/:attId/content', requireSliceUser, async (
     // user could read anyone's file by guessing ids (same rule as GET /tickets/:id).
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
 
@@ -608,7 +668,7 @@ app.get('/api/tickets/:id/attachments', requireSliceUser, async (req, res) => {
   try {
     const look = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(req.params.id)}`);
     if (!look.ok) return res.status(look.status).json({ error: look.data.error || `Ticket service returned ${look.status}` });
-    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id)) {
+    if (look.data.requester_id != null && String(look.data.requester_id) !== String(u.id) && String(look.data.submitter_id ?? '') !== String(u.id) && !isOnBehalfBeneficiary(u, look.data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     if (Array.isArray(look.data.attachments)) return res.json({ attachments: look.data.attachments });
@@ -673,7 +733,8 @@ app.get('/api/bot/ticket/:idOrNumber', requireBotOrUser, async (req, res) => {
     const { ok, status, data } = await ticketModuleFetch('GET', `/tickets/${encodeURIComponent(idOrNumber)}`);
     if (!ok) return res.status(status).json({ error: data.error || `Ticket service returned ${status}` });
     if (data.requester_id != null && String(data.requester_id) !== String(req.user.id) &&
-        String(data.submitter_id ?? '') !== String(req.user.id)) {
+        String(data.submitter_id ?? '') !== String(req.user.id) &&
+        !isOnBehalfBeneficiary(req.user, data)) {
       return res.status(403).json({ error: 'This ticket belongs to someone else.' });
     }
     res.json({
