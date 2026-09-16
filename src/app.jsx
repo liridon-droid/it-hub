@@ -1213,9 +1213,89 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           })}
         </div>
       </div>
+
+      {/* Browser extension — last on the page because it is the one thing here
+          that is not a task. Chrome installs from the Web Store. Firefox
+          installs the SIGNED file served by this Portal (public/companion/),
+          which is also where its update manifest lives — Mozilla signs
+          self-distributed add-ons but does not host them. */}
+      <div style={{
+        maxWidth: 1120, margin: "72px auto 0",
+        animation: "fadeUp .8s .5s var(--ease) both"
+      }}>
+        <div style={{ marginBottom: 18 }}>
+          <h2 style={{
+            fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.025em", color: "#000000",
+            fontFamily: "Archivo, sans-serif",
+          }}>
+            SliceDesk in your browser
+          </h2>
+          <div style={{ fontSize: 13.5, color: "#2E2410", marginTop: 6, fontWeight: 500, maxWidth: 640, lineHeight: 1.5 }}>
+            Your requests, approvals and replies from IT, one click from the toolbar, with desktop alerts.
+            Nothing to set up — it uses the login you already have.
+          </div>
+        </div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 10,
+        }}>
+          {COMPANION_DOWNLOADS.map((b) => (
+            <a key={b.name} href={b.href}
+              target={b.external ? "_blank" : undefined}
+              rel={b.external ? "noopener noreferrer" : undefined}
+              className="surface surface-interactive"
+              style={{ padding: "14px 16px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14,
+                       textDecoration: "none", color: "inherit" }}>
+              <div className="svc-icon" style={{
+                width: 40, height: 40, borderRadius: 10,
+                background: "#FFFFFF", border: "1px solid #000000",
+                display: "grid", placeItems: "center", flexShrink: 0,
+              }}>{b.icon}</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#000000", letterSpacing: "-0.012em" }}>{b.name}</div>
+                <div style={{ fontSize: 12.5, color: "#5C4916", fontWeight: 500, marginTop: 2 }}>{b.body}</div>
+              </div>
+              <span className="pill-flat" style={{ fontSize: 11, padding: "4px 10px", fontWeight: 700, flexShrink: 0 }}>
+                {b.cta} →
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
     </div>);
 
 }
+
+// ---------- BROWSER EXTENSION DOWNLOADS ----------
+// Chrome: the Web Store listing (unlisted — link-only, auto-updates).
+// Firefox: the signed .xpi in public/companion/, served with the xpinstall
+// mime type so Firefox opens its install prompt. Bump the version here when a
+// new signed file is dropped into that folder (see public/companion/README.md).
+const COMPANION_CHROME_URL = "https://chromewebstore.google.com/detail/slicedesk-companion/fnagjegbeojhopjbcfmjlcoidkiplnla";
+const COMPANION_FIREFOX_VERSION = "1.4.0";
+const COMPANION_FIREFOX_URL = `${import.meta.env.BASE_URL}companion/slicedesk-companion-${COMPANION_FIREFOX_VERSION}-firefox.xpi`;
+
+const ChromeMark = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <circle cx="12" cy="12" r="3.4" />
+    <path d="M12 8.6h8.4M9.1 13.7L4.9 6.5M14.9 13.7l-4.2 7.3" />
+  </svg>
+);
+const FirefoxMark = (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 21a9 9 0 1 0-8.6-11.6c1.3-1.7 3.1-2.4 4.6-2.2C7.2 8.6 7 10.6 8 12.3c.7-.9 1.7-1.3 2.8-1.2-1.3 1-1.4 2.6-.5 3.8 1.5 1.8 4.3 1.3 5-.9 1.2 2.7-.4 5.7-3.3 7Z" />
+    <path d="M12 3c2.6 0 4.9 1.1 6.5 2.9" />
+  </svg>
+);
+
+const COMPANION_DOWNLOADS = [
+  { name: "Chrome", body: "Install from the Chrome Web Store · updates itself",
+    cta: "Get it", href: COMPANION_CHROME_URL, external: true, icon: ChromeMark },
+  { name: "Firefox", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · click once, then Allow access`,
+    cta: "Install", href: COMPANION_FIREFOX_URL, external: false, icon: FirefoxMark },
+];
 
 // Fast-access guide cards — the most-opened knowledge articles, one tap from
 // the landing screen. Action "guide" jumps straight into the article.
