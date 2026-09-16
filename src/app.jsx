@@ -1213,9 +1213,96 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           })}
         </div>
       </div>
+
+      {/* Browser extension — last on the page because it is the one thing here
+          that is not a task. Chrome installs from the Web Store. Firefox
+          installs the SIGNED file served by this Portal (public/companion/),
+          which is also where its update manifest lives — Mozilla signs
+          self-distributed add-ons but does not host them. */}
+      <div style={{
+        maxWidth: 1120, margin: "72px auto 0",
+        animation: "fadeUp .8s .5s var(--ease) both"
+      }}>
+        <div style={{ marginBottom: 18 }}>
+          <h2 style={{
+            fontSize: 28, fontWeight: 600, margin: 0, letterSpacing: "-0.025em", color: "#000000",
+            fontFamily: "Archivo, sans-serif",
+          }}>
+            SliceDesk in your browser
+          </h2>
+          <div style={{ fontSize: 13.5, color: "#2E2410", marginTop: 6, fontWeight: 500, maxWidth: 680, lineHeight: 1.5 }}>
+            The <b>SliceDesk Companion</b> — a browser extension for Chrome and an add-on for Firefox.
+            Your requests, approvals and replies from IT, one click from the toolbar, with desktop alerts.
+            Nothing to set up: it uses the login you already have.
+          </div>
+        </div>
+        <style>{`
+          /* The card lifts like every other surface on the page; the pill and
+             the logo join in, so the whole card reads as one button. */
+          .companion-card .pill-link { transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .16s ease, box-shadow .18s ease; }
+          .companion-card:hover .pill-link { transform: translate(-2px, -2px); background: #FDC831;
+            box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(33,30,30,.12); }
+          .companion-card:hover .pill-link-arrow { transform: translateX(3px); }
+          .companion-card .companion-logo { transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
+          .companion-card:hover .companion-logo { transform: scale(1.08) rotate(-3deg); }
+          .companion-card:active { transform: translate(1px, 1px); }
+          @media (prefers-reduced-motion: reduce) {
+            .companion-card .pill-link, .companion-card .companion-logo { transition: none; }
+          }
+        `}</style>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 10,
+        }}>
+          {COMPANION_DOWNLOADS.map((b) => (
+            <a key={b.name} href={b.href}
+              target={b.external ? "_blank" : undefined}
+              rel={b.external ? "noopener noreferrer" : undefined}
+              className="surface surface-interactive companion-card"
+              style={{ padding: "14px 16px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14,
+                       textDecoration: "none", color: "inherit" }}>
+              <div className="svc-icon" style={{
+                width: 44, height: 44, borderRadius: 10,
+                background: "#FFFFFF", border: "1px solid #000000",
+                display: "grid", placeItems: "center", flexShrink: 0,
+              }}>
+                <img className="companion-logo" src={b.logo} alt="" width="28" height="28" style={{ display: "block" }} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: "#000000", letterSpacing: "-0.012em" }}>{b.name}</div>
+                <div style={{ fontSize: 12.5, color: "#5C4916", fontWeight: 500, marginTop: 2 }}>{b.body}</div>
+              </div>
+              <span className="pill-link" style={{ flexShrink: 0 }}>
+                {b.cta} <span className="pill-link-arrow">→</span>
+              </span>
+            </a>
+          ))}
+        </div>
+      </div>
     </div>);
 
 }
+
+// ---------- BROWSER EXTENSION DOWNLOADS ----------
+// Chrome: the Web Store listing (unlisted — link-only, auto-updates).
+// Firefox: the signed .xpi in public/companion/, served with the xpinstall
+// mime type so Firefox opens its install prompt. Bump the version here when a
+// new signed file is dropped into that folder (see public/companion/README.md).
+const COMPANION_CHROME_URL = "https://chromewebstore.google.com/detail/slicedesk-companion/fnagjegbeojhopjbcfmjlcoidkiplnla";
+const COMPANION_FIREFOX_VERSION = "1.4.0";
+const COMPANION_FIREFOX_URL = `${import.meta.env.BASE_URL}companion/slicedesk-companion-${COMPANION_FIREFOX_VERSION}-firefox.xpi`;
+
+// The browsers' real logos (public/companion/logos/, the official SVGs), not
+// line-art stand-ins: people recognise the mark before they read the word.
+const COMPANION_LOGO = (name) => `${import.meta.env.BASE_URL}companion/logos/${name}.svg`;
+
+const COMPANION_DOWNLOADS = [
+  { name: "Chrome extension", body: "From the Chrome Web Store · updates itself",
+    cta: "Get it", href: COMPANION_CHROME_URL, external: true, logo: COMPANION_LOGO("chrome") },
+  { name: "Firefox add-on", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · one click, then Allow access`,
+    cta: "Install", href: COMPANION_FIREFOX_URL, external: false, logo: COMPANION_LOGO("firefox") },
+];
 
 // Fast-access guide cards — the most-opened knowledge articles, one tap from
 // the landing screen. Action "guide" jumps straight into the article.
