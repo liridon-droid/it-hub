@@ -1230,11 +1230,26 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
           }}>
             SliceDesk in your browser
           </h2>
-          <div style={{ fontSize: 13.5, color: "#2E2410", marginTop: 6, fontWeight: 500, maxWidth: 640, lineHeight: 1.5 }}>
+          <div style={{ fontSize: 13.5, color: "#2E2410", marginTop: 6, fontWeight: 500, maxWidth: 680, lineHeight: 1.5 }}>
+            The <b>SliceDesk Companion</b> — a browser extension for Chrome and an add-on for Firefox.
             Your requests, approvals and replies from IT, one click from the toolbar, with desktop alerts.
-            Nothing to set up — it uses the login you already have.
+            Nothing to set up: it uses the login you already have.
           </div>
         </div>
+        <style>{`
+          /* The card lifts like every other surface on the page; the pill and
+             the logo join in, so the whole card reads as one button. */
+          .companion-card .pill-link { transition: transform .18s cubic-bezier(.34,1.56,.64,1), background .16s ease, box-shadow .18s ease; }
+          .companion-card:hover .pill-link { transform: translate(-2px, -2px); background: #FDC831;
+            box-shadow: 2px 2px 0 #211E1E, 0 8px 18px rgba(33,30,30,.12); }
+          .companion-card:hover .pill-link-arrow { transform: translateX(3px); }
+          .companion-card .companion-logo { transition: transform .22s cubic-bezier(.34,1.56,.64,1); }
+          .companion-card:hover .companion-logo { transform: scale(1.08) rotate(-3deg); }
+          .companion-card:active { transform: translate(1px, 1px); }
+          @media (prefers-reduced-motion: reduce) {
+            .companion-card .pill-link, .companion-card .companion-logo { transition: none; }
+          }
+        `}</style>
         <div style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
@@ -1244,20 +1259,22 @@ function Landing({ onSubmit, onOpenStatus, onOpenKnowledge, onOpenGuide, onOpenS
             <a key={b.name} href={b.href}
               target={b.external ? "_blank" : undefined}
               rel={b.external ? "noopener noreferrer" : undefined}
-              className="surface surface-interactive"
+              className="surface surface-interactive companion-card"
               style={{ padding: "14px 16px", borderRadius: 12, display: "flex", alignItems: "center", gap: 14,
                        textDecoration: "none", color: "inherit" }}>
               <div className="svc-icon" style={{
-                width: 40, height: 40, borderRadius: 10,
+                width: 44, height: 44, borderRadius: 10,
                 background: "#FFFFFF", border: "1px solid #000000",
                 display: "grid", placeItems: "center", flexShrink: 0,
-              }}>{b.icon}</div>
+              }}>
+                <img className="companion-logo" src={b.logo} alt="" width="28" height="28" style={{ display: "block" }} />
+              </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: "#000000", letterSpacing: "-0.012em" }}>{b.name}</div>
                 <div style={{ fontSize: 12.5, color: "#5C4916", fontWeight: 500, marginTop: 2 }}>{b.body}</div>
               </div>
-              <span className="pill-flat" style={{ fontSize: 11, padding: "4px 10px", fontWeight: 700, flexShrink: 0 }}>
-                {b.cta} →
+              <span className="pill-link" style={{ flexShrink: 0 }}>
+                {b.cta} <span className="pill-link-arrow">→</span>
               </span>
             </a>
           ))}
@@ -1276,25 +1293,15 @@ const COMPANION_CHROME_URL = "https://chromewebstore.google.com/detail/slicedesk
 const COMPANION_FIREFOX_VERSION = "1.4.0";
 const COMPANION_FIREFOX_URL = `${import.meta.env.BASE_URL}companion/slicedesk-companion-${COMPANION_FIREFOX_VERSION}-firefox.xpi`;
 
-const ChromeMark = (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="9" />
-    <circle cx="12" cy="12" r="3.4" />
-    <path d="M12 8.6h8.4M9.1 13.7L4.9 6.5M14.9 13.7l-4.2 7.3" />
-  </svg>
-);
-const FirefoxMark = (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 21a9 9 0 1 0-8.6-11.6c1.3-1.7 3.1-2.4 4.6-2.2C7.2 8.6 7 10.6 8 12.3c.7-.9 1.7-1.3 2.8-1.2-1.3 1-1.4 2.6-.5 3.8 1.5 1.8 4.3 1.3 5-.9 1.2 2.7-.4 5.7-3.3 7Z" />
-    <path d="M12 3c2.6 0 4.9 1.1 6.5 2.9" />
-  </svg>
-);
+// The browsers' real logos (public/companion/logos/, the official SVGs), not
+// line-art stand-ins: people recognise the mark before they read the word.
+const COMPANION_LOGO = (name) => `${import.meta.env.BASE_URL}companion/logos/${name}.svg`;
 
 const COMPANION_DOWNLOADS = [
-  { name: "Chrome", body: "Install from the Chrome Web Store · updates itself",
-    cta: "Get it", href: COMPANION_CHROME_URL, external: true, icon: ChromeMark },
-  { name: "Firefox", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · click once, then Allow access`,
-    cta: "Install", href: COMPANION_FIREFOX_URL, external: false, icon: FirefoxMark },
+  { name: "Chrome extension", body: "From the Chrome Web Store · updates itself",
+    cta: "Get it", href: COMPANION_CHROME_URL, external: true, logo: COMPANION_LOGO("chrome") },
+  { name: "Firefox add-on", body: `Signed by Mozilla · v${COMPANION_FIREFOX_VERSION} · one click, then Allow access`,
+    cta: "Install", href: COMPANION_FIREFOX_URL, external: false, logo: COMPANION_LOGO("firefox") },
 ];
 
 // Fast-access guide cards — the most-opened knowledge articles, one tap from
