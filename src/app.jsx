@@ -4988,6 +4988,32 @@ function markTabSeen(kind, id, updatedAt) {
     window.dispatchEvent(new Event(NOTIF_EVT));
   } catch {}
 }
+// Everything in a list, seen, in ONE write and ONE event. This is "Mark all as
+// read" on My Tickets (IT-105119: "I don't want to go through all 53 tickets").
+// Fifty-three markTabSeen() calls would fire fifty-three NOTIF_EVTs, and the
+// tickets page answers each one with two fetches. Writes the bell's own store
+// too, so the two "have I seen this?" answers agree the way they do when you
+// close a ticket. Returns how many rows actually changed.
+function markAllTabSeen(kind, items, getId, getUpdated) {
+  try {
+    const tab = loadTabSeen();
+    const bell = loadTicketSeen();
+    let changed = 0;
+    for (const it of items || []) {
+      const id = getId(it);
+      if (id == null) continue;
+      const v = getUpdated(it) || '1';
+      if (tab[kind][String(id)] !== v) { tab[kind][String(id)] = v; changed++; }
+      if (kind === 'tickets' && getUpdated(it)) bell[String(id)] = getUpdated(it);
+    }
+    if (!changed) return 0;
+    localStorage.setItem(TAB_SEEN_KEY, JSON.stringify(tab));
+    if (kind === 'tickets') localStorage.setItem(TICKET_SEEN_KEY, JSON.stringify(bell));
+    window.dispatchEvent(new Event(NOTIF_EVT));
+    return changed;
+  } catch { return 0; }
+}
+
 // Count items whose latest update the user hasn't seen. An item is "unseen" if
 // it was never opened, or it changed (updated_at) since you last opened it.
 // `getCreated` (tickets only) suppresses items with no activity since creation —
@@ -9688,6 +9714,14 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
   const unseenIn = (list) => list.reduce((n, t) => n + (ticketUnseenInfo(t, seenMap).unseen ? 1 : 0), 0);
   const unseenOpen = unseenIn(openList);
   const unseenClosed = unseenIn(closedList);
+  // Across everything you have -- open and closed, yours and on-behalf -- not
+  // just the slice on screen: "mark all" that left the other bucket flagged
+  // would be a lie the moment you switched to it.
+  const allTickets = st.tickets || [];
+  const unseenAll = unseenIn(allTickets);
+  const markAllRead = () => {
+    markAllTabSeen('tickets', allTickets, (t) => t.id, (t) => t.updated_at || t.created_at);
+  };
 
   // Paginate the (search-filtered) list — 25 rows per page, matching the full
   // ticketing platform. Prev/next controls sit at the bottom of the list. The
@@ -9791,6 +9825,10 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
           background:#211E1E; color:#FDC831; border-radius:999px;
           font-size:9.5px; font-weight:900; line-height:1; }
         .tkt-facet { position:relative; }
+        /* "Mark all as read": same pill family as the facet toggle, plainer --
+           it is a one-off action, not a state. */
+        .tkt-markall { text-transform:none; letter-spacing:0; font-weight:700; }
+        .tkt-markall .tkt-facet-n { background:#DA3327; color:#FFFFFF; }
         .tkt-facet-dot { position:absolute; top:-4px; right:-3px; width:10px; height:10px;
           border-radius:999px; background:#DA3327; box-shadow:0 0 0 2px #FFFFFF; }
 
@@ -9828,6 +9866,17 @@ function MyTicketsView({ refreshKey, onRefresh, onReportIssue, onRequest, query,
             );
           })}
         </div>
+        {/* Only while something is unread: a control that can do nothing is
+            worse than no control. Clears the row badges, the segment dots and
+            the My tickets tab count in one go. */}
+        {unseenAll > 0 && (
+          <button type="button" onClick={markAllRead} className="tkt-facet tkt-markall"
+            title={`Mark all ${unseenAll} ticket${unseenAll === 1 ? '' : 's'} with unread updates as read`}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M2.5 13l3.5 3.5L13 9.5M11 16.5l1.5 1.5L21 9.5"/></svg>
+            Mark all as read
+            <span className="tkt-facet-n">{unseenAll}</span>
+          </button>
+        )}
         {hasOnBehalf && (
           <RequestedForToggle on={forOthers} onToggle={() => setForOthers((v) => !v)} count={forOthersCount} unseen={unseenIn(onBehalfList)} />
         )}
